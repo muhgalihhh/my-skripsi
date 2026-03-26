@@ -1,0 +1,43 @@
+services:
+  mysql:
+    ports:
+      - '${MYSQL_PORT:-3306}:3306'
+
+  fastapi:
+    volumes:
+      - ./fastapi:/app
+      - fastapi-venv:/app/venv
+      - ./analysis/data:/app/analysis_data:ro
+    environment:
+      - APP_ENV=development
+      - APP_DEBUG=true
+      - CORS_ORIGINS=http://localhost:8080,http://laravel:8080,http://localhost:3000
+    command: ['/app/venv/bin/python', '-m', 'granian', '--interface', 'asgi', '--host', '0.0.0.0', '--port', '8000', '--workers', '1', '--threads', '2', '--log-level', 'debug', 'app.main:app']
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/api/v1/health']
+      start_period: 180s
+
+  laravel:
+    volumes:
+      - ./laravel-app:/var/www/html
+      - laravel-storage:/var/www/html/storage
+      - ./laravel-app/docker/opcache-dev.ini:/usr/local/etc/php/conf.d/opcache.ini:ro
+    environment:
+      - APP_NAME=TopicModeling-Dev
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_URL=http://localhost:8080
+      - APP_KEY=${APP_KEY:-base64:c9iPsejCUy2ho7p+YVbEU+Faxh9Z4IqDqPXoqIqoNCU=}
+      - SESSION_DRIVER=file
+      - CACHE_STORE=file
+      - QUEUE_CONNECTION=sync
+      - SKIP_OPTIMIZE=true
+    healthcheck:
+      start_period: 90s
+
+volumes:
+  fastapi-venv:

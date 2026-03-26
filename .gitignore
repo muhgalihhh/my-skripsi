@@ -1,0 +1,81 @@
+### OS / Editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+.vscode/
+.idea/
+.fleet/
+
+*.swp
+*.swo
+*.tmp
+*.bak
+*.old
+
+### Secrets
+.env
+.env.*
+!.env.example
+
+### Logs
+*.log
+logs/
+
+### Python / FastAPI
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+fastapi/.venv/
+fastapi/venv/
+fastapi/env/
+
+### Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### Laravel / PHP
+laravel-app/vendor/
+laravel-app/node_modules/
+
+laravel-app/storage/*.key
+laravel-app/storage/app/public/
+laravel-app/storage/framework/cache/**
+laravel-app/storage/framework/sessions/**
+laravel-app/storage/framework/views/**
+laravel-app/storage/logs/**
+
+laravel-app/bootstrap/cache/**
+!laravel-app/bootstrap/cache/.gitignore
+
+laravel-app/public/hot
+laravel-app/public/storage
+laravel-app/public/build/
+
+### Build / dist
+dist/
+build/
+
+### Large / generated data (skripsi project)
+data/embeddings/
+data/processed/
+data/results/
+analysis/output/
+analysis/data/
+
+### Jupyter
+.ipynb_checkpoints/
+
