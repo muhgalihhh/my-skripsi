@@ -76,6 +76,10 @@ data/results/
 analysis/output/
 analysis/data/
 
+# Model artifacts (very large) — keep only best model metadata for reproducibility
+analysis/output/models/**
+!analysis/output/models/bertopic_best_model/metadata.json
+
 ### Jupyter
 .ipynb_checkpoints/
 

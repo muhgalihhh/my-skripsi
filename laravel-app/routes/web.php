@@ -9,6 +9,7 @@ use App\Livewire\Jurusan\ProfileEditor;
 use App\Livewire\Jurusan\ScrapingManager;
 use App\Livewire\Jurusan\SkripsiManager;
 use Illuminate\Support\Facades\Route;
+use App\Livewire\Jurusan\TopicModelingManager;
 
 // ============================================
 // Public Routes
@@ -52,4 +53,7 @@ Route::middleware(['auth', EnsureUserIsJurusan::class])
 
         // Edit Profil (Livewire)
         Route::get('/profil', ProfileEditor::class)->name('profil');
+        
+    // Topic Modeling (Livewire)
+    Route::get('/topic-modeling', TopicModelingManager::class)->name('topic-modeling');
     });

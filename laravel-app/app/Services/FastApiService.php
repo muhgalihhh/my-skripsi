@@ -20,6 +20,7 @@ class FastApiService
   public function healthCheck(): array
   {
     try {
+  /** @var \Illuminate\Http\Client\Response $response */
       $response = Http::timeout(5)->get("{$this->baseUrl}/api/v1/health");
 
       if ($response->successful()) {
@@ -48,7 +49,8 @@ class FastApiService
         $payload['max_pages'] = $maxPages;
       }
 
-      $response = Http::timeout(15)
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(15)
         ->post("{$this->baseUrl}/api/v1/scraping/start", $payload);
 
       if ($response->successful()) {
@@ -95,7 +97,8 @@ class FastApiService
       if ($includeMonitoring)
         $params['include_monitoring'] = 'true';
       $query = $params ? '?' . http_build_query($params) : '';
-      $response = Http::timeout(10)
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(10)
         ->get("{$this->baseUrl}/api/v1/scraping/jobs/{$jobId}{$query}");
 
       if ($response->successful()) {
@@ -119,7 +122,8 @@ class FastApiService
   public function cancelJob(string $jobId): array
   {
     try {
-      $response = Http::timeout(10)
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(10)
         ->post("{$this->baseUrl}/api/v1/scraping/jobs/{$jobId}/cancel");
 
       if ($response->successful()) {
@@ -138,7 +142,8 @@ class FastApiService
   public function getScrapingStatus(): array
   {
     try {
-      $response = Http::timeout(5)->get("{$this->baseUrl}/api/v1/scraping/status");
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(5)->get("{$this->baseUrl}/api/v1/scraping/status");
 
       if ($response->successful()) {
         return $response->json();
@@ -147,6 +152,128 @@ class FastApiService
       return ['status' => 'unknown'];
     } catch (\Exception $e) {
       return ['status' => 'unreachable'];
+    }
+  }
+
+  // ============================================
+  // Preprocessing
+  // ============================================
+
+  /**
+   * Run preprocessing pipeline (dual outputs) in FastAPI.
+   */
+  public function runPreprocessing(array $payload = []): array
+  {
+    try {
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(120)
+        ->post("{$this->baseUrl}/api/v1/preprocessing/run", $payload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      return [
+        'status' => 'error',
+        'message' => 'Preprocessing gagal. Status: ' . $response->status(),
+        'detail' => $response->json() ?? $response->body(),
+      ];
+    } catch (\Exception $e) {
+      Log::error('FastAPI preprocessing request failed: ' . $e->getMessage());
+      return [
+        'status' => 'error',
+        'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),
+      ];
+    }
+  }
+
+  // ============================================
+  // Training (BERTopic)
+  // ============================================
+
+  /**
+   * Start BERTopic training job.
+   *
+   * Payload shape follows TrainingRequest schema in FastAPI.
+   */
+  public function startBerTopicTraining(array $bertopicParams = [], ?string $description = null): array
+  {
+    try {
+  $payload = array_filter([
+        'model_type' => 'bertopic',
+        'bertopic_params' => $bertopicParams ?: null,
+        'description' => $description,
+  ], fn($v) => $v !== null);
+
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(30)
+        ->post("{$this->baseUrl}/api/v1/training/start", $payload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      return [
+        'status' => 'error',
+        'message' => 'Gagal memulai training. Status: ' . $response->status(),
+        'detail' => $response->json() ?? $response->body(),
+      ];
+    } catch (\Exception $e) {
+      Log::error('FastAPI start training request failed: ' . $e->getMessage());
+      return [
+        'status' => 'error',
+        'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),
+      ];
+    }
+  }
+
+  /**
+   * Poll training status.
+   */
+  public function getTrainingStatus(string $jobId): array
+  {
+    try {
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(10)
+        ->get("{$this->baseUrl}/api/v1/training/status/{$jobId}");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Training job {$jobId} tidak ditemukan"]; 
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal mendapatkan status training'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI training status check failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
+   * Get training results JSON from FastAPI.
+   */
+  public function getTrainingResults(string $jobId): array
+  {
+    try {
+  /** @var \Illuminate\Http\Client\Response $response */
+  $response = Http::timeout(20)
+        ->get("{$this->baseUrl}/api/v1/training/results/{$jobId}");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Hasil training {$jobId} tidak ditemukan"]; 
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal mendapatkan hasil training'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI training results fetch failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
     }
   }
 }
