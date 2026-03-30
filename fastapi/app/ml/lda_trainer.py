@@ -93,13 +93,18 @@ class LDATrainer:
         Train LDA model.
 
         Args:
-            documents: List of preprocessed text documents
+            documents: List of preprocessed text documents (processed_text — stemmed)
             timestamps: List of years (for per-year analysis, optional)
 
         Returns:
             Dictionary with training results and metrics
+
+        Catatan:
+            LdaMulticore TIDAK mendukung alpha='auto' atau eta='auto'.
+            Gunakan conditional: LdaModel jika salah satu pakai 'auto',
+            LdaMulticore jika keduanya menggunakan nilai fixed (lebih cepat).
         """
-        from gensim.models import LdaMulticore
+        from gensim.models import LdaModel, LdaMulticore
 
         start_time = time.time()
         logger.info(f"Starting LDA training on {len(documents)} documents")
@@ -111,28 +116,51 @@ class LDATrainer:
         self._build_dictionary(self.tokenized_docs)
         self._build_corpus(self.tokenized_docs)
 
-        # Parse alpha and eta
+        # Parse alpha dan eta
         alpha = self._parse_alpha_eta(self.params.alpha)
         eta = self._parse_alpha_eta(self.params.eta)
+
+        # Pilih model berdasarkan parameter:
+        # LdaMulticore TIDAK support alpha='auto' atau eta='auto'
+        # → Jika salah satu 'auto', gunakan LdaModel (single-core, support auto-tuning)
+        # → Jika keduanya non-auto, gunakan LdaMulticore (lebih cepat)
+        use_multicore = alpha != "auto" and eta != "auto"
 
         # Train LDA
         logger.info(
             f"Training LDA with {self.params.num_topics} topics, "
-            f"{self.params.passes} passes..."
+            f"{self.params.passes} passes "
+            f"(model: {'LdaMulticore' if use_multicore else 'LdaModel'}, "
+            f"alpha={alpha}, eta={eta})..."
         )
 
-        self.model = LdaMulticore(
-            corpus=self.corpus,
-            id2word=self.dictionary,
-            num_topics=self.params.num_topics,
-            passes=self.params.passes,
-            iterations=self.params.iterations,
-            chunksize=self.params.chunksize,
-            random_state=self.params.random_state,
-            alpha=alpha,
-            eta=eta,
-            per_word_topics=True,
-        )
+        if use_multicore:
+            # Multicore: lebih cepat untuk parameter fixed
+            self.model = LdaMulticore(
+                corpus=self.corpus,
+                id2word=self.dictionary,
+                num_topics=self.params.num_topics,
+                passes=self.params.passes,
+                iterations=self.params.iterations,
+                chunksize=self.params.chunksize,
+                random_state=self.params.random_state,
+                alpha=alpha,
+                eta=eta,
+                per_word_topics=True,
+            )
+        else:
+            # LdaModel: single-core, tapi support auto-tuning alpha/eta
+            self.model = LdaModel(
+                corpus=self.corpus,
+                id2word=self.dictionary,
+                num_topics=self.params.num_topics,
+                passes=self.params.passes,
+                iterations=self.params.iterations,
+                random_state=self.params.random_state,
+                alpha=alpha,
+                eta=eta,
+                per_word_topics=True,
+            )
 
         duration = time.time() - start_time
         logger.info(f"LDA training complete in {duration:.2f}s")

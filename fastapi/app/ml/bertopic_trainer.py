@@ -6,21 +6,36 @@ Arsitektur embedding:
     - Model      : denaya/indoSBERT-large
     - Fondasi    : IndoBERT-large (indobenchmark/indobert-large-p1)
     - Training   : Siamese Network (sentence-transformers framework)
-    - Output dim : 768-dimensional sentence embeddings
+    - Output dim : 256-dimensional sentence embeddings
     - Bahasa     : Optimized untuk Bahasa Indonesia
 
 BERTopic pipeline:
-    IndoSBERT → UMAP → HDBSCAN → c-TF-IDF → Topic Representation
+    IndoSBERT → UMAP → HDBSCAN → c-TF-IDF → Topic Representation → Reduce Outliers
+
+Catatan preprocessing:
+    BERTopic membutuhkan teks yang di-clean RINGAN (tidak stemming, tidak hapus
+    stopword agresif) karena IndoSBERT dilatih pada kalimat natural Bahasa Indonesia.
+    Gunakan kolom 'cleaned_text' dari preprocessing pipeline, BUKAN 'processed_text'.
 """
 
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# Fix for "Matplotlib created a temporary cache directory ... Errno 13 Permission Denied"
+# Matplotlib attempts to write to /app/.config which appuser cannot write to.
+os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib'
+
 import numpy as np
 import pandas as pd
+import torch
+
+# Fix for "Unable to find torch_shm_manager" inside restrictive Docker environments
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 from app.core.config import (bertopic_settings, hdbscan_settings,
                              path_settings, umap_settings)
 from app.models.schemas import BERTopicHyperparameters
@@ -32,12 +47,13 @@ class BERTopicTrainer:
     Trainer for BERTopic model with IndoSBERT-large embeddings.
 
     Pipeline:
-        1. Load IndoSBERT-large (Siamese from IndoBERT-large) via sentence-transformers
-        2. Compute 768-dim sentence embeddings
+        1. Load IndoSBERT-large (Siamese dari IndoBERT-large) via sentence-transformers
+        2. Compute 256-dim sentence embeddings
         3. UMAP dimensionality reduction
         4. HDBSCAN density-based clustering
         5. c-TF-IDF topic representation + CountVectorizer
-        6. Evaluate with Coherence (C_v) and Topic Diversity
+        6. Reduce outliers (paksa dokumen outlier ke topik terdekat)
+        7. Evaluate dengan Coherence (C_v) dan Topic Diversity
     """
 
     def __init__(self, params: Optional[BERTopicHyperparameters] = None):
@@ -77,15 +93,15 @@ class BERTopicTrainer:
         """
         Load the IndoSBERT-large sentence transformer.
 
-        denaya/indoSBERT-large is IndoBERT-large re-trained using
-        Siamese Network approach, producing high quality sentence
-        embeddings for Indonesian text.
+        denaya/indoSBERT-large adalah IndoBERT-large yang dilatih ulang
+        menggunakan Siamese Network, menghasilkan 256-dim sentence embeddings
+        berkualitas tinggi untuk Bahasa Indonesia.
         """
         from sentence_transformers import SentenceTransformer
 
         logger.info(
             f"Loading sentence encoder: {self.params.embedding_model} "
-            f"(IndoBERT-large + Siamese Network)"
+            f"(IndoBERT-large + Siamese Network, output: 256-dim)"
         )
         return SentenceTransformer(self.params.embedding_model)
 
@@ -115,13 +131,24 @@ class BERTopicTrainer:
         )
 
     def _build_vectorizer(self):
-        """Configure CountVectorizer for c-TF-IDF topic representation."""
+        """
+        Configure CountVectorizer untuk c-TF-IDF topic representation.
+
+        Parameter:
+          - min_df=2   : kata harus muncul minimal di 2 dokumen (toleran untuk cluster kecil)
+          - max_df=0.95: hapus kata yang muncul di >95% dokumen (terlalu umum)
+          - token_pattern: ambil kata dengan minimal 3 huruf
+          - stop_words=None: stopword sudah ditangani di preprocessing
+        """
         from sklearn.feature_extraction.text import CountVectorizer
 
         n_gram_range = tuple(self.params.n_gram_range)
         return CountVectorizer(
             ngram_range=n_gram_range,
-            stop_words=None,  # Already handled in preprocessing
+            stop_words=None,           # Sudah di-handle di preprocessing
+            min_df=2,                  # Toleran untuk cluster kecil (fix dari eksperimen)
+            max_df=0.95,               # Toleran untuk kata umum (fix dari eksperimen)
+            token_pattern=r"(?u)\b\w{3,}\b",  # Minimal 3 huruf per token
         )
 
     def _build_model(self):
@@ -149,11 +176,11 @@ class BERTopicTrainer:
 
     def compute_embeddings(self, documents: List[str]) -> np.ndarray:
         """
-        Pre-compute sentence embeddings using IndoSBERT-large.
+        Pre-compute sentence embeddings menggunakan IndoSBERT-large.
 
-        CATATAN: BERTopic membutuhkan teks yang sudah di-clean tapi
-        TIDAK di-stem, karena IndoSBERT dilatih pada teks natural
-        Bahasa Indonesia. Kolom 'cleaned_text' dari preprocessing.
+        CATATAN: Gunakan 'cleaned_text' dari preprocessing (bukan 'processed_text').
+        IndoSBERT membutuhkan teks natural tanpa stemming/stopword-removal agresif.
+        Output: 256-dimensional embedding vectors per dokumen.
         """
         from sentence_transformers import SentenceTransformer
 
@@ -181,16 +208,16 @@ class BERTopicTrainer:
         Train BERTopic model.
 
         Args:
-            documents: List of CLEANED text (not stemmed!) — for IndoSBERT
-            embeddings: Pre-computed embeddings (optional, will compute if None)
-            timestamps: List of years for Dynamic Topic Analysis (optional)
+            documents: List teks CLEANED (soft clean, bukan stemmed!) untuk IndoSBERT
+            embeddings: Pre-computed embeddings (opsional, akan dihitung jika None)
+            timestamps: List tahun per dokumen untuk Dynamic Topic Analysis (opsional)
 
         Returns:
-            Dictionary with training results and metrics
+            Dictionary berisi training results dan metrics
         """
         start_time = time.time()
         logger.info(f"Starting BERTopic training on {len(documents)} documents")
-        logger.info(f"Embedding model: {self.params.embedding_model}")
+        logger.info(f"Embedding model: {self.params.embedding_model} (256-dim)")
 
         # Build model
         self._build_model()
@@ -205,31 +232,52 @@ class BERTopicTrainer:
             documents, embeddings=embeddings
         )
 
-        # Get topic info
+        # Hitung outlier sebelum reduce
+        outlier_count_before = int((np.array(self.topics) == -1).sum())
+        logger.info(f"Outliers before reduce: {outlier_count_before}/{len(documents)}")
+
+        # Reduce outliers: paksa semua dokumen outlier ke topik terdekat
+        # Sesuai dengan hasil eksperimen notebook (outlier 42 → 0)
+        logger.info("Reducing outliers (assigning outlier docs to nearest topic)...")
+        self.topics = self.model.reduce_outliers(
+            documents, self.topics, strategy="c-tf-idf"
+        )
+        # Update representasi topik setelah reduce outliers
+        self.model.update_topics(
+            documents,
+            topics=self.topics,
+            vectorizer_model=self._build_vectorizer(),
+        )
+
+        outlier_count_after = int((np.array(self.topics) == -1).sum())
+        logger.info(f"Outliers after reduce: {outlier_count_after}/{len(documents)}")
+
+        # Get topic info setelah update
         self.topic_info = self.model.get_topic_info()
 
         duration = time.time() - start_time
         num_topics = len(self.topic_info) - 1  # exclude outlier topic -1
-        outlier_count = int((np.array(self.topics) == -1).sum())
 
         logger.info(
             f"BERTopic training complete in {duration:.2f}s. "
             f"Found {num_topics} topics. "
-            f"Outliers: {outlier_count}/{len(documents)} documents"
+            f"Outliers: before={outlier_count_before}, after={outlier_count_after}"
         )
 
         # Build result
         result = {
             "model_type": "bertopic",
             "num_topics": num_topics,
-            "num_outliers": outlier_count,
+            "num_outliers": outlier_count_after,
+            "num_outliers_before_reduce": outlier_count_before,
             "training_duration_seconds": round(duration, 2),
             "embedding_model": self.params.embedding_model,
+            "embedding_dim": 256,
             "hyperparameters": self.params.model_dump(),
             "topic_info": self._extract_topic_info(),
         }
 
-        # Dynamic Topic Analysis if timestamps provided
+        # Dynamic Topic Analysis jika timestamps tersedia
         if timestamps is not None:
             logger.info("Running Dynamic Topic Analysis (topics_over_time)...")
             topics_over_time = self.model.topics_over_time(
@@ -275,10 +323,10 @@ class BERTopicTrainer:
         model_path = str(model_dir / "model")
         self.model.save(model_path, serialization="safetensors", save_ctfidf=True)
 
-        # Save embeddings separately (for reuse / DTA)
+        # Save embeddings (untuk reuse / DTA)
         if self.embeddings is not None:
             np.save(str(model_dir / "embeddings.npy"), self.embeddings)
-            # Also save to shared embeddings dir for cross-job reuse
+            # Juga simpan di shared embeddings dir untuk reuse antar job
             embeddings_dir = path_settings.get_embeddings_dir()
             np.save(str(embeddings_dir / f"embeddings_{job_id}.npy"), self.embeddings)
 
@@ -287,9 +335,14 @@ class BERTopicTrainer:
             "job_id": job_id,
             "model_type": "bertopic",
             "embedding_model": self.params.embedding_model,
+            "embedding_dim": 256,
             "embedding_model_note": (
                 "IndoSBERT-large = IndoBERT-large re-trained with Siamese Network. "
-                "Produces 768-dim sentence embeddings for Bahasa Indonesia."
+                "Produces 256-dim sentence embeddings for Bahasa Indonesia."
+            ),
+            "preprocessing_note": (
+                "Gunakan 'cleaned_text' (soft clean, no stemming, no stopword removal) "
+                "bukan 'processed_text' untuk input BERTopic."
             ),
             "hyperparameters": self.params.model_dump(),
             "saved_at": datetime.now().isoformat(),
@@ -312,7 +365,7 @@ class BERTopicTrainer:
 
         self.model = BERTopic.load(model_path)
 
-        # Load embeddings if available
+        # Load embeddings jika ada
         embeddings_path = model_dir / "embeddings.npy"
         if embeddings_path.exists():
             self.embeddings = np.load(str(embeddings_path))

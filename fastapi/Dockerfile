@@ -59,8 +59,6 @@ WORKDIR /build/venv
 # CUDA stubs: file .so untuk CUDA (kita pakai CPU-only)
 # caffe2: framework lama yang bundled di torch (tidak dipakai)
 RUN find lib/python3.11/site-packages/torch -type d -name "test" -exec rm -rf {} + 2>/dev/null || true && \
-    find lib/python3.11/site-packages/torch -type d -name "testing" -exec rm -rf {} + 2>/dev/null || true && \
-    rm -rf lib/python3.11/site-packages/torch/bin 2>/dev/null || true && \
     rm -rf lib/python3.11/site-packages/torch/include 2>/dev/null || true && \
     rm -rf lib/python3.11/site-packages/torch/share/cmake 2>/dev/null || true && \
     find lib/python3.11/site-packages/torch -name "*.pyi" -delete 2>/dev/null || true && \
@@ -82,8 +80,7 @@ RUN find lib/python3.11/site-packages -type d -name "__pycache__" -exec rm -rf {
 # --- Hapus test directories di semua packages (~50MB saving) ---
 RUN find lib/python3.11/site-packages -type d \( \
         -name "tests" -o \
-        -name "test" -o \
-        -name "testing" \
+        -name "test" \
     \) -exec rm -rf {} + 2>/dev/null || true
 
 # --- Hapus dokumentasi dan metadata yang tidak diperlukan (~30MB saving) ---

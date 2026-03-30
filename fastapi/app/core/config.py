@@ -3,11 +3,18 @@ Application Settings
 Loads configuration from .env file using pydantic-settings.
 
 Arsitektur model:
-    - Fondasi teori   : IndoBERT (indobenchmark/indobert-base-p1)
+    - Fondasi teori   : IndoBERT (indobenchmark/indobert-large-p1)
     - Sentence Encoder : IndoSBERT-large (denaya/indoSBERT-large)
       → IndoBERT-large yang dilatih ulang dengan Siamese Network
-      → Menghasilkan sentence embeddings berkualitas tinggi untuk Bahasa Indonesia
+      → Menghasilkan 256-dim sentence embeddings untuk Bahasa Indonesia
     - Topic Modeling   : BERTopic (neural) vs LDA (baseline tradisional)
+
+Default hyperparameter dari hasil grid search (folder analysis/):
+    BERTopic best (BT_031): UMAP n_neighbors=5, n_components=5;
+                            HDBSCAN min_cluster_size=5, min_samples=1;
+                            nr_topics=10 → C_v=0.625, Diversity=0.933
+    LDA best (LDA_039)    : num_topics=15, passes=20, alpha='symmetric', eta='auto'
+                            → C_v=0.400, Diversity=0.707
 """
 
 from pathlib import Path
@@ -34,6 +41,18 @@ class AppSettings(BaseSettings):
     APP_DEBUG: bool = True
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
+
+    # Database
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 3306
+    DB_DATABASE: str = "skripsi_db"
+    DB_USERNAME: str = "skripsi"
+    DB_PASSWORD: str = "skripsi_password_ganti_ini"
+
+    @property
+    def database_url(self) -> str:
+        """Get SQLAlchemy database URL."""
+        return f"mysql+pymysql://{self.DB_USERNAME}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:8080,http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000"
@@ -108,12 +127,12 @@ class BERTopicSettings(BaseSettings):
     """
     BERTopic core configuration.
 
-    PENTING: embedding_model di sini merujuk ke IndoSBERT-large
-    (denaya/indoSBERT-large) yang merupakan IndoBERT-large
-    yang telah dilatih ulang menggunakan pendekatan Siamese Network.
+    Embedding model: denaya/indoSBERT-large
+      → IndoBERT-large re-trained dengan Siamese Network
+      → Output: 256-dim sentence embeddings untuk Bahasa Indonesia
 
-    Jadi secara fondasi teori ini tetap "berbasis IndoBERT",
-    namun engine sentence-embedding yang dipakai adalah IndoSBERT.
+    Default values dari hasil best config grid search (BT_031):
+      min_topic_size=5, nr_topics=10
     """
 
     model_config = SettingsConfigDict(
@@ -122,10 +141,10 @@ class BERTopicSettings(BaseSettings):
         extra="ignore",
     )
 
-    # IndoSBERT-large: IndoBERT-large + Siamese Network fine-tuning
+    # IndoSBERT-large: IndoBERT-large + Siamese Network (256-dim output)
     BERTOPIC_EMBEDDING_MODEL: str = "denaya/indoSBERT-large"
-    BERTOPIC_MIN_TOPIC_SIZE: int = 10
-    BERTOPIC_NR_TOPICS: str = "auto"
+    BERTOPIC_MIN_TOPIC_SIZE: int = 5       # Best: BT_031 pakai 5
+    BERTOPIC_NR_TOPICS: str = "10"         # Best: BT_031 pakai 10 (lalu reduce outliers)
     BERTOPIC_TOP_N_WORDS: int = 10
     BERTOPIC_EMBEDDING_BATCH_SIZE: int = 16
     BERTOPIC_SEED: int = 42
@@ -138,7 +157,10 @@ class BERTopicSettings(BaseSettings):
 
 
 class UMAPSettings(BaseSettings):
-    """UMAP dimensionality reduction configuration for BERTopic."""
+    """
+    UMAP dimensionality reduction configuration for BERTopic.
+    Default dari best config grid search (BT_031): n_neighbors=5, n_components=5.
+    """
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
@@ -146,7 +168,7 @@ class UMAPSettings(BaseSettings):
         extra="ignore",
     )
 
-    UMAP_N_NEIGHBORS: int = 15
+    UMAP_N_NEIGHBORS: int = 5    # Best: BT_031 pakai 5 (bukan 15)
     UMAP_N_COMPONENTS: int = 5
     UMAP_MIN_DIST: float = 0.0
     UMAP_METRIC: str = "cosine"
@@ -154,7 +176,10 @@ class UMAPSettings(BaseSettings):
 
 
 class HDBSCANSettings(BaseSettings):
-    """HDBSCAN clustering configuration for BERTopic."""
+    """
+    HDBSCAN clustering configuration for BERTopic.
+    Default dari best config grid search (BT_031): min_cluster_size=5, min_samples=1.
+    """
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
@@ -162,8 +187,8 @@ class HDBSCANSettings(BaseSettings):
         extra="ignore",
     )
 
-    HDBSCAN_MIN_CLUSTER_SIZE: int = 10
-    HDBSCAN_MIN_SAMPLES: Optional[int] = None
+    HDBSCAN_MIN_CLUSTER_SIZE: int = 5    # Best: BT_031 pakai 5 (bukan 10)
+    HDBSCAN_MIN_SAMPLES: Optional[int] = 1  # Best: BT_031 pakai 1
     HDBSCAN_CLUSTER_SELECTION_METHOD: str = "eom"
 
     @field_validator("HDBSCAN_MIN_SAMPLES", mode="before")
@@ -176,7 +201,14 @@ class HDBSCANSettings(BaseSettings):
 
 
 class LDASettings(BaseSettings):
-    """LDA (Gensim) hyperparameters configuration — baseline model."""
+    """
+    LDA (Gensim) hyperparameters configuration — baseline model.
+    Default dari best config grid search (LDA_039): num_topics=15, passes=20,
+    alpha='symmetric', eta='auto' → Coherence=0.4001, Diversity=0.7067.
+
+    CATATAN: alpha='symmetric' + eta='auto' menggunakan LdaModel (bukan LdaMulticore)
+    karena LdaMulticore tidak support alpha='auto' atau eta='auto'.
+    """
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
@@ -184,13 +216,13 @@ class LDASettings(BaseSettings):
         extra="ignore",
     )
 
-    LDA_NUM_TOPICS: int = 10
-    LDA_PASSES: int = 15
+    LDA_NUM_TOPICS: int = 15        # Best: LDA_039 pakai 15
+    LDA_PASSES: int = 20            # Best: LDA_039 pakai 20
     LDA_ITERATIONS: int = 400
     LDA_CHUNKSIZE: int = 100
     LDA_RANDOM_STATE: int = 42
-    LDA_ALPHA: str = "auto"
-    LDA_ETA: str = "auto"
+    LDA_ALPHA: str = "symmetric"    # Best: LDA_039 pakai 'symmetric'
+    LDA_ETA: str = "auto"           # Best: LDA_039 pakai 'auto'
     LDA_NO_BELOW: int = 5
     LDA_NO_ABOVE: float = 0.5
 

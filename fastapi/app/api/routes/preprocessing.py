@@ -1,65 +1,104 @@
 """
 Preprocessing Routes
 Endpoints for text preprocessing operations.
+
+Architecture:
+  - POST /preprocessing/start            → Start preprocessing in background, returns job_id
+  - GET  /preprocessing/jobs/{job_id}     → Poll job progress
+  - GET  /preprocessing/jobs              → List all jobs
+  - GET  /preprocessing/status            → Active job status
+  - POST /preprocessing/jobs/{job_id}/cancel → Cancel a running job
 """
 
-from app.models.schemas import PreprocessingRequest, PreprocessingResponse
-from app.services.preprocessing import TextPreprocessor
-from app.services.training import TrainingService
+from app.models.schemas import PreprocessingStartRequest, PreprocessingJobStatus
+from app.services.preprocessing_job_manager import preprocessing_job_manager
 
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/preprocessing", tags=["Preprocessing"])
 
 
-@router.post("/run", response_model=PreprocessingResponse)
-async def run_preprocessing(request: PreprocessingRequest):
+@router.post("/start")
+async def start_preprocessing(request: PreprocessingStartRequest):
     """
-    Run text preprocessing on the raw data.
+    Start text preprocessing in the background.
 
-    Loads raw_data.csv, applies cleaning + tokenization + stopword removal + stemming,
-    and saves the result as processed_data.csv.
+    Reads data and config from database and updates texts in background.
+    Returns immediately with a job_id that can be polled for progress.
+    Only one preprocessing job can run at a time.
     """
     try:
-        service = TrainingService()
-
-        # Override preprocessor settings
-        service.preprocessor = TextPreprocessor(
-            remove_stopwords=request.remove_stopwords,
-            use_stemming=request.use_stemming,
-            min_word_length=request.min_word_length,
-            language=request.language,
+        job_id = preprocessing_job_manager.start_job(run_id=request.run_id)
+        job = preprocessing_job_manager.get_job(job_id)
+        return job.to_dict()
+    except ValueError as e:
+        # Already a job running
+        active = preprocessing_job_manager.active_job
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "conflict",
+                "message": str(e),
+                "active_job": active.to_dict() if active else None,
+            },
         )
-
-        # Load raw data
-        df = service.load_data()
-
-        total_tokens_before = df["abstract"].fillna("").str.split().str.len().sum()
-
-        # Preprocess (dual pipeline: cleaned_text + processed_text)
-        processed_df = service.preprocess_data(df)
-
-        total_tokens_after_cleaned = (
-            processed_df["cleaned_text"].fillna("").str.split().str.len().sum()
-        )
-        total_tokens_after_processed = (
-            processed_df["processed_text"].fillna("").str.split().str.len().sum()
-        )
-
-        return PreprocessingResponse(
-            status="success",
-            total_documents=len(processed_df),
-            total_tokens_before=int(total_tokens_before),
-            total_tokens_after_cleaned=int(total_tokens_after_cleaned),
-            total_tokens_after_processed=int(total_tokens_after_processed),
-            message=(
-                f"Preprocessing complete. {len(processed_df)} documents processed. "
-                f"cleaned_text (BERTopic/IndoSBERT): {int(total_tokens_after_cleaned)} tokens, "
-                f"processed_text (LDA): {int(total_tokens_after_processed)} tokens."
-            ),
-        )
-
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preprocessing failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start preprocessing: {str(e)}")
+
+
+@router.get("/jobs/{job_id}")
+async def get_preprocessing_job_status(job_id: str):
+    """
+    Get the status and progress of a preprocessing job.
+
+    Returns:
+        Job status, progress percentage, current step, and optionally the data
+    """
+    job = preprocessing_job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return job.to_dict()
+
+
+@router.get("/jobs")
+async def list_jobs():
+    """
+    List all preprocessing jobs (newest first).
+    """
+    jobs = preprocessing_job_manager.get_all_jobs()
+    return {
+        "jobs": [j.to_dict() for j in jobs],
+        "has_active_job": preprocessing_job_manager.has_active_job,
+        "active_job_id": preprocessing_job_manager._active_job_id,
+    }
+
+
+@router.get("/status")
+async def preprocessing_status():
+    """
+    Get current preprocessing status and whether a job is active.
+    """
+    active = preprocessing_job_manager.active_job
+    return {
+        "status": "busy" if preprocessing_job_manager.has_active_job else "idle",
+        "active_job": active.to_dict() if active else None,
+    }
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """
+    Cancel a running preprocessing job.
+    """
+    success = preprocessing_job_manager.cancel_job(job_id)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "error",
+                "message": f"Job {job_id} tidak dapat dibatalkan (sudah selesai atau tidak ditemukan)",
+            },
+        )
+
+    return {"status": "cancelled", "message": f"Job {job_id} berhasil dibatalkan", "job_id": job_id}

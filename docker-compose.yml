@@ -74,6 +74,12 @@ services:
       - APP_ENV=production
       - APP_DEBUG=false
       - CORS_ORIGINS=http://localhost:8080,http://laravel:8080
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${MYSQL_DATABASE:-skripsi_db}
+      - DB_USERNAME=${MYSQL_USER:-skripsi}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-skripsi_password}
+      - NUMBA_CACHE_DIR=/tmp
     networks:
       - skripsi-net
     restart: unless-stopped

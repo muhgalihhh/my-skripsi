@@ -18,13 +18,36 @@ class LocalTextPreprocessor
   public function cleanText(string $text): string
   {
     $text = mb_strtolower($text);
+    
+    // Hapus URL
+    $text = preg_replace('/https?:\/\/\S+|www\.\S+/u', '', $text);
+    // Hapus email
+    $text = preg_replace('/[\w.+-]+@[\w-]+\.[\w.-]+/u', '', $text);
+    // Hapus angka
+    $text = preg_replace('/\d+/u', '', $text);
+
+    // Keep letters and spaces, strip all punctuation
+    $text = preg_replace('/[^\p{L}\s]+/u', ' ', $text);
 
     // Normalize whitespace
-    $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+    $text = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
 
-    // Keep letters/numbers/spaces, strip punctuation/symbols
-    $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? $text;
+    return $text;
+  }
 
+  public function cleanTextForEmbedding(string $text): string
+  {
+    $text = mb_strtolower($text);
+    
+    // Hapus URL
+    $text = preg_replace('/https?:\/\/\S+|www\.\S+/u', '', $text);
+    // Hapus email
+    $text = preg_replace('/[\w.+-]+@[\w-]+\.[\w.-]+/u', '', $text);
+    
+    // Keep letters, numbers, spaces, and STANDARD punctuation for sentence bounds
+    $text = preg_replace('/[^\p{L}\p{N}\s.,!?:;\-\(\)\[\]"\']+/u', ' ', $text);
+
+    // Normalize whitespace
     $text = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
 
     return $text;
@@ -38,7 +61,7 @@ class LocalTextPreprocessor
     }
 
     $parts = preg_split('/\s+/u', trim($cleanText)) ?: [];
-    $parts = array_values(array_filter($parts, fn ($t) => $t !== ''));
+    $parts = array_values(array_filter($parts, fn($t) => $t !== ''));
 
     return $parts;
   }
@@ -48,7 +71,7 @@ class LocalTextPreprocessor
   {
     $min = max(1, (int) $this->minWordLength);
 
-    $filtered = array_values(array_filter($tokens, fn ($t) => mb_strlen($t) >= $min));
+    $filtered = array_values(array_filter($tokens, fn($t) => mb_strlen($t) >= $min));
 
     return $filtered;
   }
@@ -72,12 +95,8 @@ class LocalTextPreprocessor
 
   public function preprocessCleaned(string $rawText): string
   {
-    $clean = $this->cleanText($rawText);
-    $tokens = $this->tokenize($clean);
-    $tokens = $this->filterByLength($tokens);
-    $tokens = $this->removeStopwordsFromTokens($tokens);
-
-    return implode(' ', $tokens);
+    // Untuk IndoSBERT/BERTopic: pertahankan tanda baca, jangan hapus stopwords & jangan filter by length
+    return $this->cleanTextForEmbedding($rawText);
   }
 
   /** @return array<string, bool> */
@@ -89,12 +108,60 @@ class LocalTextPreprocessor
     }
 
     $words = [
-      'yang', 'dan', 'di', 'ke', 'dari', 'pada', 'untuk', 'dengan', 'atau', 'sebagai',
-      'dalam', 'ini', 'itu', 'oleh', 'karena', 'agar', 'juga', 'tidak', 'bukan', 'adalah',
-      'akan', 'dapat', 'bisa', 'lebih', 'kurang', 'sudah', 'belum', 'saat', 'ketika',
-      'sehingga', 'maka', 'serta', 'antara', 'tersebut', 'hingga', 'terhadap', 'paling',
-      'para', 'oleh', 'pada', 'dengan', 'dalam', 'dari', 'sebuah', 'suatu', 'setiap',
-      'dengan', 'tanpa', 'dengan', 'bahwa', 'yaitu', 'yakni', 'selain', 'termasuk',
+      'yang',
+      'dan',
+      'di',
+      'ke',
+      'dari',
+      'pada',
+      'untuk',
+      'dengan',
+      'atau',
+      'sebagai',
+      'dalam',
+      'ini',
+      'itu',
+      'oleh',
+      'karena',
+      'agar',
+      'juga',
+      'tidak',
+      'bukan',
+      'adalah',
+      'akan',
+      'dapat',
+      'bisa',
+      'lebih',
+      'kurang',
+      'sudah',
+      'belum',
+      'saat',
+      'ketika',
+      'sehingga',
+      'maka',
+      'serta',
+      'antara',
+      'tersebut',
+      'hingga',
+      'terhadap',
+      'paling',
+      'para',
+      'oleh',
+      'pada',
+      'dengan',
+      'dalam',
+      'dari',
+      'sebuah',
+      'suatu',
+      'setiap',
+      'dengan',
+      'tanpa',
+      'dengan',
+      'bahwa',
+      'yaitu',
+      'yakni',
+      'selain',
+      'termasuk',
     ];
 
     $map = [];

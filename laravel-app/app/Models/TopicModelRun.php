@@ -11,20 +11,21 @@ class TopicModelRun extends Model
 
   protected $fillable = [
     'user_id',
+    'model_type',           // 'bertopic' | 'lda'
     'status',
     'fastapi_training_job_id',
+    'fastapi_preprocessing_job_id',
     'remove_stopwords',
     'min_word_length',
     'language',
     'bertopic_params',
+    'lda_params',
     'total_documents',
-    'total_tokens_before',
-    'total_tokens_after_cleaned',
-    'preprocessing_preview',
     'num_topics',
     'num_outliers',
     'coherence_cv',
     'topic_diversity',
+    'training_duration_seconds',
     'model_path',
     'error_message',
     'started_at',
@@ -32,19 +33,18 @@ class TopicModelRun extends Model
   ];
 
   protected $casts = [
-    'remove_stopwords' => 'boolean',
-    'min_word_length' => 'integer',
-    'total_documents' => 'integer',
-    'total_tokens_before' => 'integer',
-    'total_tokens_after_cleaned' => 'integer',
-    'bertopic_params' => 'array',
-    'preprocessing_preview' => 'array',
-    'num_topics' => 'integer',
-    'num_outliers' => 'integer',
-    'coherence_cv' => 'float',
-    'topic_diversity' => 'float',
-    'started_at' => 'datetime',
-    'completed_at' => 'datetime',
+    'remove_stopwords'          => 'boolean',
+    'min_word_length'           => 'integer',
+    'total_documents'           => 'integer',
+    'bertopic_params'           => 'array',
+    'lda_params'                => 'array',
+    'num_topics'                => 'integer',
+    'num_outliers'              => 'integer',
+    'coherence_cv'              => 'float',
+    'topic_diversity'           => 'float',
+    'training_duration_seconds' => 'float',
+    'started_at'                => 'datetime',
+    'completed_at'              => 'datetime',
   ];
 
   public function user()
@@ -55,5 +55,20 @@ class TopicModelRun extends Model
   public function topics()
   {
     return $this->hasMany(TopicModelTopic::class, 'topic_model_run_id');
+  }
+
+  /**
+   * Helper: label badge warna berdasarkan status.
+   */
+  public function getStatusColorAttribute(): string
+  {
+    return match ($this->status) {
+      'completed'    => 'green',
+      'training'     => 'blue',
+      'preprocessing'=> 'yellow',
+      'pending'      => 'gray',
+      'failed'       => 'red',
+      default        => 'gray',
+    };
   }
 }

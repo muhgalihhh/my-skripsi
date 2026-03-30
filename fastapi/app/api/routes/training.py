@@ -14,6 +14,7 @@ from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 TrainingResultResponse, TrainingStatus,
                                 TrainingStatusResponse)
 from app.services.training import TrainingService
+from app.core import database
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
@@ -35,14 +36,23 @@ def _run_training_job(
       - LDA      → 'processed_text' (tokenized + stemmed + stopword removed)
     """
     try:
-        # Load processed data (contains both cleaned_text & processed_text)
-        processed_path = path_settings.get_processed_data_dir() / "processed_data.csv"
-        if not processed_path.exists():
-            raise FileNotFoundError(
-                "Processed data not found. Run preprocessing first via /api/v1/preprocessing/run"
+        # Load processed data from MySQL database
+        df = database.load_processed_data_from_db()
+        
+        if df.empty:
+            raise ValueError(
+                "Processed data not found in DB. Run preprocessing first via /api/v1/preprocessing/start"
             )
 
-        df = pd.read_csv(processed_path, encoding="utf-8")
+        # Clean dataframe to prevent NoneType errors in embeddings
+        df = df.dropna(subset=['cleaned_text', 'processed_text'])
+        df['cleaned_text'] = df['cleaned_text'].astype(str)
+        df['processed_text'] = df['processed_text'].astype(str)
+        df = df[(df['cleaned_text'].str.strip() != '') & (df['processed_text'].str.strip() != '')]
+
+        if df.empty:
+            raise ValueError("No valid text data found after dropping empty records.")
+
         timestamps = df["year"].tolist() if "year" in df.columns else None
 
         if model_type == ModelType.BERTOPIC:

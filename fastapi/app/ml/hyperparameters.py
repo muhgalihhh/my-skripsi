@@ -3,10 +3,17 @@ Hyperparameter Configuration
 Provides preset hyperparameter configurations and grid search ranges
 for BERTopic (IndoSBERT-large) and LDA (Gensim) models.
 
-Embedding model presets:
+Nilai default preset diambil dari hasil grid search di folder analysis/:
+  - BERTopic best: BT_031 — coherence=0.6250, diversity=0.9333
+    (umap_n_neighbors=5, umap_n_components=5, hdbscan_min_cluster_size=5,
+     min_samples=1, nr_topics=10, min_topic_size=5)
+  - LDA best: LDA_039 — coherence=0.4001, diversity=0.7067
+    (num_topics=15, passes=20, alpha='symmetric', eta='auto')
+
+Embedding model:
     - "denaya/indoSBERT-large" (default)
-      → IndoBERT-large re-trained with Siamese Network
-      → 768-dim sentence embeddings, best quality for Indonesian
+      → IndoBERT-large re-trained dengan Siamese Network
+      → 256-dim sentence embeddings, best quality untuk Bahasa Indonesia
 """
 
 from typing import Any, Dict, List
@@ -16,14 +23,61 @@ from app.models.schemas import (BERTopicHyperparameters,
                                 UMAPHyperparameters)
 
 # ============================================
-# BERTopic Presets (all use IndoSBERT-large)
+# BERTopic Presets (semua pakai IndoSBERT-large)
+# Default diambil dari BT_031 — hasil terbaik grid search
 # ============================================
 
 BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
     "default": BERTopicHyperparameters(
+        # BT_031: n_neighbors=5, n_components=5, hdbscan_min_cluster_size=5,
+        #         min_samples=1, nr_topics=10 → Coherence=0.6250, Diversity=0.9333
+        embedding_model="denaya/indoSBERT-large",
+        min_topic_size=5,
+        nr_topics=10,
+        top_n_words=10,
+        n_gram_range=[1, 2],
+        embedding_batch_size=16,
+        seed=42,
+        umap_params=UMAPHyperparameters(
+            n_neighbors=5,
+            n_components=5,
+            min_dist=0.0,
+            metric="cosine",
+            random_state=42,
+        ),
+        hdbscan_params=HDBSCANHyperparameters(
+            min_cluster_size=5,
+            min_samples=1,
+            cluster_selection_method="eom",
+        ),
+    ),
+    "fine_grained": BERTopicHyperparameters(
+        # Lebih banyak topik, lebih detail per topik
+        embedding_model="denaya/indoSBERT-large",
+        min_topic_size=5,
+        nr_topics=15,
+        top_n_words=15,
+        n_gram_range=[1, 3],
+        embedding_batch_size=16,
+        seed=42,
+        umap_params=UMAPHyperparameters(
+            n_neighbors=5,
+            n_components=5,
+            min_dist=0.0,
+            metric="cosine",
+            random_state=42,
+        ),
+        hdbscan_params=HDBSCANHyperparameters(
+            min_cluster_size=5,
+            min_samples=3,
+            cluster_selection_method="eom",
+        ),
+    ),
+    "coarse": BERTopicHyperparameters(
+        # Lebih sedikit topik, lebih broad
         embedding_model="denaya/indoSBERT-large",
         min_topic_size=10,
-        nr_topics=None,
+        nr_topics=8,
         top_n_words=10,
         n_gram_range=[1, 2],
         embedding_batch_size=16,
@@ -37,81 +91,45 @@ BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
         ),
         hdbscan_params=HDBSCANHyperparameters(
             min_cluster_size=10,
-            min_samples=None,
+            min_samples=5,
             cluster_selection_method="eom",
-        ),
-    ),
-    "fine_grained": BERTopicHyperparameters(
-        embedding_model="denaya/indoSBERT-large",
-        min_topic_size=5,
-        nr_topics=None,
-        top_n_words=15,
-        n_gram_range=[1, 3],
-        embedding_batch_size=16,
-        seed=42,
-        umap_params=UMAPHyperparameters(
-            n_neighbors=10,
-            n_components=5,
-            min_dist=0.0,
-            metric="cosine",
-            random_state=42,
-        ),
-        hdbscan_params=HDBSCANHyperparameters(
-            min_cluster_size=5,
-            min_samples=3,
-            cluster_selection_method="eom",
-        ),
-    ),
-    "coarse": BERTopicHyperparameters(
-        embedding_model="denaya/indoSBERT-large",
-        min_topic_size=20,
-        nr_topics=None,
-        top_n_words=10,
-        n_gram_range=[1, 2],
-        embedding_batch_size=16,
-        seed=42,
-        umap_params=UMAPHyperparameters(
-            n_neighbors=20,
-            n_components=5,
-            min_dist=0.1,
-            metric="cosine",
-            random_state=42,
-        ),
-        hdbscan_params=HDBSCANHyperparameters(
-            min_cluster_size=20,
-            min_samples=10,
-            cluster_selection_method="leaf",
         ),
     ),
 }
 
-# Grid search ranges for BERTopic hyperparameter tuning
+# Grid search ranges — sesuai actual grid yang dipakai di eksperimen notebook
 BERTOPIC_GRID: Dict[str, List[Any]] = {
-    # UMAP
-    "umap_n_neighbors": [5, 10, 15, 20, 30],
-    "umap_n_components": [3, 5, 10],
-    "umap_min_dist": [0.0, 0.05, 0.1],
+    # UMAP — dari step1_hyperparameter_grid_config.csv
+    "umap_n_neighbors": [5, 10, 15],
+    "umap_n_components": [5, 10],
+    "umap_min_dist": [0.0],
+    "umap_metric": ["cosine"],
     # HDBSCAN
-    "hdbscan_min_cluster_size": [5, 10, 15, 20],
-    "hdbscan_cluster_selection_method": ["eom", "leaf"],
+    "hdbscan_min_cluster_size": [5, 8, 10, 15],
+    "hdbscan_min_samples": [1, 3],
+    "hdbscan_cluster_selection_method": ["eom"],
     # BERTopic
-    "min_topic_size": [5, 10, 15, 20],
-    "top_n_words": [5, 10, 15],
+    "nr_topics": [8, 10, 12, 15],
+    "min_topic_size": [5],
+    "top_n_words": [10],
 }
 
 
 # ============================================
-# LDA Presets (baseline tradisional)
+# LDA Presets — baseline tradisional
+# Default diambil dari LDA_039 — hasil terbaik grid search
 # ============================================
 
 LDA_PRESETS: Dict[str, LDAHyperparameters] = {
     "default": LDAHyperparameters(
-        num_topics=10,
-        passes=15,
+        # LDA_039: num_topics=15, passes=20, alpha='symmetric', eta='auto'
+        # → Coherence=0.4001, Diversity=0.7067
+        num_topics=15,
+        passes=20,
         iterations=400,
         chunksize=100,
         random_state=42,
-        alpha="auto",
+        alpha="symmetric",
         eta="auto",
         no_below=5,
         no_above=0.5,
@@ -122,32 +140,32 @@ LDA_PRESETS: Dict[str, LDAHyperparameters] = {
         iterations=500,
         chunksize=100,
         random_state=42,
-        alpha="auto",
+        alpha="symmetric",
         eta="auto",
         no_below=3,
         no_above=0.6,
     ),
     "fewer_topics": LDAHyperparameters(
-        num_topics=5,
-        passes=25,
-        iterations=600,
-        chunksize=50,
+        num_topics=8,
+        passes=20,
+        iterations=400,
+        chunksize=100,
         random_state=42,
         alpha="symmetric",
-        eta="auto",
+        eta="symmetric",
         no_below=5,
-        no_above=0.4,
+        no_above=0.5,
     ),
 }
 
-# Grid search ranges for LDA hyperparameter tuning
+# Grid search ranges — sesuai actual grid di eksperimen notebook
 LDA_GRID: Dict[str, List[Any]] = {
-    "num_topics": [5, 8, 10, 12, 15, 20],
-    "passes": [10, 15, 20, 30],
+    "num_topics": [5, 8, 10, 12, 15],
+    "passes": [15, 20],
     "alpha": ["auto", "symmetric"],
     "eta": ["auto", "symmetric"],
-    "no_below": [3, 5, 10],
-    "no_above": [0.3, 0.5, 0.7],
+    "no_below": [5],
+    "no_above": [0.5],
 }
 
 

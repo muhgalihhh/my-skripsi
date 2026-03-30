@@ -53,7 +53,7 @@ Route::middleware(['auth', EnsureUserIsJurusan::class])
 
         // Edit Profil (Livewire)
         Route::get('/profil', ProfileEditor::class)->name('profil');
-        
-    // Topic Modeling (Livewire)
-    Route::get('/topic-modeling', TopicModelingManager::class)->name('topic-modeling');
+
+        // Topic Modeling (Livewire)
+        Route::get('/topic-modeling', TopicModelingManager::class)->name('topic-modeling');
     });

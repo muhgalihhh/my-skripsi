@@ -71,33 +71,19 @@ class ScrapingResponse(BaseModel):
 # Preprocessing Schemas
 # ============================================
 
-class PreprocessingRequest(BaseModel):
-    """
-    Request to preprocess data.
+class PreprocessingStartRequest(BaseModel):
+    """Request to start a preprocessing background job."""
+    run_id: int = Field(description="Run ID from the database to load config")
 
-    Catatan penting:
-      - BERTopic: membutuhkan teks ASLI (cleaned, bukan stemmed) karena
-        IndoSBERT sudah di-train pada teks natural Bahasa Indonesia.
-        Kolom output: 'cleaned_text'
-      - LDA: membutuhkan teks yang sudah tokenized + stemmed + stopword removed.
-        Kolom output: 'processed_text'
-
-    Kedua jalur preprocessing dijalankan secara paralel dalam satu request.
-    """
-    remove_stopwords: bool = True
-    use_stemming: bool = True
-    min_word_length: int = Field(3, ge=1, description="Minimum word length to keep")
-    language: str = "indonesian"
-
-
-class PreprocessingResponse(BaseModel):
-    """Response from preprocessing."""
+class PreprocessingJobStatus(BaseModel):
+    """Response containing preprocessing job status."""
+    job_id: str
     status: str
-    total_documents: int
-    total_tokens_before: int
-    total_tokens_after_cleaned: int
-    total_tokens_after_processed: int
+    progress: float
     message: str
+    total_documents: int = 0
+    processed: int = 0
+    error: Optional[str] = None
 
 
 # ============================================
