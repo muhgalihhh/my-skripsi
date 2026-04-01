@@ -14,6 +14,8 @@ class Skripsi extends Model
   protected $fillable = [
     'title',
     'abstract',
+    'cleaned_text',
+    'processed_text',
     'type',
     'id_code',
     'keywords',

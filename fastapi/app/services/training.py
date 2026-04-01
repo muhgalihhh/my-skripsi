@@ -173,7 +173,7 @@ class TrainingService:
             return result
 
         except Exception as e:
-            logger.error(f"BERTopic training failed: {e}")
+            logger.exception("BERTopic training failed")
             self._update_job(
                 job_id,
                 status=TrainingStatus.FAILED.value,

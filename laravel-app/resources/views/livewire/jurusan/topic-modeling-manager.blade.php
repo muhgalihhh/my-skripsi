@@ -1,53 +1,198 @@
-<div class="space-y-6" x-data="{ activePreviewTab: 'final', activePreviewIdx: 0 }">
+<div>
+    @section('page-title', 'Topic Modeling')
 
-    {{-- ===== HEADER ===== --}}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">Topic Modeling</h1>
-            <p class="mt-1 text-sm text-gray-500">
-                Pipeline BERTopic (IndoSBERT → UMAP → HDBSCAN → c-TF-IDF) untuk analisis topik skripsi UNSOED.
-            </p>
+    <div class="space-y-6" x-data="{ activeTab: 'overview', activePreviewTab: 'final', activePreviewIdx: 0 }">
+
+        {{-- ── Page Header ──────────────────────────────────── --}}
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Topic Modeling</h1>
+                <p class="mt-1 text-sm text-gray-500">
+                    Pipeline BERTopic (IndoSBERT → UMAP → HDBSCAN → c-TF-IDF) untuk analisis topik skripsi UNSOED.
+                </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <x-ui.button wire:click="buildPreview" wire:loading.attr="disabled" variant="secondary">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh preview
+                </x-ui.button>
+                <x-ui.button wire:click="runPreprocessing" wire:loading.attr="disabled" variant="primary"
+                    :disabled="(($apiStatus['status'] ?? '') !== 'ok')">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
+                    <span wire:loading wire:target="runPreprocessing">Processing…</span>
+                </x-ui.button>
+                <x-ui.button type="button" wire:click="startTraining" wire:loading.attr="disabled" variant="success"
+                    :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed']))">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span wire:loading.remove wire:target="startTraining">Start Training</span>
+                    <span wire:loading wire:target="startTraining">Starting…</span>
+                </x-ui.button>
+            </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <x-ui.button wire:click="buildPreview" wire:loading.attr="disabled" variant="secondary">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh preview
-            </x-ui.button>
-            <x-ui.button wire:click="runPreprocessing" wire:loading.attr="disabled" variant="primary">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
-                <span wire:loading wire:target="runPreprocessing">Processing…</span>
-            </x-ui.button>
-            <button type="button" wire:click="startTraining" wire:loading.attr="disabled"
-                @class([
-                    'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50',
-                    'bg-emerald-600 hover:bg-emerald-700' => $activeRun && in_array($activeRun->status, ['pending','completed','failed']),
-                    'bg-gray-400 cursor-not-allowed' => !$activeRun || !in_array($activeRun?->status ?? '', ['pending','completed','failed']),
-                ])>
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span wire:loading.remove wire:target="startTraining">Start Training</span>
-                <span wire:loading wire:target="startTraining">Starting…</span>
-            </button>
+
+        {{-- ── Tabs (reduce scrolling) ─────────────────────────────── --}}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
+            <div class="flex flex-wrap gap-2">
+                @php
+                    $tabs = [
+                        'overview' => 'Overview',
+                        'preview' => 'Preview',
+                        'database' => 'Database',
+                        'hasil' => 'Hasil',
+                        'pengaturan' => 'Pengaturan',
+                    ];
+                @endphp
+                @foreach ($tabs as $key => $label)
+                    <button type="button" @click="activeTab='{{ $key }}'"
+                        :class="activeTab === '{{ $key }}' ? 'bg-unsoed-blue-800 text-white' :
+                            'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                        class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
+                        {{ $label }}
+                    </button>
+                @endforeach
+            </div>
         </div>
-    </div>
 
-    {{-- ===== STATUS ALERT ===== --}}
-    @if ($statusMessage)
-        <x-ui.alert type="{{ $statusType }}" message="{{ $statusMessage }}" />
-    @endif
+        @if (($apiStatus['status'] ?? '') !== 'ok')
+            <div
+                class="flex items-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
 
-    {{-- ===== MAIN GRID ===== --}}
-    <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53
+                0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1
+                1 0 00-1-1z"
+                clip-rule="evenodd" />
+                </svg>
+                FastAPI service tidak aktif. Pastikan container <code
+                    class="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono">skripsi-fastapi</code>
+                berjalan.
+            </div>
+        @endif
 
-        {{-- == LEFT: Main content (2/3) == --}}
-        <div class="space-y-6 xl:col-span-2">
+        {{-- ========================== TAB: OVERVIEW ========================== --}}
+        <div x-show="activeTab === 'overview'" x-cloak class="space-y-6">
+
+            {{-- ── API Status Card (selaras dengan Scraping Manager) ───────── --}}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        @if (($apiStatus['status'] ?? '') === 'ok')
+                            <span class="relative flex h-3 w-3">
+                                <span
+                                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                            </span>
+                            <span class="text-sm text-green-700 font-medium">FastAPI Service Online</span>
+                            <span class="text-xs text-gray-400">{{ $apiStatus['app_name'] ?? '' }}
+                                v{{ $apiStatus['version'] ?? '' }}</span>
+                        @else
+                            <span class="relative flex h-3 w-3">
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                            </span>
+                            <span class="text-sm text-red-700 font-medium">FastAPI Service Offline</span>
+                            <span
+                                class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke FastAPI service.' }}</span>
+                        @endif
+                    </div>
+
+                    <button wire:click="checkApiStatus"
+                        class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                        wire:loading.class="opacity-50" wire:target="checkApiStatus">
+                        <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh Status
+                    </button>
+                </div>
+            </div>
+
+            {{-- ── Dataset Readiness Card ──────────────────────────────── --}}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm font-semibold text-gray-900">Kesiapan Dataset</div>
+                        <div class="mt-0.5 text-xs text-gray-500">Ringkasan data hasil preprocessing yang siap
+                            untuk
+                            training.</div>
+                    </div>
+                    <button wire:click="loadDatasetSummary"
+                        class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                        wire:loading.class="opacity-50" wire:target="loadDatasetSummary">
+                        <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadDatasetSummary"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+
+                @if (($datasetSummary['status'] ?? '') === 'ok')
+                    <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+                        <div class="bg-gray-50 rounded-lg p-2">
+                            <p class="text-xs text-gray-500">Total</p>
+                            <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['total'] ?? 0) }}</p>
+                        </div>
+                        <div class="bg-unsoed-blue-50 rounded-lg p-2">
+                            <p class="text-xs text-unsoed-blue-600">Valid BERTopic</p>
+                            <p class="text-lg font-bold text-unsoed-blue-800">
+                                {{ (int) ($datasetSummary['valid_bertopic'] ?? 0) }}</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-2">
+                            <p class="text-xs text-gray-500">Valid LDA</p>
+                            <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['valid_lda'] ?? 0) }}
+                            </p>
+                        </div>
+                        <div class="bg-amber-50 rounded-lg p-2">
+                            <p class="text-xs text-amber-600">Ter-drop</p>
+                            <p class="text-lg font-bold text-amber-700">{{ (int) ($datasetSummary['dropped'] ?? 0) }}
+                            </p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-2">
+                            <p class="text-xs text-gray-500">Rentang Tahun</p>
+                            <p class="text-lg font-bold text-gray-800">
+                                @if (($datasetSummary['year_min'] ?? null) && ($datasetSummary['year_max'] ?? null))
+                                    {{ (int) $datasetSummary['year_min'] }}–{{ (int) $datasetSummary['year_max'] }}
+                                @else
+                                    -
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+
+                    @if (((int) ($datasetSummary['total'] ?? 0)) === 0)
+                        <div
+                            class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            Dataset training masih kosong. Jalankan <strong>Preprocessing</strong> dulu.
+                        </div>
+                    @endif
+                @elseif(($datasetSummary['status'] ?? '') === 'unreachable')
+                    <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        {{ $datasetSummary['message'] ?? 'FastAPI tidak dapat dihubungi. Summary dataset belum bisa ditampilkan.' }}
+                    </div>
+                @elseif(($datasetSummary['status'] ?? '') === 'error')
+                    <div class="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        {{ $datasetSummary['message'] ?? 'Gagal mengambil summary dataset.' }}
+                    </div>
+                @else
+                    <div class="mt-3 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                        Summary dataset belum tersedia. Klik <strong>Refresh</strong> untuk memuat ulang.
+                    </div>
+                @endif
+            </div>
 
             {{-- ---- Pipeline Progress Steps ---- --}}
             <x-ui.card>
@@ -55,8 +200,16 @@
                 <div class="flex items-start gap-0">
                     @php
                         $steps = [
-                            ['label' => 'Preprocessing', 'desc' => 'Clean + tokenize + stem', 'statuses' => ['preprocessing', 'pending', 'training', 'completed']],
-                            ['label' => 'Training', 'desc' => 'IndoSBERT → UMAP → HDBSCAN', 'statuses' => ['training', 'completed']],
+                            [
+                                'label' => 'Preprocessing',
+                                'desc' => 'Clean + tokenize + stem',
+                                'statuses' => ['preprocessing', 'pending', 'training', 'completed'],
+                            ],
+                            [
+                                'label' => 'Training',
+                                'desc' => 'IndoSBERT → UMAP → HDBSCAN',
+                                'statuses' => ['training', 'completed'],
+                            ],
                             ['label' => 'Selesai', 'desc' => 'Hasil tersimpan di DB', 'statuses' => ['completed']],
                         ];
                         $currentStatus = $activeRun?->status ?? 'idle';
@@ -69,19 +222,31 @@
                                 'bg-unsoed-blue-800 text-white shadow-md ring-4 ring-unsoed-blue-100' => $active,
                                 'bg-gray-100 text-gray-400' => !$active,
                             ])>{{ $i + 1 }}</div>
-                            <div class="mt-2 text-xs font-semibold {{ $active ? 'text-unsoed-blue-800' : 'text-gray-400' }}">
+                            <div
+                                class="mt-2 text-xs font-semibold {{ $active ? 'text-unsoed-blue-800' : 'text-gray-400' }}">
                                 {{ $step['label'] }}
                             </div>
                             <div class="text-xs text-gray-400">{{ $step['desc'] }}</div>
                         </div>
                         @if (!$loop->last)
-                            <div class="mt-4 h-0.5 flex-1 {{ in_array($currentStatus, $steps[$i+1]['statuses']) ? 'bg-unsoed-blue-300' : 'bg-gray-200' }} transition-all duration-500"></div>
+                            <div
+                                class="mt-4 h-0.5 flex-1 {{ in_array($currentStatus, $steps[$i + 1]['statuses']) ? 'bg-unsoed-blue-300' : 'bg-gray-200' }} transition-all duration-500">
+                            </div>
                         @endif
                     @endforeach
                 </div>
             </x-ui.card>
 
-            {{-- ---- Preview Preprocessing ---- --}}
+        </div>
+
+        {{-- ===== STATUS ALERT ===== --}}
+        @if ($statusMessage)
+            <x-ui.alert type="{{ $statusType }}" message="{{ $statusMessage }}" />
+        @endif
+
+        {{-- ========================== TAB: PREVIEW ========================== --}}
+        <div x-show="activeTab === 'preview'" x-cloak class="space-y-6">
+
             <x-ui.card no-padding>
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                     <div>
@@ -94,8 +259,9 @@
                         @foreach (['final' => 'BERTopic Input', 'raw' => 'Raw', 'cleaned' => 'Cleaned', 'tokens' => 'Tokens', 'nostop' => 'LDA Input'] as $tab => $label)
                             <button type="button" @click="activePreviewTab = '{{ $tab }}'"
                                 :class="activePreviewTab === '{{ $tab }}'
-                                    ? 'bg-unsoed-blue-800 text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                                    ?
+                                    'bg-unsoed-blue-800 text-white' :
+                                    'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                                 class="rounded-full px-2.5 py-1 text-xs font-medium transition-colors">
                                 {{ $label }}
                             </button>
@@ -110,55 +276,74 @@
                                 <div class="text-xs font-semibold text-gray-800 line-clamp-1">
                                     #{{ $row['id'] }} — {{ $row['title'] }}
                                 </div>
-                                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ $row['year'] }}</span>
+                                <span
+                                    class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ $row['year'] }}</span>
                             </div>
 
                             <div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-700 leading-relaxed">
                                 <div x-show="activePreviewTab === 'raw'" class="break-words">
-                                    <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Teks Abstrak Asli</span>
+                                    <span
+                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Teks
+                                        Abstrak Asli</span>
                                     {{ Str::limit($row['raw'], 350) }}
                                 </div>
                                 <div x-show="activePreviewTab === 'cleaned'" class="break-words">
-                                    <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Setelah lowercase + hapus URL/angka/tanda baca</span>
+                                    <span
+                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Setelah
+                                        lowercase + hapus URL/angka/tanda baca</span>
                                     {{ Str::limit($row['cleaned'], 350) }}
                                 </div>
                                 <div x-show="activePreviewTab === 'tokens'" class="break-words">
-                                    <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tokenized (50 pertama)</span>
+                                    <span
+                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Tokenized
+                                        (50 pertama)
+                                    </span>
                                     <div class="flex flex-wrap gap-1">
-                                        @foreach(array_slice($row['tokenized'], 0, 50) as $tok)
-                                            <span class="rounded bg-white px-1.5 py-0.5 ring-1 ring-gray-200">{{ $tok }}</span>
+                                        @foreach (array_slice($row['tokenized'], 0, 50) as $tok)
+                                            <span
+                                                class="rounded bg-white px-1.5 py-0.5 ring-1 ring-gray-200">{{ $tok }}</span>
                                         @endforeach
-                                        @if(count($row['tokenized']) > 50)
-                                            <span class="text-gray-400">+{{ count($row['tokenized']) - 50 }} lagi…</span>
+                                        @if (count($row['tokenized']) > 50)
+                                            <span class="text-gray-400">+{{ count($row['tokenized']) - 50 }}
+                                                lagi…</span>
                                         @endif
                                     </div>
                                 </div>
                                 <div x-show="activePreviewTab === 'nostop'" class="break-words">
-                                    <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">LDA Input — Stopwords removed (50 pertama)</span>
+                                    <span
+                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">LDA
+                                        Input — Stopwords removed (50 pertama)</span>
                                     <div class="flex flex-wrap gap-1">
-                                        @foreach(array_slice($row['stopwords_removed'], 0, 50) as $tok)
-                                            <span class="rounded bg-white px-1.5 py-0.5 ring-1 ring-gray-200">{{ $tok }}</span>
+                                        @foreach (array_slice($row['stopwords_removed'], 0, 50) as $tok)
+                                            <span
+                                                class="rounded bg-white px-1.5 py-0.5 ring-1 ring-gray-200">{{ $tok }}</span>
                                         @endforeach
-                                        @if(count($row['stopwords_removed']) > 50)
-                                            <span class="text-gray-400">+{{ count($row['stopwords_removed']) - 50 }} lagi…</span>
+                                        @if (count($row['stopwords_removed']) > 50)
+                                            <span class="text-gray-400">+{{ count($row['stopwords_removed']) - 50 }}
+                                                lagi…</span>
                                         @endif
                                     </div>
                                 </div>
                                 <div x-show="activePreviewTab === 'final'" class="break-words">
-                                    <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                    <span
+                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                                         BERTopic Input — Soft clean (natural, tanpa stemming/stopword removal)
                                     </span>
                                     {{ Str::limit($row['final_cleaned_text'], 350) }}
-                                    <div class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] text-blue-700">
-                                        💡 IndoSBERT butuh teks natural — stopword & stemming dihandle oleh c-TF-IDF vectorizer di dalam BERTopic.
+                                    <div
+                                        class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] text-blue-700">
+                                        IndoSBERT butuh teks natural — stopword & stemming dihandle oleh c-TF-IDF
+                                        vectorizer di dalam BERTopic.
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        @empty
+                    @empty
                         <div class="px-5 py-8 text-center text-sm text-gray-400">
-                            <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             Belum ada data abstrak. Pastikan scraping sudah dijalankan.
                         </div>
@@ -166,21 +351,129 @@
                 </div>
             </x-ui.card>
 
-            {{-- ---- Hasil Topic Modeling ---- --}}
+        </div>
+
+        {{-- ========================== TAB: DATABASE ========================== --}}
+        <div x-show="activeTab === 'database'" x-cloak class="space-y-6">
+
+            <x-ui.card no-padding>
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                    <div>
+                        <h2 class="text-sm font-semibold text-gray-900">Hasil Preprocessing (Database)</h2>
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            Data <code class="font-mono">cleaned_text</code> (BERTopic) dan <code
+                                class="font-mono">processed_text</code> (LDA) yang sudah tersimpan di tabel
+                            <code class="font-mono">skripsi</code>.
+                        </p>
+                    </div>
+                    <button wire:click="loadDbPreprocessedRows" wire:loading.attr="disabled"
+                        class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                        wire:loading.class="opacity-50" wire:target="loadDbPreprocessedRows">
+                        <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin"
+                            wire:target="loadDbPreprocessedRows" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+
+                @if (count($dbPreprocessedRows) > 0)
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th
+                                        class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        ID</th>
+                                    <th
+                                        class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Tahun</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Judul</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        cleaned_text (BERTopic)</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        processed_text (LDA)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                @foreach ($dbPreprocessedRows as $r)
+                                    <tr class="hover:bg-gray-50 transition-colors align-top">
+                                        <td class="px-4 py-3 text-gray-600">{{ $r['id'] }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ $r['year'] ?? '-' }}</td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-xs font-semibold text-gray-800 line-clamp-2">
+                                                {{ $r['title'] ?? '-' }}
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-xs text-gray-700 whitespace-pre-wrap break-words">
+                                                {{ Str::limit($r['cleaned_text'] ?? '', 250) }}
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-xs text-gray-700 whitespace-pre-wrap break-words">
+                                                {{ Str::limit($r['processed_text'] ?? '', 250) }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200">
+                        <div class="text-xs text-gray-500">
+                            Menampilkan {{ count($dbPreprocessedRows) }} data terbaru.
+                        </div>
+                        @if ($dbPreprocessedHasMore)
+                            <button wire:click="loadMoreDbPreprocessedRows" wire:loading.attr="disabled"
+                                class="px-3 py-1.5 bg-unsoed-blue-50 hover:bg-unsoed-blue-100 text-unsoed-blue-600 text-xs font-medium rounded-lg border border-unsoed-blue-200 transition"
+                                wire:loading.class="opacity-50" wire:target="loadMoreDbPreprocessedRows">
+                                Load more
+                            </button>
+                        @endif
+                    </div>
+                @else
+                    <div class="px-5 py-8 text-center text-sm text-gray-400">
+                        <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Belum ada hasil preprocessing tersimpan di database.
+                        <div class="mt-1 text-xs">Jalankan <strong>Preprocessing</strong> dulu.</div>
+                    </div>
+                @endif
+            </x-ui.card>
+
+        </div>
+
+        {{-- ========================== TAB: HASIL ========================== --}}
+        <div x-show="activeTab === 'hasil'" x-cloak class="space-y-6">
+
             <x-ui.card title="Hasil Topic Modeling" description="Run aktif — topik tersimpan di database.">
-                @if($activeRun && $activeRun->status === 'completed')
+                @if ($activeRun && $activeRun->status === 'completed')
                     {{-- Stats row --}}
                     <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div class="rounded-xl bg-unsoed-blue-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-unsoed-blue-800">{{ $activeRun->num_topics ?? '-' }}</div>
+                            <div class="text-2xl font-bold text-unsoed-blue-800">
+                                {{ $activeRun->num_topics ?? '-' }}</div>
                             <div class="mt-0.5 text-xs text-unsoed-blue-600">Topik</div>
                         </div>
                         <div class="rounded-xl bg-gray-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-gray-700">{{ $activeRun->total_documents ?? '-' }}</div>
+                            <div class="text-2xl font-bold text-gray-700">{{ $activeRun->total_documents ?? '-' }}
+                            </div>
                             <div class="mt-0.5 text-xs text-gray-500">Dokumen</div>
                         </div>
                         <div class="rounded-xl bg-gray-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-gray-700">{{ $activeRun->num_outliers ?? '-' }}</div>
+                            <div class="text-2xl font-bold text-gray-700">{{ $activeRun->num_outliers ?? '-' }}
+                            </div>
                             <div class="mt-0.5 text-xs text-gray-500">Outlier</div>
                         </div>
                         <div class="rounded-xl bg-gray-50 p-3 text-center">
@@ -196,24 +489,32 @@
                         <table class="min-w-full divide-y divide-gray-200 text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="w-16 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Topik</th>
-                                    <th class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Dokumen</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Kata Kunci Utama</th>
+                                    <th
+                                        class="w-16 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Topik</th>
+                                    <th
+                                        class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Dokumen</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Kata Kunci Utama</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 bg-white">
                                 @foreach ($activeRun->topics->sortBy('topic_id') as $t)
                                     <tr class="hover:bg-gray-50 transition-colors">
                                         <td class="px-4 py-3">
-                                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-unsoed-blue-100 text-xs font-bold text-unsoed-blue-800">
+                                            <span
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-unsoed-blue-100 text-xs font-bold text-unsoed-blue-800">
                                                 {{ $t->topic_id }}
                                             </span>
                                         </td>
                                         <td class="px-4 py-3 text-gray-600">{{ $t->count }}</td>
                                         <td class="px-4 py-3">
                                             <div class="flex flex-wrap gap-1">
-                                                @foreach(array_slice($t->top_words ?? [], 0, 8) as $word)
-                                                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
+                                                @foreach (array_slice($t->top_words ?? [], 0, 8) as $word)
+                                                    <span
+                                                        class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                                 @endforeach
                                             </div>
                                         </td>
@@ -222,10 +523,11 @@
                             </tbody>
                         </table>
                     </div>
-
                 @elseif($activeRun && $activeRun->status === 'training')
                     <div class="flex flex-col items-center py-8 text-center">
-                        <div class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-unsoed-blue-800"></div>
+                        <div
+                            class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-unsoed-blue-800">
+                        </div>
                         <div class="text-sm font-medium text-gray-700">Training sedang berjalan…</div>
                         <div class="mt-1 text-xs text-gray-500">{{ $trainingMessage }}</div>
                     </div>
@@ -236,134 +538,17 @@
                     </div>
                 @else
                     <div class="flex flex-col items-center py-10 text-center">
-                        <svg class="mb-3 h-12 w-12 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        <svg class="mb-3 h-12 w-12 text-gray-200" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                         <div class="text-sm font-medium text-gray-500">Belum ada hasil training</div>
-                        <div class="mt-1 text-xs text-gray-400">Jalankan Preprocessing → Start Training untuk memulai.</div>
+                        <div class="mt-1 text-xs text-gray-400">Jalankan Preprocessing → Start Training untuk
+                            memulai.</div>
                     </div>
                 @endif
             </x-ui.card>
-        </div>
-
-        {{-- == RIGHT: Sidebar (1/3) == --}}
-        <div class="space-y-5">
-
-            {{-- ---- Preprocessing Progress ---- --}}
-            @if($preprocessingJobId)
-                <div class="rounded-2xl border border-yellow-200 bg-yellow-50 p-5 shadow-sm" wire:poll.2s="pollPreprocessingProgress">
-                    <div class="mb-3 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="h-2 w-2 animate-pulse rounded-full bg-yellow-500"></div>
-                            <span class="text-sm font-semibold text-yellow-800">Preprocessing Berjalan</span>
-                        </div>
-                        <button type="button" wire:click="cancelPreprocessing" wire:confirm="Yakin ingin membatalkan preprocessing?" class="text-yellow-600 hover:text-yellow-800 p-1 rounded-md hover:bg-yellow-100 transition-colors" title="Batalkan Preprocessing">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                    <div class="mb-1 flex justify-between text-xs text-yellow-700">
-                        <span>{{ $preprocessingMessage ?: 'Memproses…' }}</span>
-                        <span class="font-semibold">{{ $preprocessingProgress }}%</span>
-                    </div>
-                    <div class="h-2.5 w-full overflow-hidden rounded-full bg-yellow-200">
-                        <div class="h-2.5 rounded-full bg-yellow-600 transition-all duration-500"
-                            style="width: {{ max(0, min(100, (int) $preprocessingProgress)) }}%"></div>
-                    </div>
-                    <div class="mt-3 rounded-lg bg-white px-3 py-2">
-                        <div class="text-[10px] text-gray-400">Job ID</div>
-                        <div class="font-mono text-xs text-gray-700">{{ $preprocessingJobId }}</div>
-                    </div>
-                </div>
-            @endif
-
-            {{-- ---- Training Progress ---- --}}
-            @if($trainingJobId)
-                <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm" wire:poll.5s="pollTrainingProgress">
-                    <div class="mb-3 flex items-center gap-2">
-                        <div class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></div>
-                        <span class="text-sm font-semibold text-blue-800">Training Berjalan</span>
-                    </div>
-                    <div class="mb-1 flex justify-between text-xs text-blue-700">
-                        <span>{{ $trainingMessage ?: 'Memproses…' }}</span>
-                        <span class="font-semibold">{{ $trainingProgress }}%</span>
-                    </div>
-                    <div class="h-2.5 w-full overflow-hidden rounded-full bg-blue-200">
-                        <div class="h-2.5 rounded-full bg-blue-600 transition-all duration-500"
-                            style="width: {{ max(0, min(100, (int) $trainingProgress)) }}%"></div>
-                    </div>
-                    <div class="mt-3 rounded-lg bg-white px-3 py-2">
-                        <div class="text-[10px] text-gray-400">Job ID</div>
-                        <div class="font-mono text-xs text-gray-700">{{ $trainingJobId }}</div>
-                    </div>
-                </div>
-            @endif
-
-            {{-- ---- BERTopic Settings ---- --}}
-            <x-ui.card no-padding>
-                <div class="border-b border-gray-200 px-5 py-4">
-                    <h2 class="text-sm font-semibold text-gray-900">Konfigurasi BERTopic</h2>
-                    <p class="mt-0.5 text-xs text-gray-500">Best params dari eksperimen.</p>
-                </div>
-                <div class="space-y-4 px-5 py-4">
-                    {{-- UMAP --}}
-                    <div>
-                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">UMAP</div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="text-xs text-gray-600">n_neighbors</label>
-                                <input type="number" min="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.umap_params.n_neighbors" />
-                            </div>
-                            <div>
-                                <label class="text-xs text-gray-600">n_components</label>
-                                <input type="number" min="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.umap_params.n_components" />
-                            </div>
-                            <div class="col-span-2">
-                                <label class="text-xs text-gray-600">min_dist</label>
-                                <input type="number" step="0.01" min="0" max="1" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.umap_params.min_dist" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- HDBSCAN --}}
-                    <div>
-                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">HDBSCAN</div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="text-xs text-gray-600">min_cluster_size</label>
-                                <input type="number" min="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.hdbscan_params.min_cluster_size" />
-                            </div>
-                            <div>
-                                <label class="text-xs text-gray-600">min_samples</label>
-                                <input type="number" min="1" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.hdbscan_params.min_samples" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- BERTopic --}}
-                    <div>
-                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">BERTopic</div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="text-xs text-gray-600">nr_topics</label>
-                                <input type="number" min="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.nr_topics" />
-                            </div>
-                            <div>
-                                <label class="text-xs text-gray-600">min_topic_size</label>
-                                <input type="number" min="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500" wire:model.live="bertopicParams.min_topic_size" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </x-ui.card>
-
-            {{-- ---- Preprocessing Note ---- --}}
-            <x-ui.alert type="warning">
-                <div class="font-semibold">Strategi preprocessing dual-pipeline:</div>
-                <ul class="mt-1 space-y-0.5 text-amber-700">
-                    <li>• <strong>BERTopic:</strong> soft clean — tidak hapus stopword, tidak stemming</li>
-                    <li>• <strong>LDA:</strong> full clean + stopword removal + stemming Sastrawi</li>
-                </ul>
-            </x-ui.alert>
 
             {{-- ---- Riwayat Run ---- --}}
             <x-ui.card no-padding>
@@ -373,20 +558,22 @@
                 <div class="divide-y divide-gray-100">
                     @forelse($latestRuns as $r)
                         @php
-                            $badgeType = match($r->status) {
-                                'completed'     => 'success',
-                                'training'      => 'info',
+                            $badgeType = match ($r->status) {
+                                'completed' => 'success',
+                                'training' => 'info',
                                 'preprocessing' => 'warning',
-                                'failed'        => 'error',
-                                default         => 'default',
+                                'failed' => 'error',
+                                default => 'default',
                             };
                         @endphp
                         <div class="flex items-center justify-between gap-3 px-5 py-3">
                             <div>
                                 <div class="text-xs font-semibold text-gray-800">Run #{{ $r->id }}</div>
-                                <div class="text-xs text-gray-400">{{ $r->created_at?->format('d/m/Y H:i') }}</div>
-                                @if($r->num_topics)
-                                    <div class="text-xs text-gray-500">{{ $r->num_topics }} topik | C_v: {{ $r->coherence_cv ? number_format($r->coherence_cv, 3) : '-' }}</div>
+                                <div class="text-xs text-gray-400">{{ $r->created_at?->format('d/m/Y H:i') }}
+                                </div>
+                                @if ($r->num_topics)
+                                    <div class="text-xs text-gray-500">{{ $r->num_topics }} topik | C_v:
+                                        {{ $r->coherence_cv ? number_format($r->coherence_cv, 3) : '-' }}</div>
                                 @endif
                             </div>
                             <div class="flex flex-col items-end gap-1">
@@ -400,6 +587,200 @@
                 </div>
             </x-ui.card>
         </div>
+{{-- ========================== TAB: PENGATURAN ========================== --}}
+<div x-show="activeTab === 'pengaturan'" x-cloak class="space-y-6">
 
+    {{-- ---- BERTopic Settings ---- --}}
+    <x-ui.card no-padding>
+        <div class="border-b border-gray-200 px-5 py-4">
+            <h2 class="text-sm font-semibold text-gray-900">Konfigurasi BERTopic</h2>
+            <p class="mt-0.5 text-xs text-gray-500">Best params dari eksperimen.</p>
+        </div>
+        <div class="space-y-4 px-5 py-4">
+            {{-- UMAP --}}
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">UMAP</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-gray-600">n_neighbors</label>
+                        <input type="number" min="2"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.umap_params.n_neighbors" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-600">n_components</label>
+                        <input type="number" min="2"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.umap_params.n_components" />
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-xs text-gray-600">min_dist</label>
+                        <input type="number" step="0.01" min="0" max="1"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.umap_params.min_dist" />
+                    </div>
+                </div>
+            </div>
+
+            {{-- HDBSCAN --}}
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">HDBSCAN</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-gray-600">min_cluster_size</label>
+                        <input type="number" min="2"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.hdbscan_params.min_cluster_size" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-600">min_samples</label>
+                        <input type="number" min="1"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.hdbscan_params.min_samples" />
+                    </div>
+                </div>
+            </div>
+
+            {{-- BERTopic --}}
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">BERTopic</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-gray-600">nr_topics</label>
+                        <input type="number" min="2"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.nr_topics" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-600">min_topic_size</label>
+                        <input type="number" min="2"
+                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.min_topic_size" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </x-ui.card>
+
+    {{-- ---- Preprocessing Note ---- --}}
+    <x-ui.alert type="warning">
+        <div class="font-semibold">Strategi preprocessing dual-pipeline:</div>
+        <ul class="mt-1 space-y-0.5 text-amber-700">
+            <li>• <strong>BERTopic:</strong> soft clean — tidak hapus stopword, tidak stemming</li>
+            <li>• <strong>LDA:</strong> full clean + stopword removal + stemming Sastrawi</li>
+        </ul>
+    </x-ui.alert>
+
+</div>
+
+{{-- ========================== STICKY JOB STATUS (only when running) ========================== --}}
+@if ($preprocessingJobId || $trainingJobId)
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        @if ($preprocessingJobId)
+            <div class="bg-white rounded-xl shadow-sm border-2 border-unsoed-blue-200 p-6"
+                wire:poll.2s="pollPreprocessingProgress">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
+                            <svg class="w-5 h-5 text-unsoed-blue-600 animate-spin" fill="none"
+                                viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10"
+                                    stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-semibold text-gray-900">Preprocessing Sedang Berjalan</h2>
+                            <p class="text-xs text-gray-400">Job ID: {{ $preprocessingJobId }}</p>
+                        </div>
+                    </div>
+                    <button type="button" wire:click="cancelPreprocessing"
+                        wire:confirm="Yakin ingin membatalkan preprocessing?"
+                        class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center"
+                        title="Batalkan Preprocessing">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Batalkan
+                    </button>
+                </div>
+                <div class="mb-3">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600 font-medium">Progress</span>
+                        <span class="text-unsoed-blue-600 font-bold">{{ $preprocessingProgress }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div class="h-3 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-unsoed-blue-500 to-unsoed-blue-600"
+                            style="width: {{ max(0, min(100, (int) $preprocessingProgress)) }}%">
+                            @if ($preprocessingProgress > 5 && $preprocessingProgress < 100)
+                                <div
+                                    class="h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse">
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-gray-500 flex items-center">
+                    <svg class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" fill="currentColor"
+                        viewBox="0 0 8 8">
+                        <circle cx="4" cy="4" r="3" />
+                    </svg>
+                    {{ $preprocessingMessage ?: 'Memproses…' }}
+                </p>
+            </div>
+        @endif
+
+        @if ($trainingJobId)
+            <div class="bg-white rounded-xl shadow-sm border-2 border-unsoed-blue-200 p-6"
+                wire:poll.5s="pollTrainingProgress">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
+                            <svg class="w-5 h-5 text-unsoed-blue-600 animate-spin" fill="none"
+                                viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10"
+                                    stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-semibold text-gray-900">Training Sedang Berjalan</h2>
+                            <p class="text-xs text-gray-400">Job ID: {{ $trainingJobId }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600 font-medium">Progress</span>
+                        <span class="text-unsoed-blue-600 font-bold">{{ $trainingProgress }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div class="h-3 rounded-full transition-all duration-500 ease-out
+                                    {{ $trainingProgress < 100 ? 'bg-gradient-to-r from-unsoed-blue-500 to-unsoed-blue-600' : 'bg-green-500' }}"
+                            style="width: {{ max(0, min(100, (int) $trainingProgress)) }}%">
+                            @if ($trainingProgress > 5 && $trainingProgress < 100)
+                                <div
+                                    class="h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse">
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-gray-500 flex items-center">
+                    <svg class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" fill="currentColor"
+                        viewBox="0 0 8 8">
+                        <circle cx="4" cy="4" r="3" />
+                    </svg>
+                    {{ $trainingMessage ?: 'Memproses…' }}
+                </p>
+            </div>
+        @endif
     </div>
+@endif
+
+</div>
 </div>

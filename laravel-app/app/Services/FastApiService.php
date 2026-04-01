@@ -237,6 +237,27 @@ class FastApiService
   // ============================================
 
   /**
+   * Get a quick summary of the processed dataset for training.
+   */
+  public function getTrainingDatasetSummary(): array
+  {
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(10)
+        ->get("{$this->baseUrl}/api/v1/training/dataset/summary");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal mengambil summary dataset training'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI training dataset summary fetch failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
    * Start BERTopic training job.
    *
    * Payload shape follows TrainingRequest schema in FastAPI.

@@ -40,7 +40,11 @@ from app.core.config import (bertopic_settings, hdbscan_settings,
                              path_settings, umap_settings)
 from app.models.schemas import BERTopicHyperparameters
 from loguru import logger
-
+from sentence_transformers import SentenceTransformer
+from umap import UMAP
+from hdbscan import HDBSCAN
+from sklearn.feature_extraction.text import CountVectorizer
+from bertopic import BERTopic
 
 class BERTopicTrainer:
     """
@@ -97,8 +101,6 @@ class BERTopicTrainer:
         menggunakan Siamese Network, menghasilkan 256-dim sentence embeddings
         berkualitas tinggi untuk Bahasa Indonesia.
         """
-        from sentence_transformers import SentenceTransformer
-
         logger.info(
             f"Loading sentence encoder: {self.params.embedding_model} "
             f"(IndoBERT-large + Siamese Network, output: 256-dim)"
@@ -107,8 +109,6 @@ class BERTopicTrainer:
 
     def _build_umap_model(self):
         """Configure UMAP dimensionality reduction."""
-        from umap import UMAP
-
         p = self.params.umap_params
         return UMAP(
             n_neighbors=p.n_neighbors,
@@ -120,8 +120,6 @@ class BERTopicTrainer:
 
     def _build_hdbscan_model(self):
         """Configure HDBSCAN clustering."""
-        from hdbscan import HDBSCAN
-
         p = self.params.hdbscan_params
         return HDBSCAN(
             min_cluster_size=p.min_cluster_size,
@@ -140,8 +138,6 @@ class BERTopicTrainer:
           - token_pattern: ambil kata dengan minimal 3 huruf
           - stop_words=None: stopword sudah ditangani di preprocessing
         """
-        from sklearn.feature_extraction.text import CountVectorizer
-
         n_gram_range = tuple(self.params.n_gram_range)
         return CountVectorizer(
             ngram_range=n_gram_range,
@@ -153,8 +149,6 @@ class BERTopicTrainer:
 
     def _build_model(self):
         """Build the full BERTopic pipeline."""
-        from bertopic import BERTopic
-
         embedding_model = self._build_embedding_model()
         umap_model = self._build_umap_model()
         hdbscan_model = self._build_hdbscan_model()

@@ -22,6 +22,9 @@ class TopicModelingManager extends Component
     public string $statusMessage = '';
     public string $statusType = 'info'; // info, success, error, warning
 
+    // FastAPI status (align with ScrapingManager UX)
+    public array $apiStatus = [];
+
     // Preprocessing settings (BERTopic = soft clean, LDA = full clean)
     public bool $removeStopwords = false;
     public int $minWordLength = 3;
@@ -46,12 +49,70 @@ class TopicModelingManager extends Component
     // Preview data (in-memory only, tidak disimpan ke DB)
     public array $previewRows = [];
 
+    // Dataset readiness (from FastAPI)
+    public array $datasetSummary = [];
+
+    // Show preprocessed texts stored in DB (skripsi.cleaned_text / skripsi.processed_text)
+    public array $dbPreprocessedRows = [];
+    public int $dbPreprocessedLimit = 20;
+    public bool $dbPreprocessedHasMore = false;
+    public bool $dbPreprocessedLoading = false;
+
     public function mount(): void
     {
+        $this->checkApiStatus();
         $this->loadBestParamsFromMetadata();
         $this->loadLatestRun();
         $this->resumeActiveJobs();
         $this->buildPreview();
+        $this->loadDatasetSummary();
+        $this->loadDbPreprocessedRows();
+    }
+
+    public function loadDbPreprocessedRows(): void
+    {
+        $this->dbPreprocessedLoading = true;
+
+        $rows = Skripsi::query()
+            ->select(['id', 'title', 'year', 'cleaned_text', 'processed_text'])
+            ->whereNotNull('cleaned_text')
+            ->whereNotNull('processed_text')
+            ->orderByDesc('id')
+            ->limit($this->dbPreprocessedLimit + 1)
+            ->get();
+
+        $this->dbPreprocessedHasMore = $rows->count() > $this->dbPreprocessedLimit;
+
+        $this->dbPreprocessedRows = $rows
+            ->take($this->dbPreprocessedLimit)
+            ->map(fn($r) => [
+                'id' => $r->id,
+                'title' => $r->title,
+                'year' => $r->year,
+                'cleaned_text' => (string) ($r->cleaned_text ?? ''),
+                'processed_text' => (string) ($r->processed_text ?? ''),
+            ])
+            ->toArray();
+
+        $this->dbPreprocessedLoading = false;
+    }
+
+    public function loadMoreDbPreprocessedRows(): void
+    {
+        $this->dbPreprocessedLimit += 20;
+        $this->loadDbPreprocessedRows();
+    }
+
+    public function checkApiStatus(): void
+    {
+        $fastApiService = app(FastApiService::class);
+        $this->apiStatus = $fastApiService->healthCheck();
+    }
+
+    public function loadDatasetSummary(): void
+    {
+        $fastApiService = app(FastApiService::class);
+        $this->datasetSummary = $fastApiService->getTrainingDatasetSummary();
     }
 
     /**
@@ -203,23 +264,23 @@ class TopicModelingManager extends Component
             $best = $json['best_params'] ?? [];
 
             $this->bertopicParams = [
-                'embedding_model'     => $json['embedding_model'] ?? 'denaya/indoSBERT-large',
-                'min_topic_size'      => $best['min_topic_size'] ?? 5,
-                'nr_topics'           => 10,
-                'top_n_words'         => 10,
-                'n_gram_range'        => [1, 2],
-                'embedding_batch_size'=> 16,
-                'seed'                => 42,
+                'embedding_model' => $json['embedding_model'] ?? 'denaya/indoSBERT-large',
+                'min_topic_size' => $best['min_topic_size'] ?? 5,
+                'nr_topics' => 10,
+                'top_n_words' => 10,
+                'n_gram_range' => [1, 2],
+                'embedding_batch_size' => 16,
+                'seed' => 42,
                 'umap_params' => [
-                    'n_neighbors'  => $best['umap_n_neighbors'] ?? 5,
+                    'n_neighbors' => $best['umap_n_neighbors'] ?? 5,
                     'n_components' => $best['umap_n_components'] ?? 5,
-                    'min_dist'     => $best['umap_min_dist'] ?? 0.0,
-                    'metric'       => 'cosine',
+                    'min_dist' => $best['umap_min_dist'] ?? 0.0,
+                    'metric' => 'cosine',
                     'random_state' => 42,
                 ],
                 'hdbscan_params' => [
-                    'min_cluster_size'       => $best['hdbscan_min_cluster_size'] ?? 5,
-                    'min_samples'            => 1,
+                    'min_cluster_size' => $best['hdbscan_min_cluster_size'] ?? 5,
+                    'min_samples' => 1,
                     'cluster_selection_method' => 'eom',
                 ],
             ];
@@ -234,23 +295,23 @@ class TopicModelingManager extends Component
     protected function getDefaultBertopicParams(): array
     {
         return [
-            'embedding_model'     => 'denaya/indoSBERT-large',
-            'min_topic_size'      => 5,
-            'nr_topics'           => 10,
-            'top_n_words'         => 10,
-            'n_gram_range'        => [1, 2],
-            'embedding_batch_size'=> 16,
-            'seed'                => 42,
+            'embedding_model' => 'denaya/indoSBERT-large',
+            'min_topic_size' => 5,
+            'nr_topics' => 10,
+            'top_n_words' => 10,
+            'n_gram_range' => [1, 2],
+            'embedding_batch_size' => 16,
+            'seed' => 42,
             'umap_params' => [
-                'n_neighbors'  => 5,
+                'n_neighbors' => 5,
                 'n_components' => 5,
-                'min_dist'     => 0.0,
-                'metric'       => 'cosine',
+                'min_dist' => 0.0,
+                'metric' => 'cosine',
                 'random_state' => 42,
             ],
             'hdbscan_params' => [
-                'min_cluster_size'         => 5,
-                'min_samples'              => 1,
+                'min_cluster_size' => 5,
+                'min_samples' => 1,
                 'cluster_selection_method' => 'eom',
             ],
         ];
@@ -299,14 +360,14 @@ class TopicModelingManager extends Component
             $raw = (string) $r->abstract;
 
             return [
-                'id'                 => $r->id,
-                'year'               => $r->year,
-                'title'              => $r->title,
-                'raw'                => $raw,
-                'cleaned'            => $service->cleanText($raw),
-                'tokenized'          => $service->tokenize($service->cleanText($raw)),
-                'filtered_tokens'    => $service->filterByLength($service->tokenize($service->cleanText($raw))),
-                'stopwords_removed'  => $service->removeStopwordsFromTokens(
+                'id' => $r->id,
+                'year' => $r->year,
+                'title' => $r->title,
+                'raw' => $raw,
+                'cleaned' => $service->cleanText($raw),
+                'tokenized' => $service->tokenize($service->cleanText($raw)),
+                'filtered_tokens' => $service->filterByLength($service->tokenize($service->cleanText($raw))),
+                'stopwords_removed' => $service->removeStopwordsFromTokens(
                     $service->filterByLength($service->tokenize($service->cleanText($raw)))
                 ),
                 'final_cleaned_text' => $service->preprocessCleaned($raw),
@@ -321,47 +382,47 @@ class TopicModelingManager extends Component
     public function runPreprocessing(): void
     {
         $this->isProcessing = true;
-        $this->statusType    = 'info';
+        $this->statusType = 'info';
         $this->statusMessage = 'Menjalankan preprocessing data...';
 
         /** @var int|null $userId */
         $userId = Auth::id();
 
         if ($userId === null) {
-            $this->statusType    = 'error';
+            $this->statusType = 'error';
             $this->statusMessage = 'Silakan login terlebih dahulu.';
-            $this->isProcessing  = false;
+            $this->isProcessing = false;
             return;
         }
 
         // Buat run baru — tanpa preprocessing_preview (sudah dihapus dari DB)
         $run = TopicModelRun::create([
-            'user_id'       => $userId,
-            'model_type'    => 'bertopic',
-            'status'        => 'preprocessing',
+            'user_id' => $userId,
+            'model_type' => 'bertopic',
+            'status' => 'preprocessing',
             'remove_stopwords' => $this->removeStopwords,
-            'min_word_length'  => $this->minWordLength,
-            'language'         => $this->language,
-            'bertopic_params'  => $this->bertopicParams ?: null,
-            'started_at'       => now(),
+            'min_word_length' => $this->minWordLength,
+            'language' => $this->language,
+            'bertopic_params' => $this->bertopicParams ?: null,
+            'started_at' => now(),
         ]);
 
-        $this->activeRun  = $run;
+        $this->activeRun = $run;
         $this->activeRunId = $run->id;
 
         $fastApi = app(FastApiService::class);
-        $resp    = $fastApi->startPreprocessing($run->id);
+        $resp = $fastApi->startPreprocessing($run->id);
 
         if (!isset($resp['job_id'])) {
             $run->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => $resp['message'] ?? 'Preprocessing gagal',
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
 
-            $this->statusType    = 'error';
+            $this->statusType = 'error';
             $this->statusMessage = $resp['message'] ?? 'Preprocessing gagal';
-            $this->isProcessing  = false;
+            $this->isProcessing = false;
             return;
         }
 
@@ -390,7 +451,7 @@ class TopicModelingManager extends Component
         }
 
         $fastApi = app(FastApiService::class);
-        $status  = $fastApi->getPreprocessingStatus($this->preprocessingJobId);
+        $status = $fastApi->getPreprocessingStatus($this->preprocessingJobId);
 
         if (($status['status'] ?? '') === 'unreachable') {
             $this->preprocessingMessage = 'FastAPI tidak dapat dihubungi, mencoba lagi...';
@@ -398,32 +459,32 @@ class TopicModelingManager extends Component
         }
 
         $this->preprocessingProgress = (int) round($status['progress'] ?? 0);
-        $this->preprocessingMessage  = (string) ($status['message'] ?? '');
+        $this->preprocessingMessage = (string) ($status['message'] ?? '');
 
         $state = $status['status'] ?? null;
 
         if ($state === 'completed') {
             $this->activeRun->update([
-                'status'          => 'pending',
+                'status' => 'pending',
                 'total_documents' => (int) ($status['processed'] ?? 0),
             ]);
             $this->activeRun->refresh();
             $this->isProcessing = false;
-            $this->statusType    = 'success';
+            $this->statusType = 'success';
             $this->statusMessage = 'Preprocessing selesai.';
             $this->dispatch('toast', type: 'success', message: 'Preprocessing selesai! Data siap untuk training.');
             $this->preprocessingJobId = '';
         } elseif ($state === 'failed') {
             $this->activeRun->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => (string) ($status['error'] ?? $this->preprocessingMessage ?? 'Preprocessing gagal'),
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
             $this->activeRun->refresh();
 
-            $this->statusType    = 'error';
+            $this->statusType = 'error';
             $this->statusMessage = 'Preprocessing gagal: ' . ($status['error'] ?? $this->preprocessingMessage);
-            $this->isProcessing  = false;
+            $this->isProcessing = false;
             $this->preprocessingJobId = '';
         } else {
             $this->isProcessing = true;
@@ -445,9 +506,9 @@ class TopicModelingManager extends Component
 
             if (($result['status'] ?? '') === 'cancelled') {
                 $this->activeRun->update([
-                    'status'        => 'failed',
+                    'status' => 'failed',
                     'error_message' => 'Dibatalkan oleh user',
-                    'completed_at'  => now(),
+                    'completed_at' => now(),
                 ]);
                 $this->activeRun->refresh();
 
@@ -474,39 +535,39 @@ class TopicModelingManager extends Component
     public function startTraining(): void
     {
         if (!$this->activeRun) {
-            $this->statusType    = 'error';
+            $this->statusType = 'error';
             $this->statusMessage = 'Jalankan preprocessing terlebih dahulu.';
             return;
         }
 
         if (!in_array($this->activeRun->status, ['pending', 'completed', 'failed'])) {
-            $this->statusType    = 'warning';
+            $this->statusType = 'warning';
             $this->statusMessage = 'Training sudah berjalan atau preprocessing belum selesai.';
             return;
         }
 
-        $this->isProcessing  = true;
-        $this->statusType    = 'info';
+        $this->isProcessing = true;
+        $this->statusType = 'info';
         $this->statusMessage = 'Memulai training BERTopic...';
 
         $fastApi = app(FastApiService::class);
-        $resp    = $fastApi->startBerTopicTraining(
+        $resp = $fastApi->startBerTopicTraining(
             bertopicParams: $this->bertopicParams,
             description: 'BERTopic run dari dashboard Jurusan',
         );
 
         if (!isset($resp['job_id'])) {
-            $this->statusType    = 'error';
+            $this->statusType = 'error';
             $this->statusMessage = $resp['message'] ?? 'Gagal memulai training.';
-            $this->isProcessing  = false;
+            $this->isProcessing = false;
             return;
         }
 
         $this->trainingJobId = (string) $resp['job_id'];
 
         $this->activeRun->update([
-            'status'                   => 'training',
-            'fastapi_training_job_id'  => $this->trainingJobId,
+            'status' => 'training',
+            'fastapi_training_job_id' => $this->trainingJobId,
         ]);
 
         Log::info('Training job started', [
@@ -527,7 +588,7 @@ class TopicModelingManager extends Component
         }
 
         $fastApi = app(FastApiService::class);
-        $status  = $fastApi->getTrainingStatus($this->trainingJobId);
+        $status = $fastApi->getTrainingStatus($this->trainingJobId);
 
         if (($status['status'] ?? '') === 'unreachable') {
             $this->trainingMessage = 'FastAPI tidak dapat dihubungi, mencoba lagi...';
@@ -535,7 +596,7 @@ class TopicModelingManager extends Component
         }
 
         $this->trainingProgress = (int) round($status['progress'] ?? 0);
-        $this->trainingMessage  = (string) ($status['message'] ?? '');
+        $this->trainingMessage = (string) ($status['message'] ?? '');
 
         $state = $status['status'] ?? null;
 
@@ -544,15 +605,15 @@ class TopicModelingManager extends Component
             $this->isProcessing = false;
         } elseif ($state === 'failed') {
             $this->activeRun->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => (string) ($status['error'] ?? $this->trainingMessage ?? 'Training gagal'),
-                'completed_at'  => now(),
+                'completed_at' => now(),
             ]);
             $this->activeRun->refresh();
 
-            $this->statusType    = 'error';
+            $this->statusType = 'error';
             $this->statusMessage = 'Training gagal: ' . ($status['error'] ?? $this->trainingMessage);
-            $this->isProcessing  = false;
+            $this->isProcessing = false;
             $this->trainingJobId = '';
         } else {
             $this->isProcessing = true;
@@ -569,7 +630,7 @@ class TopicModelingManager extends Component
         $results = $fastApi->getTrainingResults($this->trainingJobId);
 
         if (($results['status'] ?? '') === 'not_found' || ($results['status'] ?? '') === 'error') {
-            $this->statusType    = 'warning';
+            $this->statusType = 'warning';
             $this->statusMessage = 'Training selesai, tapi hasil belum siap. Coba refresh beberapa saat.';
             return;
         }
@@ -577,14 +638,14 @@ class TopicModelingManager extends Component
         $metrics = $results['metrics'] ?? [];
 
         $this->activeRun->update([
-            'status'                    => 'completed',
-            'num_topics'                => (int) ($results['num_topics'] ?? 0),
-            'num_outliers'              => (int) ($results['num_outliers'] ?? 0),
-            'coherence_cv'              => isset($metrics['coherence_cv']) ? (float) $metrics['coherence_cv'] : null,
-            'topic_diversity'           => isset($metrics['topic_diversity']) ? (float) $metrics['topic_diversity'] : null,
+            'status' => 'completed',
+            'num_topics' => (int) ($results['num_topics'] ?? 0),
+            'num_outliers' => (int) ($results['num_outliers'] ?? 0),
+            'coherence_cv' => isset($metrics['coherence_cv']) ? (float) $metrics['coherence_cv'] : null,
+            'topic_diversity' => isset($metrics['topic_diversity']) ? (float) $metrics['topic_diversity'] : null,
             'training_duration_seconds' => isset($results['training_duration_seconds']) ? (float) $results['training_duration_seconds'] : null,
-            'model_path'                => (string) ($results['model_path'] ?? ''),
-            'completed_at'              => now(),
+            'model_path' => (string) ($results['model_path'] ?? ''),
+            'completed_at' => now(),
         ]);
 
         // Simpan topik ke tabel topic_model_topics
@@ -593,11 +654,11 @@ class TopicModelingManager extends Component
             TopicModelTopic::updateOrCreate(
                 [
                     'topic_model_run_id' => $this->activeRun->id,
-                    'topic_id'           => (int) ($t['topic_id'] ?? 0),
+                    'topic_id' => (int) ($t['topic_id'] ?? 0),
                 ],
                 [
-                    'count'       => (int) ($t['count'] ?? 0),
-                    'top_words'   => $t['top_words'] ?? [],
+                    'count' => (int) ($t['count'] ?? 0),
+                    'top_words' => $t['top_words'] ?? [],
                     'word_scores' => $t['word_scores'] ?? [],
                 ]
             );
@@ -606,7 +667,7 @@ class TopicModelingManager extends Component
         $this->activeRun->refresh();
         $this->activeRun->load('topics');
 
-        $this->statusType    = 'success';
+        $this->statusType = 'success';
         $this->statusMessage = sprintf(
             'Training selesai! %d topik ditemukan. Coherence: %.4f | Diversity: %.4f',
             $this->activeRun->num_topics ?? 0,
