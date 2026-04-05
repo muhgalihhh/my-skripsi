@@ -4,7 +4,10 @@ namespace App\Livewire\Jurusan;
 
 use App\Models\Skripsi;
 use App\Models\TopicModelRun;
+use App\Models\TopicModelSetting;
 use App\Models\TopicModelTopic;
+use App\Models\TopicModelDataset;
+use App\Models\TopicModelTopicDocument;
 use App\Services\FastApiService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
@@ -26,11 +29,11 @@ class TopicModelingManager extends Component
     public array $apiStatus = [];
 
     // Preprocessing settings (BERTopic = soft clean, LDA = full clean)
-    public bool $removeStopwords = false;
+    public bool $removeStopwords = true;
     public int $minWordLength = 3;
     public string $language = 'indonesian';
 
-    // BERTopic params (best preset dari eksperimen BT_031)
+    // BERTopic params (default mengikuti hasil tuning terbaik terbaru)
     public array $bertopicParams = [];
 
     // Current run (DB)
@@ -52,6 +55,10 @@ class TopicModelingManager extends Component
     // Dataset readiness (from FastAPI)
     public array $datasetSummary = [];
 
+    // Model utilities (download + test)
+    public bool $modelTestLoading = false;
+    public array $modelTestDatasetResult = [];
+
     // Show preprocessed texts stored in DB (skripsi.cleaned_text / skripsi.processed_text)
     public array $dbPreprocessedRows = [];
     public int $dbPreprocessedLimit = 20;
@@ -61,38 +68,116 @@ class TopicModelingManager extends Component
     public function mount(): void
     {
         $this->checkApiStatus();
-        $this->loadBestParamsFromMetadata();
         $this->loadLatestRun();
+        $this->loadTrainingParams();
         $this->resumeActiveJobs();
         $this->buildPreview();
         $this->loadDatasetSummary();
         $this->loadDbPreprocessedRows();
     }
 
+    /**
+     * Load BERTopic training params with precedence:
+     * 1) active run snapshot (topic_model_runs.bertopic_params)
+     * 2) user default setting (topic_model_settings.bertopic_params)
+     * 3) metadata.json from analysis output / fallback default
+     */
+    protected function loadTrainingParams(): void
+    {
+        // 1) Active run snapshot
+        if ($this->activeRun && is_array($this->activeRun->bertopic_params) && !empty($this->activeRun->bertopic_params)) {
+            $this->bertopicParams = $this->activeRun->bertopic_params;
+            return;
+        }
+
+        /** @var int|null $userId */
+        $userId = Auth::id();
+
+        // 2) User default setting
+        if ($userId !== null) {
+            $setting = TopicModelSetting::query()->where('user_id', $userId)->first();
+            if ($setting && is_array($setting->bertopic_params) && !empty($setting->bertopic_params)) {
+                $this->bertopicParams = $setting->bertopic_params;
+                return;
+            }
+        }
+
+        // 3) Metadata/default
+        $this->loadBestParamsFromMetadata();
+    }
+
+    /**
+     * Persist current BERTopic params as user's default in DB.
+     */
+    public function saveTrainingParams(): void
+    {
+        /** @var int|null $userId */
+        $userId = Auth::id();
+        if ($userId === null) {
+            $this->dispatch('toast', type: 'error', message: 'Silakan login terlebih dahulu.');
+            return;
+        }
+
+        TopicModelSetting::query()->updateOrCreate(
+            ['user_id' => $userId],
+            ['bertopic_params' => $this->bertopicParams ?: null],
+        );
+
+        // If there is an active run that hasn't finished, keep its snapshot in sync
+        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'failed'])) {
+            $this->activeRun->update([
+                'bertopic_params' => $this->bertopicParams ?: null,
+            ]);
+            $this->activeRun->refresh();
+        }
+
+        $this->dispatch('toast', type: 'success', message: 'Parameter training BERTopic tersimpan di database.');
+    }
+
     public function loadDbPreprocessedRows(): void
     {
         $this->dbPreprocessedLoading = true;
 
-        $rows = Skripsi::query()
-            ->select(['id', 'title', 'year', 'cleaned_text', 'processed_text'])
-            ->whereNotNull('cleaned_text')
-            ->whereNotNull('processed_text')
-            ->orderByDesc('id')
-            ->limit($this->dbPreprocessedLimit + 1)
-            ->get();
+        try {
+            $rows = TopicModelDataset::query()
+                ->select(['skripsi_id', 'title', 'year', 'cleaned_text', 'processed_text'])
+                ->orderByDesc('skripsi_id')
+                ->limit($this->dbPreprocessedLimit + 1)
+                ->get();
+
+            $mapped = $rows
+                ->take($this->dbPreprocessedLimit)
+                ->map(fn($r) => [
+                    'id' => $r->skripsi_id,
+                    'title' => $r->title,
+                    'year' => $r->year,
+                    'cleaned_text' => (string) ($r->cleaned_text ?? ''),
+                    'processed_text' => (string) ($r->processed_text ?? ''),
+                ]);
+        } catch (\Throwable $e) {
+            // Fallback for environments where topic_model_datasets migration hasn't been run yet.
+            $rows = Skripsi::query()
+                ->select(['id', 'title', 'year', 'cleaned_text', 'processed_text'])
+                ->whereNotNull('cleaned_text')
+                ->whereNotNull('processed_text')
+                ->orderByDesc('id')
+                ->limit($this->dbPreprocessedLimit + 1)
+                ->get();
+
+            $mapped = $rows
+                ->take($this->dbPreprocessedLimit)
+                ->map(fn($r) => [
+                    'id' => $r->id,
+                    'title' => $r->title,
+                    'year' => $r->year,
+                    'cleaned_text' => (string) ($r->cleaned_text ?? ''),
+                    'processed_text' => (string) ($r->processed_text ?? ''),
+                ]);
+        }
 
         $this->dbPreprocessedHasMore = $rows->count() > $this->dbPreprocessedLimit;
 
-        $this->dbPreprocessedRows = $rows
-            ->take($this->dbPreprocessedLimit)
-            ->map(fn($r) => [
-                'id' => $r->id,
-                'title' => $r->title,
-                'year' => $r->year,
-                'cleaned_text' => (string) ($r->cleaned_text ?? ''),
-                'processed_text' => (string) ($r->processed_text ?? ''),
-            ])
-            ->toArray();
+        $this->dbPreprocessedRows = $mapped->toArray();
 
         $this->dbPreprocessedLoading = false;
     }
@@ -251,11 +336,12 @@ class TopicModelingManager extends Component
 
     protected function loadBestParamsFromMetadata(): void
     {
-        // Coba baca dari analysis/output/models/bertopic_best_model/metadata.json
+        $defaults = $this->getDefaultBertopicParams();
+        $this->bertopicParams = $defaults;
+
+        // Optional override from notebook metadata file if available.
         $path = base_path('../analysis/output/models/bertopic_best_model/metadata.json');
         if (!File::exists($path)) {
-            // Gunakan best params dari eksperimen BT_031
-            $this->bertopicParams = $this->getDefaultBertopicParams();
             return;
         }
 
@@ -263,54 +349,61 @@ class TopicModelingManager extends Component
             $json = json_decode(File::get($path), true);
             $best = $json['best_params'] ?? [];
 
-            $this->bertopicParams = [
-                'embedding_model' => $json['embedding_model'] ?? 'denaya/indoSBERT-large',
-                'min_topic_size' => $best['min_topic_size'] ?? 5,
-                'nr_topics' => 10,
-                'top_n_words' => 10,
-                'n_gram_range' => [1, 2],
-                'embedding_batch_size' => 16,
-                'seed' => 42,
-                'umap_params' => [
-                    'n_neighbors' => $best['umap_n_neighbors'] ?? 5,
-                    'n_components' => $best['umap_n_components'] ?? 5,
-                    'min_dist' => $best['umap_min_dist'] ?? 0.0,
-                    'metric' => 'cosine',
-                    'random_state' => 42,
-                ],
-                'hdbscan_params' => [
-                    'min_cluster_size' => $best['hdbscan_min_cluster_size'] ?? 5,
-                    'min_samples' => 1,
-                    'cluster_selection_method' => 'eom',
-                ],
-            ];
+            $this->bertopicParams['embedding_model'] = $json['embedding_model'] ?? $defaults['embedding_model'];
+            $this->bertopicParams['min_topic_size'] = $best['min_topic_size'] ?? $defaults['min_topic_size'];
+            $this->bertopicParams['nr_topics'] = $best['nr_topics'] ?? $defaults['nr_topics'];
+
+            $this->bertopicParams['umap_params']['n_neighbors'] = $best['umap_n_neighbors'] ?? $defaults['umap_params']['n_neighbors'];
+            $this->bertopicParams['umap_params']['n_components'] = $best['umap_n_components'] ?? $defaults['umap_params']['n_components'];
+            $this->bertopicParams['umap_params']['min_dist'] = $best['umap_min_dist'] ?? $defaults['umap_params']['min_dist'];
+
+            $this->bertopicParams['hdbscan_params']['min_cluster_size'] = $best['hdbscan_min_cluster_size'] ?? $defaults['hdbscan_params']['min_cluster_size'];
+            $this->bertopicParams['hdbscan_params']['min_samples'] = $best['hdbscan_min_samples'] ?? $defaults['hdbscan_params']['min_samples'];
+
+            $bestVectorizer = is_array($best['vectorizer'] ?? null) ? $best['vectorizer'] : [];
+            $this->bertopicParams['n_gram_range'] = $bestVectorizer['ngram_range'] ?? $defaults['n_gram_range'];
+            $this->bertopicParams['vectorizer_min_df'] = $bestVectorizer['min_df'] ?? $defaults['vectorizer_min_df'];
+            $this->bertopicParams['vectorizer_max_df'] = $bestVectorizer['max_df'] ?? $defaults['vectorizer_max_df'];
         } catch (\Throwable $e) {
             $this->bertopicParams = $this->getDefaultBertopicParams();
         }
     }
 
     /**
-     * Best config dari eksperimen BT_031 (Coherence=0.625, Diversity=0.933).
+     * Default config aligned with notebook pipeline.
      */
     protected function getDefaultBertopicParams(): array
     {
         return [
             'embedding_model' => 'denaya/indoSBERT-large',
-            'min_topic_size' => 5,
-            'nr_topics' => 10,
+            'min_topic_size' => 10,
+            'nr_topics' => 'auto',
             'top_n_words' => 10,
             'n_gram_range' => [1, 2],
+            'vectorizer_min_df' => 2,
+            'vectorizer_max_df' => 0.95,
+            'vectorizer_token_pattern' => '(?u)\\b\\w{3,}\\b',
+            'coherence_type' => 'c_v',
+            'coherence_tokenization' => 'vectorizer',
+            'coherence_dict_no_below' => 3,
+            'coherence_dict_no_above' => 0.95,
+            'reduce_outliers' => true,
+            'reduce_outliers_threshold_ctfidf' => 0.1,
+            'reduce_outliers_use_distributions' => true,
+            'reduce_outliers_threshold_distributions' => 0.05,
+            'use_mmr_representation' => true,
+            'mmr_diversity' => 0.3,
             'embedding_batch_size' => 16,
             'seed' => 42,
             'umap_params' => [
-                'n_neighbors' => 5,
+                'n_neighbors' => 75,
                 'n_components' => 5,
                 'min_dist' => 0.0,
                 'metric' => 'cosine',
                 'random_state' => 42,
             ],
             'hdbscan_params' => [
-                'min_cluster_size' => 5,
+                'min_cluster_size' => 12,
                 'min_samples' => 1,
                 'cluster_selection_method' => 'eom',
             ],
@@ -328,7 +421,7 @@ class TopicModelingManager extends Component
             return;
         }
 
-        $this->activeRun = TopicModelRun::with('topics')
+        $this->activeRun = TopicModelRun::with(['topics.documentLinks.skripsi'])
             ->where('user_id', $userId)
             ->latest('id')
             ->first();
@@ -550,9 +643,19 @@ class TopicModelingManager extends Component
         $this->statusType = 'info';
         $this->statusMessage = 'Memulai training BERTopic...';
 
+        $params = $this->bertopicParams;
+        if (($params['nr_topics'] ?? null) === '') {
+            $params['nr_topics'] = null;
+        }
+
+        // Keep DB snapshot aligned with what we send to FastAPI
+        $this->activeRun->update([
+            'bertopic_params' => $params ?: null,
+        ]);
+
         $fastApi = app(FastApiService::class);
         $resp = $fastApi->startBerTopicTraining(
-            bertopicParams: $this->bertopicParams,
+            bertopicParams: $params,
             description: 'BERTopic run dari dashboard Jurusan',
         );
 
@@ -576,6 +679,85 @@ class TopicModelingManager extends Component
         ]);
 
         $this->dispatch('toast', type: 'info', message: 'Training BERTopic dimulai di background...');
+    }
+
+    /**
+     * Download the trained model archive (tar.gz) via Laravel proxy.
+     */
+    public function downloadModel(): mixed
+    {
+        if (!$this->activeRun || $this->activeRun->status !== 'completed') {
+            $this->statusType = 'warning';
+            $this->statusMessage = 'Belum ada model yang selesai untuk di-download.';
+            return null;
+        }
+
+        $jobId = (string) ($this->activeRun->fastapi_training_job_id ?? '');
+        if ($jobId === '') {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Job ID training tidak ditemukan. Pastikan training dilakukan via FastAPI.';
+            return null;
+        }
+
+        return redirect()->route('jurusan.topic-modeling.model.download', ['jobId' => $jobId]);
+    }
+
+    /**
+     * Re-test the trained model against the existing dataset in DB.
+     * Compares metrics/keywords with the stored training results.
+     */
+    public function testModelWithDataset(): void
+    {
+        if (!$this->activeRun || $this->activeRun->status !== 'completed') {
+            $this->statusType = 'warning';
+            $this->statusMessage = 'Belum ada hasil training yang bisa di-test.';
+            return;
+        }
+
+        $jobId = (string) ($this->activeRun->fastapi_training_job_id ?? '');
+        if ($jobId === '') {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Job ID training tidak ditemukan.';
+            return;
+        }
+
+        $this->modelTestLoading = true;
+
+        try {
+            $fastApi = app(FastApiService::class);
+            $result = $fastApi->testModelWithDataset($jobId);
+
+            $this->modelTestDatasetResult = $result;
+
+            if (($result['status'] ?? '') === 'unreachable') {
+                $this->statusType = 'warning';
+                $this->statusMessage = $result['message'] ?? 'FastAPI tidak dapat dihubungi.';
+                return;
+            }
+
+            if (($result['status'] ?? '') === 'error' || ($result['status'] ?? '') === 'not_found') {
+                $this->statusType = 'error';
+                $this->statusMessage = $result['message'] ?? 'Gagal melakukan test model.';
+                return;
+            }
+
+            $keywordRatio = (float) ($result['same']['keyword_match_ratio'] ?? 0);
+            $isSameCoherence = $result['same']['coherence_cv'] ?? null;
+            $isSameDiversity = $result['same']['topic_diversity'] ?? null;
+
+            $sameLabel = ($isSameCoherence === true && $isSameDiversity === true)
+                ? '✅ Sama (metrics match)'
+                : '⚠️ Berbeda (metrics berubah)';
+
+            $this->statusType = ($isSameCoherence === true && $isSameDiversity === true) ? 'success' : 'warning';
+            $this->statusMessage = $sameLabel . sprintf(' | Keyword match: %.0f%%', $keywordRatio * 100);
+        } catch (\Throwable $e) {
+            Log::error('Model test-dataset failed', ['error' => $e->getMessage()]);
+            $this->statusType = 'error';
+            $this->statusMessage = 'Gagal melakukan test model: ' . $e->getMessage();
+        } finally {
+            $this->modelTestLoading = false;
+        }
     }
 
     /**
@@ -636,22 +818,39 @@ class TopicModelingManager extends Component
         }
 
         $metrics = $results['metrics'] ?? [];
+        $coherence = isset($metrics['coherence_cv']) ? (float) $metrics['coherence_cv'] : null;
+        $diversity = isset($metrics['topic_diversity']) ? (float) $metrics['topic_diversity'] : null;
+        if ($coherence !== null && !is_finite($coherence)) {
+            $coherence = null;
+        }
+        if ($diversity !== null && !is_finite($diversity)) {
+            $diversity = null;
+        }
 
         $this->activeRun->update([
             'status' => 'completed',
             'num_topics' => (int) ($results['num_topics'] ?? 0),
             'num_outliers' => (int) ($results['num_outliers'] ?? 0),
-            'coherence_cv' => isset($metrics['coherence_cv']) ? (float) $metrics['coherence_cv'] : null,
-            'topic_diversity' => isset($metrics['topic_diversity']) ? (float) $metrics['topic_diversity'] : null,
+            'coherence_cv' => $coherence,
+            'topic_diversity' => $diversity,
             'training_duration_seconds' => isset($results['training_duration_seconds']) ? (float) $results['training_duration_seconds'] : null,
             'model_path' => (string) ($results['model_path'] ?? ''),
             'completed_at' => now(),
         ]);
 
         // Simpan topik ke tabel topic_model_topics
+        TopicModelTopicDocument::query()
+            ->where('topic_model_run_id', $this->activeRun->id)
+            ->delete();
+
+        TopicModelTopic::query()
+            ->where('topic_model_run_id', $this->activeRun->id)
+            ->delete();
+
         $topics = $results['topic_info'] ?? [];
+        $topicIdToRowId = [];
         foreach ($topics as $t) {
-            TopicModelTopic::updateOrCreate(
+            $topicRow = TopicModelTopic::updateOrCreate(
                 [
                     'topic_model_run_id' => $this->activeRun->id,
                     'topic_id' => (int) ($t['topic_id'] ?? 0),
@@ -662,10 +861,49 @@ class TopicModelingManager extends Component
                     'word_scores' => $t['word_scores'] ?? [],
                 ]
             );
+
+            $topicIdToRowId[(int) ($t['topic_id'] ?? 0)] = $topicRow->id;
+        }
+
+        // Simpan mapping topic -> list skripsi agar bisa ditelusuri per topik di UI.
+        $documentTopics = $results['document_topics'] ?? [];
+        if (is_array($documentTopics) && !empty($documentTopics)) {
+            $now = now();
+            $rows = [];
+
+            foreach ($documentTopics as $item) {
+                $topicId = (int) ($item['topic_id'] ?? -1);
+                $skripsiId = (int) ($item['skripsi_id'] ?? 0);
+
+                if ($topicId < 0 || $skripsiId <= 0) {
+                    continue;
+                }
+
+                if (!isset($topicIdToRowId[$topicId])) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'topic_model_run_id' => $this->activeRun->id,
+                    'topic_model_topic_id' => $topicIdToRowId[$topicId],
+                    'topic_id' => $topicId,
+                    'skripsi_id' => $skripsiId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if (!empty($rows)) {
+                TopicModelTopicDocument::query()->upsert(
+                    $rows,
+                    ['topic_model_run_id', 'skripsi_id'],
+                    ['topic_model_topic_id', 'topic_id', 'updated_at']
+                );
+            }
         }
 
         $this->activeRun->refresh();
-        $this->activeRun->load('topics');
+        $this->activeRun->load(['topics.documentLinks.skripsi']);
 
         $this->statusType = 'success';
         $this->statusMessage = sprintf(

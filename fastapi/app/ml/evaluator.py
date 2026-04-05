@@ -78,6 +78,9 @@ class TopicEvaluator:
 
         logger.info(f"Computing {coherence_type} coherence from topic words...")
 
+        if len(topics) < 2:
+            return float("nan")
+
         if dictionary is None:
             dictionary = Dictionary(tokenized_docs)
 
@@ -135,6 +138,11 @@ class TopicEvaluator:
         model,
         documents: List[str],
         tokenized_docs: Optional[List[List[str]]] = None,
+        vectorizer_model=None,
+        coherence_type: str = "c_v",
+        coherence_tokenization: str = "vectorizer",
+        coherence_dict_no_below: int = 3,
+        coherence_dict_no_above: float = 0.95,
     ) -> Dict[str, Any]:
         """
         Full evaluation of a BERTopic model.
@@ -147,7 +155,15 @@ class TopicEvaluator:
         Returns:
             Dictionary with evaluation metrics
         """
-        if tokenized_docs is None:
+        if coherence_tokenization.strip().lower() != "vectorizer":
+            logger.warning(
+                f"coherence_tokenization={coherence_tokenization} ignored; forced to 'vectorizer'"
+            )
+
+        if vectorizer_model is not None:
+            analyzer = vectorizer_model.build_analyzer()
+            tokenized_docs = [analyzer(doc) for doc in documents]
+        elif tokenized_docs is None:
             tokenized_docs = [doc.split() for doc in documents]
 
         # Extract topic word lists
@@ -159,9 +175,19 @@ class TopicEvaluator:
             topic_words.append(words)
 
         # Compute metrics
+        from gensim.corpora import Dictionary
+
+        dictionary = Dictionary(tokenized_docs)
+        dictionary.filter_extremes(
+            no_below=coherence_dict_no_below,
+            no_above=coherence_dict_no_above,
+        )
+
         coherence = self.compute_coherence_from_topics(
             topics=topic_words,
             tokenized_docs=tokenized_docs,
+            dictionary=dictionary,
+            coherence_type=coherence_type,
         )
         diversity = self.compute_topic_diversity(topic_words)
 

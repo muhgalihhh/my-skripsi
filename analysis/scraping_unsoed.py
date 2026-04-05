@@ -1,23 +1,29 @@
 """
-Scraping Repository UNSOED - S1 Teknik Informatika
-===================================================
-Menggunakan BeautifulSoup untuk mengambil data skripsi dari repository UNSOED.
-Data yang diambil: Judul, Abstract, Tahun, Kesimpulan, Penulis, dll.
-Hasil disimpan dalam folder data/
+Scraper Repository UNSOED (S1 Teknik Informatika) - simple run mode.
+
+Cara pakai:
+  Dari folder analysis:
+    ../.venv-1/bin/python scraping_unsoed.py
+
+Tanpa argumen. Semua konfigurasi ada di bagian CONFIG di bawah.
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import os
 import re
 import time
-from datetime import datetime
+from io import BytesIO
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-# ===================== KONFIGURASI =====================
+
+# ===================== CONFIG =====================
 BASE_URL = "https://repository.unsoed.ac.id"
 SEARCH_URL = (
     "https://repository.unsoed.ac.id/cgi/search/archive/advanced"
@@ -29,662 +35,517 @@ SEARCH_URL = (
     "%7Cmetadata_visibility%3Ametadata_visibility%3AANY%3AEQ%3Ashow"
     "&screen=Search"
 )
+
 ITEMS_PER_PAGE = 20
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "skripsi_unsoed_scraped.json")
-DELAY_BETWEEN_REQUESTS = 2  # detik, agar tidak membebani server
+REQUEST_TIMEOUT = 30
+REQUEST_DELAY_SECONDS = 1.0
 MAX_RETRIES = 3
 
+# Set None untuk scrape semua halaman.
+MAX_PAGES: Optional[int] = None
+
+# Filter tahun (None = tidak difilter)
+START_YEAR: Optional[int] = None
+END_YEAR: Optional[int] = None
+
+# Resume dari JSON existing
+RESUME = True
+
+# Ambil kesimpulan dari PDF Bab V/VI
+EXTRACT_CONCLUSION = True
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_user")
+OUTPUT_JSON = os.path.join(OUTPUT_DIR, "skripsi_unsoed_scraped.json")
+OUTPUT_CSV = os.path.join(OUTPUT_DIR, "skripsi_unsoed_scraped.csv")
+
+
 # ===================== LOGGING =====================
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), "scraping.log"), 
-                          encoding='utf-8')
-    ]
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# ===================== SESSION =====================
+
+# ===================== HTTP SESSION =====================
 session = requests.Session()
-session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-})
+session.headers.update(
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+)
 
 
-def fetch_page(url, retries=MAX_RETRIES):
-    """Mengambil halaman web dengan retry mechanism."""
-    for attempt in range(retries):
+PDF_ENGINE = None
+try:
+    import pdfplumber  # type: ignore
+
+    PDF_ENGINE = "pdfplumber"
+except Exception:
+    try:
+        import PyPDF2  # type: ignore
+
+        PDF_ENGINE = "pypdf2"
+    except Exception:
+        PDF_ENGINE = None
+
+
+def fetch_page(url: str) -> Optional[requests.Response]:
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = session.get(url, timeout=30)
-            response.raise_for_status()
-            return response
-        except requests.RequestException as e:
-            logger.warning(f"Attempt {attempt + 1}/{retries} gagal untuk {url}: {e}")
-            if attempt < retries - 1:
-                time.sleep(DELAY_BETWEEN_REQUESTS * 2)
-            else:
-                logger.error(f"Gagal mengambil halaman setelah {retries} percobaan: {url}")
-                return None
-
-
-def get_total_results(soup):
-    """Mendapatkan total jumlah hasil pencarian."""
-    controls = soup.find("div", class_="ep_search_controls")
-    if controls:
-        numbers = controls.find_all("span", class_="ep_search_number")
-        if len(numbers) >= 3:
-            try:
-                return int(numbers[2].text.strip())
-            except ValueError:
-                pass
-    return 0
-
-
-def get_detail_links_from_page(soup):
-    """Mengambil semua link detail skripsi dari halaman pencarian."""
-    links = []
-    results_div = soup.find("div", class_="ep_search_results")
-    if not results_div:
-        return links
-    
-    rows = results_div.find_all("tr", class_="ep_search_result")
-    for row in rows:
-        # Kolom kedua berisi info skripsi
-        tds = row.find_all("td")
-        if len(tds) >= 2:
-            info_td = tds[1]
-            # Cari link ke halaman detail (biasanya link pada judul <em>)
-            link_tag = info_td.find("a", href=True)
-            if link_tag:
-                href = link_tag.get("href", "")
-                if href.startswith("https://repository.unsoed.ac.id/"):
-                    links.append(href)
-                elif href.startswith("/"):
-                    links.append(urljoin(BASE_URL, href))
-            
-            # Juga ambil info dasar dari listing (penulis dan tahun)
-            # Format: <span class="person_name">NAMA</span> (TAHUN) <a>judul</a>
-    
-    return links
-
-
-def extract_basic_info_from_listing(row):
-    """Mengambil info dasar (penulis, tahun) dari baris listing."""
-    tds = row.find_all("td")
-    if len(tds) < 2:
-        return {}
-    
-    info_td = tds[1]
-    text_content = info_td.get_text(separator=" ", strip=True)
-    
-    # Ambil penulis dari span.person_name
-    author_span = info_td.find("span", class_="person_name")
-    author = author_span.text.strip() if author_span else ""
-    
-    # Ambil tahun (biasanya dalam format "(YYYY)")
-    year_match = re.search(r'\((\d{4})\)', text_content)
-    year = year_match.group(1) if year_match else ""
-    
-    # Ambil link detail
-    link_tag = info_td.find("a", href=True)
-    detail_url = ""
-    title = ""
-    if link_tag:
-        detail_url = link_tag.get("href", "")
-        em_tag = link_tag.find("em")
-        title = em_tag.text.strip() if em_tag else link_tag.text.strip()
-    
-    return {
-        "penulis_listing": author,
-        "tahun_listing": year,
-        "judul_listing": title,
-        "detail_url": detail_url
-    }
-
-
-def parse_detail_page(url):
-    """Mengambil data detail dari halaman individual skripsi."""
-    logger.info(f"  Mengambil detail: {url}")
-    response = fetch_page(url)
-    if not response:
-        return None
-    
-    soup = BeautifulSoup(response.content, 'html.parser')
-    data = {}
-    
-    # ---- JUDUL ----
-    # Judul biasanya ada di tag <h1> atau di <title> atau di div tertentu
-    # Pada EPrints, judul ada di eprint_fieldname_title
-    title_div = soup.find("div", class_="ep_summary_content")
-    if not title_div:
-        title_div = soup  # fallback ke seluruh halaman
-    
-    # Coba ambil dari h1
-    h1_tags = soup.find_all("h1")
-    judul = ""
-    for h1 in h1_tags:
-        text = h1.get_text(strip=True)
-        # Skip h1 yang merupakan "Welcome to" atau navigasi
-        if text and text not in ["Welcome to", "Repository Universitas Jenderal Soedirman"]:
-            judul = text
-            break
-    data["Judul"] = judul
-    
-    # ---- ABSTRACT ----
-    # Prioritas 1: meta tag eprints.abstract — paling bersih, tidak mengandung metadata
-    abstract = ""
-    meta_desc = soup.find("meta", attrs={"name": "eprints.abstract"})
-    if meta_desc:
-        abstract = meta_desc.get("content", "").strip()
-    
-    # Prioritas 2: cari heading "Abstract" lalu ambil HANYA paragraf <p> tepat setelahnya
-    # (bukan semua sibling, karena sibling berikutnya bisa berisi tabel metadata EPrints)
-    if not abstract:
-        abstract_header = None
-        for tag in soup.find_all(["h2", "h3", "h4"]):
-            if "Abstract" in tag.get_text():
-                abstract_header = tag
-                break
-        
-        if abstract_header:
-            abstract_parts = []
-            sibling = abstract_header.find_next_sibling()
-            while sibling:
-                # Berhenti jika menemukan heading baru atau tabel metadata
-                if sibling.name in ["h1", "h2", "h3", "h4", "h5", "table"]:
-                    break
-                # Berhenti jika teks mengandung marker metadata EPrints
-                raw_text = sibling.get_text(separator=" ", strip=True)
-                if any(marker in raw_text for marker in [
-                    "Item Type", "ID Code", "Depositing User",
-                    "Date Deposited", "Last Modified", "Uncontrolled Keywords",
-                    "Nomor Inventaris",
-                ]):
-                    break
-                if raw_text:
-                    abstract_parts.append(raw_text)
-                sibling = sibling.find_next_sibling()
-            abstract = " ".join(abstract_parts).strip()
-    
-    # Prioritas 3: cari di div dengan class ep_block yang berisi label "Abstract"
-    if not abstract:
-        for ep_block in soup.find_all("div", class_="ep_block"):
-            label = ep_block.find(["h2", "h3", "h4", "span", "b"])
-            if label and "Abstract" in label.get_text():
-                # Ambil teks dari div ini, kecuali label-nya sendiri
-                label.extract()
-                abstract = ep_block.get_text(separator=" ", strip=True)
-                break
-    
-    data["Abstrak"] = abstract.strip()
-    
-    # ---- METADATA TABLE ----
-    # EPrints menyimpan metadata dalam table
-    # Cari tabel yang berisi Type, ID Code, Keywords, Subjects, Divisions, Depositing User, Date Deposited
-    metadata = {}
-    tables = soup.find_all("table")
-    for table in tables:
-        rows = table.find_all("tr")
-        for row_tag in rows:
-            cells = row_tag.find_all(["th", "td"])
-            if len(cells) >= 2:
-                key = cells[0].get_text(strip=True).rstrip(":")
-                value = cells[1].get_text(separator=" ", strip=True)
-                if key:
-                    metadata[key] = value
-    
-    def clean_meta(val: str) -> str:
-        """Normalisasi nilai metadata: hapus newline berlebih & whitespace."""
-        return re.sub(r"\s+", " ", val).strip()
-    
-    # Ambil data dari metadata — nilai dibersihkan dari whitespace/newline
-    data["Tipe"]               = clean_meta(metadata.get("Item Type", metadata.get("Type", "")))
-    data["ID Code"]            = clean_meta(metadata.get("ID Code", ""))
-    data["Kata Kunci"]         = clean_meta(metadata.get("Uncontrolled Keywords", metadata.get("Keywords", "")))
-    data["Subjects"]           = clean_meta(metadata.get("Subjects", ""))
-    data["Divisions"]          = clean_meta(metadata.get("Divisions", ""))
-    data["Penulis"]            = clean_meta(metadata.get("Depositing User", ""))
-    data["Tanggal Deposit"]    = clean_meta(metadata.get("Date Deposited", ""))
-    data["Tanggal Modifikasi"] = clean_meta(metadata.get("Last Modified", ""))
-    data["URI"]                = clean_meta(metadata.get("URI", ""))
-    
-    # ---- TAHUN ----
-    # Ambil tahun dari judul halaman atau dari metadata
-    tahun = ""
-    # Dari citation text di halaman
-    citation_div = soup.find("div", class_="ep_summary_content_main")
-    if citation_div:
-        citation_text = citation_div.get_text()
-        year_match = re.search(r'\((\d{4})\)', citation_text)
-        if year_match:
-            tahun = year_match.group(1)
-    
-    # Fallback dari Date Deposited
-    if not tahun and data.get("Tanggal Deposit"):
-        year_match = re.search(r'(\d{4})', data["Tanggal Deposit"])
-        if year_match:
-            tahun = year_match.group(1)
-    
-    data["Tahun"] = tahun
-    
-    # ---- LINK DOKUMEN (PDF) ----
-    # Cari link ke PDF-PDF yang tersedia (Cover, Abstrak, Bab V/Kesimpulan, dll)
-    pdf_links = {}
-    doc_table = None
-    
-    # Cari tabel yang berisi link dokumen
-    for table in tables:
-        has_pdf = table.find("a", class_="ep_document_link")
-        if has_pdf:
-            doc_table = table
-            break
-    
-    if not doc_table:
-        # Fallback: cari semua link PDF di halaman
-        for a_tag in soup.find_all("a", href=True):
-            href = a_tag.get("href", "")
-            if href.endswith(".pdf"):
-                text = a_tag.get_text(strip=True)
-                if text:
-                    pdf_links[text] = urljoin(BASE_URL, href)
-    else:
-        rows = doc_table.find_all("tr")
-        for row_tag in rows:
-            cells = row_tag.find_all("td")
-            for cell in cells:
-                text = cell.get_text(separator=" ", strip=True)
-                links_in_cell = cell.find_all("a", href=True)
-                for a_tag in links_in_cell:
-                    href = a_tag.get("href", "")
-                    if href.endswith(".pdf"):
-                        # Identifikasi jenis dokumen
-                        doc_type = identify_doc_type(text, href)
-                        if doc_type:
-                            pdf_links[doc_type] = urljoin(BASE_URL, href)
-    
-    data["Dokumen_PDF"] = pdf_links
-    
-    # ---- URL ----
-    data["URL"] = url
-    
-    return data
-
-
-def identify_doc_type(text, href):
-    """Identifikasi jenis dokumen berdasarkan teks dan URL."""
-    text_lower = text.lower()
-    href_lower = href.lower()
-    
-    patterns = {
-        "Cover": ["cover"],
-        "Legalitas": ["legalitas", "legal"],
-        "Abstrak": ["abstrak", "abstract"],
-        "Bab I": ["bab-i", "bab_i", "bab i", "babi"],
-        "Bab II": ["bab-ii", "bab_ii", "bab ii", "babii"],
-        "Bab III": ["bab-iii", "bab_iii", "bab iii", "babiii"],
-        "Bab IV": ["bab-iv", "bab_iv", "bab iv", "babiv"],
-        "Bab V": ["bab-v", "bab_v", "bab v", "babv"],
-        "Bab VI": ["bab-vi", "bab_vi", "bab vi", "babvi"],
-        "Daftar Pustaka": ["daftar pustaka", "daftar_pustaka", "daftarpustaka", "references"],
-        "Lampiran": ["lampiran", "appendix"],
-    }
-    
-    combined = text_lower + " " + href_lower
-    for doc_type, keywords in patterns.items():
-        for kw in keywords:
-            if kw in combined:
-                return doc_type
-    
+            resp = session.get(url, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException as exc:
+            logger.warning("Request gagal (%s/%s): %s", attempt, MAX_RETRIES, exc)
+            if attempt < MAX_RETRIES:
+                time.sleep(REQUEST_DELAY_SECONDS * 2)
+    logger.error("Gagal mengambil halaman: %s", url)
     return None
 
 
-def try_download_and_extract_text(pdf_url):
-    """
-    Mencoba mengunduh PDF dan mengekstrak teksnya.
-    Mengembalikan teks atau None jika gagal/restricted.
-    """
+def safe_int(val: Any) -> Optional[int]:
     try:
-        response = session.get(pdf_url, timeout=30, allow_redirects=True)
-        if response.status_code == 200 and 'application/pdf' in response.headers.get('Content-Type', ''):
-            # Coba ekstrak teks menggunakan PyPDF2 atau pdfplumber
-            try:
-                import io
-                try:
-                    import pdfplumber
-                    with pdfplumber.open(io.BytesIO(response.content)) as pdf:
-                        text_parts = []
-                        for page in pdf.pages:
-                            page_text = page.extract_text()
-                            if page_text:
-                                text_parts.append(page_text)
-                        return "\n".join(text_parts) if text_parts else None
-                except ImportError:
-                    try:
-                        from PyPDF2 import PdfReader
-                        reader = PdfReader(io.BytesIO(response.content))
-                        text_parts = []
-                        for page in reader.pages:
-                            page_text = page.extract_text()
-                            if page_text:
-                                text_parts.append(page_text)
-                        return "\n".join(text_parts) if text_parts else None
-                    except ImportError:
-                        logger.warning("Tidak ada library PDF reader (pdfplumber/PyPDF2). "
-                                     "Install dengan: pip install pdfplumber")
-                        return None
-            except Exception as e:
-                logger.warning(f"Gagal mengekstrak PDF: {e}")
-                return None
-        else:
-            logger.debug(f"PDF restricted atau tidak tersedia: {pdf_url}")
+        if val is None:
             return None
-    except Exception as e:
-        logger.warning(f"Gagal mengunduh PDF {pdf_url}: {e}")
+        return int(str(val).strip())
+    except Exception:
         return None
 
 
-def extract_conclusion_from_text(text):
-    """Mengekstrak bagian kesimpulan dari teks Bab V/VI."""
+def in_year_range(year: Any) -> bool:
+    y = safe_int(year)
+    if y is None:
+        return True
+    if START_YEAR is not None and y < START_YEAR:
+        return False
+    if END_YEAR is not None and y > END_YEAR:
+        return False
+    return True
+
+
+def normalize_space(text: Any) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def normalize_url(url: str) -> str:
+    u = (url or "").strip()
+    if u.startswith("/"):
+        u = urljoin(BASE_URL, u)
+    return u.rstrip("/")
+
+
+def classify_document(text: str, href: str) -> Optional[str]:
+    combined = f"{text} {href}".lower()
+
+    if re.search(r"\bbab[\s\-_]*vi\b|\bbab[\s\-_]*6\b", combined):
+        return "Bab VI"
+    if re.search(r"\bbab[\s\-_]*v\b|\bbab[\s\-_]*5\b", combined):
+        return "Bab V"
+
+    if "kesimpulan" in combined and "abstrak" not in combined:
+        return "Bab V"
+    if any(k in combined for k in ["daftarpustaka", "daftar pustaka", "references"]):
+        return "Daftar Pustaka"
+    if any(k in combined for k in ["abstrak", "abstract"]):
+        return "Abstrak"
+    if "cover" in combined:
+        return "Cover"
+    if any(k in combined for k in ["legalitas", "legal"]):
+        return "Legalitas"
+    if "lampiran" in combined:
+        return "Lampiran"
+
+    return None
+
+
+def get_total_results(soup: BeautifulSoup) -> int:
+    controls = soup.find("div", class_="ep_search_controls")
+    if not controls:
+        return 0
+    nums = controls.find_all("span", class_="ep_search_number")
+    if len(nums) < 3:
+        return 0
+    try:
+        return int(nums[2].get_text(strip=True))
+    except Exception:
+        return 0
+
+
+def parse_listing_page(soup: BeautifulSoup) -> List[Dict[str, str]]:
+    results: List[Dict[str, str]] = []
+    container = soup.find("div", class_="ep_search_results")
+    if not container:
+        return results
+
+    rows = container.find_all("tr", class_="ep_search_result")
+    for row in rows:
+        tds = row.find_all("td")
+        if len(tds) < 2:
+            continue
+
+        info_td = tds[1]
+        text = info_td.get_text(" ", strip=True)
+
+        author_span = info_td.find("span", class_="person_name")
+        author = normalize_space(author_span.get_text(strip=True) if author_span else "")
+
+        year_match = re.search(r"\((\d{4})\)", text)
+        year_listing = year_match.group(1) if year_match else ""
+
+        link_tag = info_td.find("a", href=True)
+        if not link_tag:
+            continue
+
+        detail_url = normalize_url(link_tag.get("href", ""))
+        if not detail_url:
+            continue
+
+        em = link_tag.find("em")
+        title_listing = normalize_space(em.get_text(strip=True) if em else link_tag.get_text(strip=True))
+
+        if not in_year_range(year_listing):
+            continue
+
+        results.append(
+            {
+                "detail_url": detail_url,
+                "judul_listing": title_listing,
+                "penulis_listing": author,
+                "tahun_listing": year_listing,
+            }
+        )
+
+    return results
+
+
+def parse_detail_page(url: str) -> Optional[Dict[str, Any]]:
+    resp = fetch_page(url)
+    if not resp:
+        return None
+
+    soup = BeautifulSoup(resp.content, "html.parser")
+
+    # Title
+    title = ""
+    for h1 in soup.find_all("h1"):
+        t = normalize_space(h1.get_text(strip=True))
+        if t and t not in ["Welcome to", "Repository Universitas Jenderal Soedirman"]:
+            title = t
+            break
+
+    # Abstract
+    abstract = ""
+    meta_abstract = soup.find("meta", attrs={"name": "eprints.abstract"})
+    if meta_abstract:
+        abstract = normalize_space(meta_abstract.get("content", ""))
+
+    # Metadata table
+    metadata: Dict[str, str] = {}
+    tables = soup.find_all("table")
+    for table in tables:
+        for row in table.find_all("tr"):
+            cells = row.find_all(["th", "td"])
+            if len(cells) >= 2:
+                key = normalize_space(cells[0].get_text(strip=True)).rstrip(":")
+                val = normalize_space(cells[1].get_text(" ", strip=True))
+                if key:
+                    metadata[key] = val
+
+    # Author & year
+    author = normalize_space(metadata.get("Depositing User", ""))
+    year = ""
+
+    citation = soup.find("div", class_="ep_summary_content_main")
+    if citation:
+        ctext = normalize_space(citation.get_text(strip=True))
+        m_author = re.match(r"^(.+?)\s*\(\d{4}\)", ctext)
+        m_year = re.search(r"\((\d{4})\)", ctext)
+        if m_author:
+            author = normalize_space(m_author.group(1))
+        if m_year:
+            year = m_year.group(1)
+
+    if not year:
+        y = re.search(r"(\d{4})", metadata.get("Date Deposited", ""))
+        if y:
+            year = y.group(1)
+
+    # PDF links
+    pdf_links: Dict[str, str] = {}
+    doc_table = None
+    for table in tables:
+        if table.find("a", class_="ep_document_link"):
+            doc_table = table
+            break
+
+    if doc_table:
+        for row in doc_table.find_all("tr"):
+            for cell in row.find_all("td"):
+                cell_text = normalize_space(cell.get_text(" ", strip=True))
+                for a in cell.find_all("a", href=True):
+                    href = a.get("href", "")
+                    if ".pdf" not in href.lower():
+                        continue
+                    doc_type = classify_document(cell_text, href)
+                    if doc_type:
+                        pdf_links[doc_type] = normalize_url(href)
+    else:
+        for a in soup.find_all("a", href=True):
+            href = a.get("href", "")
+            if ".pdf" not in href.lower():
+                continue
+            label = normalize_space(a.get_text(strip=True))
+            doc_type = classify_document(label, href)
+            if doc_type:
+                pdf_links[doc_type] = normalize_url(href)
+
+    return {
+        "Judul": title,
+        "Penulis": author,
+        "Tahun": year,
+        "Tanggal Deposit": normalize_space(metadata.get("Date Deposited", "")),
+        "Subjects": normalize_space(metadata.get("Subjects", "")),
+        "Divisions": normalize_space(metadata.get("Divisions", "")),
+        "Kata Kunci": normalize_space(
+            metadata.get("Uncontrolled Keywords", metadata.get("Keywords", ""))
+        ),
+        "Abstrak": abstract,
+        "Tipe": normalize_space(metadata.get("Item Type", metadata.get("Type", "")),),
+        "ID Code": normalize_space(metadata.get("ID Code", "")),
+        "URI": normalize_space(metadata.get("URI", "")),
+        "Dokumen_PDF": pdf_links,
+        "URL": normalize_url(url),
+        "Kesimpulan": "",
+        "Sumber Kesimpulan": "",
+    }
+
+
+def extract_text_from_pdf_url(pdf_url: str) -> str:
+    if not PDF_ENGINE:
+        return ""
+
+    try:
+        resp = session.get(pdf_url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        resp.raise_for_status()
+        content_type = (resp.headers.get("Content-Type") or "").lower()
+        if "pdf" not in content_type and ".pdf" not in pdf_url.lower():
+            return ""
+
+        pdf_bytes = BytesIO(resp.content)
+
+        if PDF_ENGINE == "pdfplumber":
+            import pdfplumber  # type: ignore
+
+            texts: List[str] = []
+            with pdfplumber.open(pdf_bytes) as pdf:
+                for page in pdf.pages:
+                    t = page.extract_text() or ""
+                    if t.strip():
+                        texts.append(t)
+            return "\n".join(texts).strip()
+
+        if PDF_ENGINE == "pypdf2":
+            import PyPDF2  # type: ignore
+
+            reader = PyPDF2.PdfReader(pdf_bytes)
+            texts = []
+            for page in reader.pages:
+                t = page.extract_text() or ""
+                if t.strip():
+                    texts.append(t)
+            return "\n".join(texts).strip()
+
+    except Exception as exc:
+        logger.debug("Gagal ekstrak PDF %s: %s", pdf_url, exc)
+
+    return ""
+
+
+def extract_conclusion_from_text(text: str) -> str:
     if not text:
         return ""
-    
-    # Cari pattern kesimpulan
+
     patterns = [
-        r'(?:5\.1\.?\s*)?Kesimpulan\s*\n(.*?)(?:5\.2\.?\s*Saran|DAFTAR PUSTAKA|SARAN|$)',
-        r'(?:6\.1\.?\s*)?Kesimpulan\s*\n(.*?)(?:6\.2\.?\s*Saran|DAFTAR PUSTAKA|SARAN|$)',
-        r'KESIMPULAN\s*\n(.*?)(?:SARAN|DAFTAR PUSTAKA|$)',
-        r'BAB\s*(?:V|VI)\s*\n.*?Kesimpulan\s*\n(.*?)(?:Saran|DAFTAR PUSTAKA|$)',
+        r"(?:5\.1\.?\s*)?Kesimpulan\s*\n(.*?)(?:5\.2\.?\s*Saran|DAFTAR PUSTAKA|SARAN|$)",
+        r"(?:6\.1\.?\s*)?Kesimpulan\s*\n(.*?)(?:6\.2\.?\s*Saran|DAFTAR PUSTAKA|SARAN|$)",
+        r"KESIMPULAN\s*\n(.*?)(?:SARAN|DAFTAR PUSTAKA|$)",
+        r"BAB\s*(?:V|VI)\s*\n.*?Kesimpulan\s*\n(.*?)(?:Saran|DAFTAR PUSTAKA|$)",
     ]
-    
+
     for pattern in patterns:
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            conclusion = match.group(1).strip()
-            # Bersihkan teks
-            conclusion = re.sub(r'\s+', ' ', conclusion)
-            return conclusion
-    
-    return text.strip()
+        m = re.search(pattern, text, flags=re.DOTALL | re.IGNORECASE)
+        if m:
+            return normalize_space(m.group(1))
+
+    return ""
 
 
-def scrape_all():
-    """Fungsi utama untuk melakukan scraping seluruh data skripsi."""
-    logger.info("=" * 60)
-    logger.info("MULAI SCRAPING REPOSITORY UNSOED - S1 TEKNIK INFORMATIKA")
-    logger.info("=" * 60)
-    
-    # Pastikan folder output ada
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    # ---- STEP 1: Ambil halaman pertama untuk mengetahui total data ----
-    logger.info("Mengambil halaman pertama untuk mengetahui total data...")
-    first_page_url = f"{SEARCH_URL}&search_offset=0"
-    response = fetch_page(first_page_url)
-    if not response:
-        logger.error("Gagal mengambil halaman pertama!")
+def enrich_conclusion_from_pdf(item: Dict[str, Any]) -> None:
+    docs = item.get("Dokumen_PDF") or {}
+    if not isinstance(docs, dict):
         return
-    
-    soup = BeautifulSoup(response.content, 'html.parser')
-    total_results = get_total_results(soup)
-    logger.info(f"Total skripsi ditemukan: {total_results}")
-    
-    if total_results == 0:
-        logger.error("Tidak ada data ditemukan!")
-        return
-    
-    total_pages = (total_results + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
-    logger.info(f"Total halaman: {total_pages}")
-    
-    # ---- STEP 2: Kumpulkan semua link detail dari setiap halaman ----
-    all_detail_urls = []
-    all_basic_info = []
-    
-    for page_num in range(total_pages):
-        offset = page_num * ITEMS_PER_PAGE
-        page_url = f"{SEARCH_URL}&search_offset={offset}"
-        
-        logger.info(f"\n--- Halaman {page_num + 1}/{total_pages} (offset: {offset}) ---")
-        
-        if page_num == 0:
-            # Sudah punya halaman pertama
-            page_soup = soup
-        else:
-            time.sleep(DELAY_BETWEEN_REQUESTS)
-            response = fetch_page(page_url)
-            if not response:
-                logger.warning(f"Gagal mengambil halaman {page_num + 1}, skip...")
-                continue
-            page_soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Ambil link detail dan info dasar
-        results_div = page_soup.find("div", class_="ep_search_results")
-        if results_div:
-            rows = results_div.find_all("tr", class_="ep_search_result")
-            for row in rows:
-                basic_info = extract_basic_info_from_listing(row)
-                if basic_info.get("detail_url"):
-                    all_detail_urls.append(basic_info["detail_url"])
-                    all_basic_info.append(basic_info)
-        
-        logger.info(f"  Ditemukan {len(rows) if results_div else 0} item di halaman ini. "
-                    f"Total terkumpul: {len(all_detail_urls)}")
-    
-    logger.info(f"\nTotal link detail terkumpul: {len(all_detail_urls)}")
-    
-    # ---- STEP 3: Kunjungi setiap halaman detail dan ambil data ----
-    all_data = []
-    
-    # Cek apakah ada data sebelumnya (untuk resume)
-    if os.path.exists(OUTPUT_FILE):
-        try:
-            with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
-                existing_data = json.load(f)
-            existing_urls = {item.get("URL", "") for item in existing_data}
-            logger.info(f"Ditemukan {len(existing_data)} data yang sudah discrape sebelumnya.")
-            all_data = existing_data
-        except (json.JSONDecodeError, Exception):
-            existing_urls = set()
-    else:
-        existing_urls = set()
-    
-    new_count = 0
-    for idx, detail_url in enumerate(all_detail_urls):
-        # Skip jika sudah pernah discrape
-        if detail_url in existing_urls:
-            logger.info(f"[{idx + 1}/{len(all_detail_urls)}] Sudah ada, skip: {detail_url}")
+
+    for key in ["Bab V", "Bab VI"]:
+        pdf_url = docs.get(key)
+        if not pdf_url:
             continue
-        
-        logger.info(f"\n[{idx + 1}/{len(all_detail_urls)}] Scraping detail...")
-        time.sleep(DELAY_BETWEEN_REQUESTS)
-        
-        detail_data = parse_detail_page(detail_url)
-        if detail_data:
-            # Tambahkan info dari listing jika data dari detail kosong
-            basic = all_basic_info[idx] if idx < len(all_basic_info) else {}
-            if not detail_data.get("Judul") and basic.get("judul_listing"):
-                detail_data["Judul"] = basic["judul_listing"]
-            if not detail_data.get("Tahun") and basic.get("tahun_listing"):
-                detail_data["Tahun"] = basic["tahun_listing"]
-            if not detail_data.get("Penulis") and basic.get("penulis_listing"):
-                detail_data["Penulis"] = basic["penulis_listing"]
-            
-            # ---- Coba ambil kesimpulan dari PDF Bab V ----
-            kesimpulan = ""
-            sumber_kesimpulan = ""
-            
-            pdf_docs = detail_data.get("Dokumen_PDF", {})
-            
-            # Prioritas: Bab V > Bab VI
-            for bab_key in ["Bab V", "Bab VI"]:
-                if bab_key in pdf_docs:
-                    logger.info(f"  Mencoba mengunduh {bab_key}...")
-                    text = try_download_and_extract_text(pdf_docs[bab_key])
-                    if text:
-                        kesimpulan = extract_conclusion_from_text(text)
-                        sumber_kesimpulan = f"{bab_key} (PDF)"
-                        logger.info(f"  ✓ Berhasil mengekstrak kesimpulan dari {bab_key}")
-                        break
-                    else:
-                        logger.info(f"  ✗ {bab_key} restricted atau gagal diunduh")
-            
-            detail_data["Kesimpulan"] = kesimpulan
-            detail_data["Sumber Kesimpulan"] = sumber_kesimpulan
-            
-            all_data.append(detail_data)
-            new_count += 1
-            
-            # Simpan secara berkala setiap 10 item baru
-            if new_count % 10 == 0:
-                save_data(all_data)
-                logger.info(f"  💾 Data disimpan (total: {len(all_data)})")
-    
-    # ---- STEP 4: Simpan data final ----
-    save_data(all_data)
-    
-    logger.info("\n" + "=" * 60)
-    logger.info("SCRAPING SELESAI!")
-    logger.info(f"Total data terscrape: {len(all_data)}")
-    logger.info(f"Data baru ditambahkan: {new_count}")
-    logger.info(f"File disimpan di: {OUTPUT_FILE}")
-    logger.info("=" * 60)
+        logger.info("  Coba ekstrak kesimpulan dari %s", key)
+        text = extract_text_from_pdf_url(pdf_url)
+        conc = extract_conclusion_from_text(text)
+        if conc:
+            item["Kesimpulan"] = conc
+            item["Sumber Kesimpulan"] = f"{key} (PDF)"
+            return
 
 
-def save_data(data):
-    """Simpan data ke file JSON."""
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+def save_json(data: List[Dict[str, Any]]) -> None:
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def print_summary(data):
-    """Cetak ringkasan data yang sudah terscrape."""
-    print("\n" + "=" * 60)
-    print("RINGKASAN DATA SCRAPING")
-    print("=" * 60)
-    print(f"Total data: {len(data)}")
-    
-    # Hitung per tahun
-    years = {}
-    for item in data:
-        year = item.get("Tahun", "Unknown")
-        years[year] = years.get(year, 0) + 1
-    
-    print("\nDistribusi per tahun:")
-    for year in sorted(years.keys(), reverse=True):
-        print(f"  {year}: {years[year]} skripsi")
-    
-    # Hitung yang punya abstract
-    with_abstract = sum(1 for item in data if item.get("Abstrak"))
-    with_conclusion = sum(1 for item in data if item.get("Kesimpulan"))
-    
-    print(f"\nDengan abstrak: {with_abstract}/{len(data)}")
-    print(f"Dengan kesimpulan: {with_conclusion}/{len(data)}")
-    print("=" * 60)
+def save_csv(data: List[Dict[str, Any]]) -> None:
+    import pandas as pd
+
+    rows = []
+    for d in data:
+        rows.append(
+            {
+                "title": d.get("Judul", ""),
+                "abstract": d.get("Abstrak", ""),
+                "year": safe_int(d.get("Tahun")),
+                "author": d.get("Penulis", ""),
+                "keywords": d.get("Kata Kunci", ""),
+                "subjects": d.get("Subjects", ""),
+                "divisions": d.get("Divisions", ""),
+                "conclusion": d.get("Kesimpulan", ""),
+                "conclusion_source": d.get("Sumber Kesimpulan", ""),
+                "url": d.get("URL", ""),
+                "pdf_links": json.dumps(d.get("Dokumen_PDF", {}), ensure_ascii=False),
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8")
 
 
-def clean_existing_json(filepath=OUTPUT_FILE):
-    """
-    Membersihkan data JSON yang sudah ada dari artifact metadata scraping.
-    Gunakan ini untuk memperbaiki data lama TANPA perlu scraping ulang.
-    
-    Artifact yang dibersihkan dari field Abstrak:
-    - "Item Type:Thesis\\n\\n\\n(Skripsi)Nomor Inventaris:H26xxx..."
-    - "Depositing User:...", "Date Deposited:...", "URI:...", dst.
-    
-    Field Tipe juga dinormalisasi (hapus newline berlebih).
-    """
-    if not os.path.exists(filepath):
-        logger.error(f"File tidak ditemukan: {filepath}")
-        return
-    
-    with open(filepath, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    logger.info(f"Membersihkan {len(data)} record dari: {filepath}")
-    
-    # Regex untuk hapus blok metadata EPrints yang ikut ter-scrape di field Abstrak
-    # Pattern: mulai dari "Item Type:" sampai akhir string
-    artifact_pattern = re.compile(
-        r"Item\s+Type\s*:.*$",
-        flags=re.DOTALL | re.IGNORECASE
-    )
-    # Pattern tambahan untuk sisa metadata yang mungkin ada
-    extra_patterns = [
-        re.compile(r"Nomor\s+Inventaris\s*:\s*\S+", re.IGNORECASE),
-        re.compile(r"Uncontrolled\s+Keywords\s*:[^\n]*", re.IGNORECASE),
-        re.compile(r"Depositing\s+User\s*:[^\n]*", re.IGNORECASE),
-        re.compile(r"Date\s+Deposited\s*:[^\n]*", re.IGNORECASE),
-        re.compile(r"Last\s+Modified\s*:[^\n]*", re.IGNORECASE),
-        re.compile(r"URI\s*:\s*http\S*", re.IGNORECASE),
-    ]
-    
-    cleaned_count = 0
-    for item in data:
-        original_abstract = item.get("Abstrak", "")
-        
-        # Hapus blok artifact utama
-        cleaned = artifact_pattern.sub("", original_abstract)
-        
-        # Hapus sisa pattern metadata
-        for pat in extra_patterns:
-            cleaned = pat.sub("", cleaned)
-        
-        # Normalisasi whitespace
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-        
-        if cleaned != original_abstract:
-            item["Abstrak"] = cleaned
-            cleaned_count += 1
-        
-        # Normalisasi field Tipe (hapus newline \n\n\n yang mengotori nilai)
-        if "Tipe" in item:
-            item["Tipe"] = re.sub(r"\s+", " ", item["Tipe"]).strip()
-    
-    # Simpan kembali
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    
-    logger.info(f"✅ Selesai. {cleaned_count} record dibersihkan. File disimpan: {filepath}")
+def run_scrape() -> None:
+    logger.info("Mulai scraping UNSOED Informatika...")
 
+    first_url = f"{SEARCH_URL}&search_offset=0"
+    first_resp = fetch_page(first_url)
+    if not first_resp:
+        raise RuntimeError("Gagal mengambil halaman pertama")
 
-# ===================== MAIN =====================
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Scraper Repository UNSOED")
-    parser.add_argument(
-        "--clean-only",
-        action="store_true",
-        help="Hanya bersihkan data JSON yang sudah ada (tanpa scraping ulang)",
-    )
-    args = parser.parse_args()
-    
-    if args.clean_only:
-        # Mode: bersihkan data lama saja
-        logger.info("Mode: clean-only — membersihkan artifact dari data JSON yang sudah ada...")
-        clean_existing_json()
-    else:
-        start_time = datetime.now()
-        logger.info(f"Waktu mulai: {start_time}")
-        
+    first_soup = BeautifulSoup(first_resp.content, "html.parser")
+    total_results = get_total_results(first_soup)
+    if total_results == 0:
+        raise RuntimeError("Tidak ada hasil ditemukan")
+
+    total_pages = (total_results + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    if MAX_PAGES is not None:
+        total_pages = min(total_pages, MAX_PAGES)
+
+    logger.info("Total hasil: %s | total halaman diproses: %s", total_results, total_pages)
+
+    listings: List[Dict[str, str]] = []
+    for page_idx in range(total_pages):
+        if page_idx == 0:
+            soup = first_soup
+        else:
+            time.sleep(REQUEST_DELAY_SECONDS)
+            offset = page_idx * ITEMS_PER_PAGE
+            resp = fetch_page(f"{SEARCH_URL}&search_offset={offset}")
+            if not resp:
+                continue
+            soup = BeautifulSoup(resp.content, "html.parser")
+
+        page_items = parse_listing_page(soup)
+        listings.extend(page_items)
+        logger.info("Halaman %s/%s: +%s item (total %s)", page_idx + 1, total_pages, len(page_items), len(listings))
+
+    existing: Dict[str, Dict[str, Any]] = {}
+    data: List[Dict[str, Any]] = []
+
+    if RESUME and os.path.exists(OUTPUT_JSON):
         try:
-            scrape_all()
-        except KeyboardInterrupt:
-            logger.info("\n⚠ Scraping dihentikan oleh pengguna. Data yang sudah ada tetap tersimpan.")
-        except Exception as e:
-            logger.error(f"Error tidak terduga: {e}", exc_info=True)
-        
-        end_time = datetime.now()
-        duration = end_time - start_time
-        logger.info(f"Waktu selesai: {end_time}")
-        logger.info(f"Durasi: {duration}")
-        
-        # Tampilkan ringkasan jika ada data
-        if os.path.exists(OUTPUT_FILE):
-            with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            print_summary(data)
+            with open(OUTPUT_JSON, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+            for item in old_data:
+                existing[normalize_url(item.get("URL", ""))] = item
+            data = old_data
+            logger.info("Resume aktif: %s data existing ditemukan", len(data))
+        except Exception:
+            existing = {}
+            data = []
+
+    new_count = 0
+    backfill_count = 0
+
+    for idx, info in enumerate(listings, start=1):
+        detail_url = normalize_url(info.get("detail_url", ""))
+        if not detail_url:
+            continue
+
+        old_item = existing.get(detail_url)
+        if old_item is not None:
+            if EXTRACT_CONCLUSION and not normalize_space(old_item.get("Kesimpulan", "")):
+                enrich_conclusion_from_pdf(old_item)
+                if normalize_space(old_item.get("Kesimpulan", "")):
+                    backfill_count += 1
+            logger.info("[%s/%s] skip existing", idx, len(listings))
+            continue
+
+        logger.info("[%s/%s] scrape detail: %s", idx, len(listings), detail_url)
+        time.sleep(REQUEST_DELAY_SECONDS)
+
+        detail = parse_detail_page(detail_url)
+        if not detail:
+            continue
+
+        if not detail.get("Judul"):
+            detail["Judul"] = info.get("judul_listing", "")
+        if not detail.get("Penulis"):
+            detail["Penulis"] = info.get("penulis_listing", "")
+        if not detail.get("Tahun"):
+            detail["Tahun"] = info.get("tahun_listing", "")
+
+        if not in_year_range(detail.get("Tahun")):
+            continue
+
+        if EXTRACT_CONCLUSION:
+            enrich_conclusion_from_pdf(detail)
+
+        data.append(detail)
+        existing[detail_url] = detail
+        new_count += 1
+
+        if new_count % 10 == 0:
+            save_json(data)
+            save_csv(data)
+            logger.info("Progress simpan: total %s", len(data))
+
+    save_json(data)
+    save_csv(data)
+
+    with_conclusion = sum(1 for d in data if normalize_space(d.get("Kesimpulan", "")))
+    logger.info("Selesai.")
+    logger.info("Data total: %s", len(data))
+    logger.info("Data baru: %s", new_count)
+    logger.info("Backfill kesimpulan existing: %s", backfill_count)
+    logger.info("Dengan kesimpulan: %s", with_conclusion)
+    logger.info("JSON: %s", OUTPUT_JSON)
+    logger.info("CSV : %s", OUTPUT_CSV)
+
+
+if __name__ == "__main__":
+    start = time.time()
+    try:
+        run_scrape()
+    finally:
+        logger.info("Durasi: %.2f menit", (time.time() - start) / 60.0)

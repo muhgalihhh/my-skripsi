@@ -28,4 +28,9 @@ class TopicModelTopic extends Model
   {
     return $this->belongsTo(TopicModelRun::class, 'topic_model_run_id');
   }
+
+  public function documentLinks()
+  {
+    return $this->hasMany(TopicModelTopicDocument::class, 'topic_model_topic_id');
+  }
 }

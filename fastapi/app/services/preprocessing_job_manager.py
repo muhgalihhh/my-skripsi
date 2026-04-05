@@ -11,6 +11,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
 from loguru import logger
 
 from app.core import database
@@ -95,6 +96,8 @@ class PreprocessingJobManager:
 
     _instance = None
     _lock = threading.Lock()
+    YEAR_MIN = 2018
+    YEAR_MAX = 2026
 
     def __new__(cls):
         with cls._lock:
@@ -190,18 +193,57 @@ class PreprocessingJobManager:
 
             # 1. Load data
             df = database.load_abstracts_from_db()
-            total_docs = len(df)
+            total_docs_raw = len(df)
 
-            if total_docs == 0:
+            if total_docs_raw == 0:
                 job.mark_completed(0)
                 job.update(message="No abstracts found to preprocess")
                 return
 
             job.update(
-                message=f"Loaded {total_docs} records...",
-                total_documents=total_docs,
+                message=f"Loaded {total_docs_raw} records...",
+                total_documents=total_docs_raw,
                 progress=20.0,
             )
+
+            # 1.1 Notebook-aligned dataset cleaning
+            before_na = len(df)
+            df = df.dropna(subset=["abstract"])
+            after_na = len(df)
+
+            before_dedup = len(df)
+            # Normalize abstract to make dedup robust against casing/whitespace differences.
+            # This keeps behavior aligned with notebook intent (remove semantic duplicates).
+            abstract_norm = (
+                df["abstract"]
+                .astype(str)
+                .str.lower()
+                .str.replace(r"\s+", " ", regex=True)
+                .str.strip()
+            )
+            df = df.loc[~abstract_norm.duplicated(keep="first")]
+            after_dedup = len(df)
+
+            if "year" in df.columns:
+                year_series = pd.to_numeric(df["year"], errors="coerce")
+                df = df[year_series.between(self.YEAR_MIN, self.YEAR_MAX)]
+            after_year = len(df)
+            df = df.reset_index(drop=True)
+
+            job.update(
+                message=(
+                    f"Dataset cleaned: dropna={before_na - after_na}, "
+                    f"dedup={before_dedup - after_dedup}, "
+                    f"year_filter={after_dedup - after_year}"
+                ),
+                total_documents=after_year,
+                progress=25.0,
+            )
+
+            if after_year == 0:
+                job.mark_completed(0)
+                job.update(message="No records left after dedup/year filtering")
+                return
 
             # 2. Preprocess Data
             preprocessor = TextPreprocessor(
@@ -215,30 +257,19 @@ class PreprocessingJobManager:
             if job.status == PreprocessingJobStatus.CANCELLED:
                 return
 
-            # BERTopic pipeline — soft clean
-            job.update(message="Cleaning texts (BERTopic soft cleaning)...", progress=30.0)
-            df["cleaned_text"] = df["abstract"].apply(preprocessor.preprocess_cleaned)
+            # 2.1 Build combined_text + dual pipeline (cleaned_text + processed_text)
+            job.update(message="Running notebook-aligned dual preprocessing...", progress=40.0)
+            df = preprocessor.preprocess_dataframe(
+                df,
+                text_column="abstract",
+                title_column="title",
+                conclusion_column="conclusion",
+            )
 
-            if job.status == PreprocessingJobStatus.CANCELLED:
+            if len(df) == 0:
+                job.mark_completed(0)
+                job.update(message="No records left after text preprocessing")
                 return
-
-            # LDA pipeline — full preprocessing with progress
-            job.update(message="Preprocessing for LDA pipeline (stopwords/stemming)...", progress=50.0)
-
-            processed_texts = []
-            for idx, text in enumerate(df["abstract"]):
-                if job.status == PreprocessingJobStatus.CANCELLED:
-                    return
-                processed_texts.append(preprocessor.preprocess(text))
-                # Update progress every ~10% to avoid spam
-                if idx % max(1, (total_docs // 10)) == 0:
-                    pct = 50.0 + (idx / total_docs * 30.0)
-                    job.update(
-                        progress=pct,
-                        message=f"Processed LDA for {idx}/{total_docs} records...",
-                    )
-
-            df["processed_text"] = processed_texts
 
             if job.status == PreprocessingJobStatus.CANCELLED:
                 return
@@ -246,11 +277,28 @@ class PreprocessingJobManager:
             job.update(message="Updating database with clean texts...", progress=85.0)
 
             # 3. Save into DB
-            database.update_processed_texts_in_db(df)
+            database.update_processed_texts_in_db(df[["id", "cleaned_text", "processed_text"]])
+
+            # 3.1 Save training-ready snapshot into dedicated dataset table
+            database.replace_preprocessed_dataset_in_db(
+                df[
+                    [
+                        "id",
+                        "title",
+                        "abstract",
+                        "conclusion",
+                        "year",
+                        "cleaned_text",
+                        "processed_text",
+                    ]
+                ]
+            )
 
             # Finalize
-            job.mark_completed(total_docs)
-            logger.info(f"Preprocessing job {job.job_id} completed: {total_docs} documents")
+            job.mark_completed(int(len(df)))
+            logger.info(
+                f"Preprocessing job {job.job_id} completed: raw={total_docs_raw}, final={len(df)}"
+            )
 
         except Exception as e:
             logger.error(f"Preprocessing job {job.job_id} failed: {e}")

@@ -4,6 +4,9 @@ services:
       - '${MYSQL_PORT:-3306}:3306'
 
   fastapi:
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./fastapi:/app
       - fastapi-venv:/app/venv
@@ -12,7 +15,7 @@ services:
       - APP_ENV=development
       - APP_DEBUG=true
       - CORS_ORIGINS=http://localhost:8080,http://laravel:8080,http://localhost:3000
-    command: ['/app/venv/bin/python', '-m', 'granian', '--interface', 'asgi', '--host', '0.0.0.0', '--port', '8000', '--workers', '1', '--threads', '2', '--log-level', 'debug', 'app.main:app']
+    command: ['/app/venv/bin/python', '-m', 'granian', '--reload', '--interface', 'asgi', '--host', '0.0.0.0', '--port', '8000', '--workers', '1', '--threads', '2', '--log-level', 'debug', 'app.main:app']
     deploy:
       resources:
         limits:
@@ -39,5 +42,26 @@ services:
     healthcheck:
       start_period: 90s
 
+  vite:
+    image: node:20-alpine
+    container_name: skripsi-vite
+    working_dir: /var/www/html
+    volumes:
+      - ./laravel-app:/var/www/html
+      - laravel-node-modules:/var/www/html/node_modules
+    ports:
+      - '5173:5173'
+    environment:
+      - NODE_ENV=development
+      # File watching kadang tidak kebaca di Docker; polling lebih stabil.
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    command: >
+      sh -c "(npm ci --prefer-offline 2>/dev/null || npm install --prefer-offline) && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
+    networks:
+      - skripsi-net
+    restart: unless-stopped
+
 volumes:
   fastapi-venv:
+  laravel-node-modules:

@@ -10,6 +10,7 @@ use App\Livewire\Jurusan\ScrapingManager;
 use App\Livewire\Jurusan\SkripsiManager;
 use Illuminate\Support\Facades\Route;
 use App\Livewire\Jurusan\TopicModelingManager;
+use App\Http\Controllers\Jurusan\TopicModelingModelController;
 
 // ============================================
 // Public Routes
@@ -56,4 +57,8 @@ Route::middleware(['auth', EnsureUserIsJurusan::class])
 
         // Topic Modeling (Livewire)
         Route::get('/topic-modeling', TopicModelingManager::class)->name('topic-modeling');
+
+        // Topic Modeling - model artifacts
+        Route::get('/topic-modeling/model/{jobId}/download', [TopicModelingModelController::class, 'download'])
+            ->name('topic-modeling.model.download');
     });

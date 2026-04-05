@@ -7,6 +7,7 @@ Manages training jobs with status tracking.
 """
 
 import json
+import tarfile
 import time
 import uuid
 from datetime import datetime
@@ -118,6 +119,7 @@ class TrainingService:
         job_id: str,
         documents: List[str],
         timestamps: Optional[List[int]] = None,
+        document_ids: Optional[List[int]] = None,
         params: Optional[BERTopicHyperparameters] = None,
     ) -> Dict[str, Any]:
         """
@@ -142,13 +144,38 @@ class TrainingService:
 
             # Step 1: Train
             self._update_job(job_id, message="Training BERTopic model...", progress=30.0)
-            result = trainer.train(documents, timestamps=timestamps)
+            result = trainer.train(
+                documents,
+                timestamps=timestamps,
+                document_ids=document_ids,
+            )
+
+            # Safety net: ensure topic-to-document mapping is always persisted.
+            if (
+                document_ids is not None
+                and "document_topics" not in result
+                and trainer.topics is not None
+                and len(document_ids) == len(trainer.topics)
+            ):
+                result["document_topics"] = [
+                    {
+                        "skripsi_id": int(doc_id),
+                        "topic_id": int(topic_id),
+                        "is_outlier": int(topic_id) == -1,
+                    }
+                    for doc_id, topic_id in zip(document_ids, trainer.topics)
+                ]
 
             # Step 2: Evaluate
             self._update_job(job_id, message="Evaluating model...", progress=70.0)
             metrics = self.evaluator.evaluate_bertopic(
                 model=trainer.model,
                 documents=documents,
+                vectorizer_model=trainer.vectorizer_model,
+                coherence_type=trainer.params.coherence_type,
+                coherence_tokenization=trainer.params.coherence_tokenization,
+                coherence_dict_no_below=trainer.params.coherence_dict_no_below,
+                coherence_dict_no_above=trainer.params.coherence_dict_no_above,
             )
             result["metrics"] = metrics
 
@@ -264,6 +291,15 @@ class TrainingService:
         results_dir = path_settings.get_results_dir()
         result_path = results_dir / f"result_{job_id}.json"
 
+        # Persist model artifacts alongside results for later reuse.
+        # This makes it easier to retrieve the model from the same "results" folder.
+        model_path = result.get("model_path")
+        archive_path = self._archive_model_artifacts(job_id=job_id, model_path=model_path)
+
+        result["results_path"] = str(result_path)
+        if archive_path is not None:
+            result["model_archive_path"] = archive_path
+
         # Make result JSON serializable
         serializable = json.loads(
             json.dumps(result, default=str)
@@ -274,6 +310,40 @@ class TrainingService:
 
         logger.info(f"Results saved to {result_path}")
         return str(result_path)
+
+    def _archive_model_artifacts(self, job_id: str, model_path: Any) -> Optional[str]:
+        """Create a tar.gz archive of the trained model directory inside results.
+
+        Returns the archive path as string, or None if model_path is missing/invalid.
+        """
+
+        if not model_path:
+            return None
+
+        try:
+            model_dir = Path(str(model_path))
+        except Exception:
+            return None
+
+        if not model_dir.exists() or not model_dir.is_dir():
+            return None
+
+        results_dir = path_settings.get_results_dir()
+        archive_file = results_dir / f"model_{job_id}.tar.gz"
+
+        # Overwrite if exists (retraining same job_id is unlikely, but keep deterministic).
+        try:
+            if archive_file.exists():
+                archive_file.unlink()
+        except Exception:
+            pass
+
+        with tarfile.open(archive_file, "w:gz") as tar:
+            # Store the folder under its basename to avoid absolute paths in the archive.
+            tar.add(model_dir, arcname=model_dir.name)
+
+        logger.info(f"Model archived to {archive_file}")
+        return str(archive_file)
 
     def load_results(self, job_id: str) -> Dict[str, Any]:
         """Load training results from JSON."""

@@ -16,6 +16,8 @@ from app.core.config import lda_settings, path_settings
 from app.models.schemas import LDAHyperparameters
 from loguru import logger
 
+from app.services.stopwords import load_stopwords
+
 
 class LDATrainer:
     """
@@ -187,13 +189,24 @@ class LDATrainer:
         if self.model is None:
             return []
 
+        stopwords = load_stopwords(language="indonesian", include_academic=True)
+
         topics = []
         for topic_id in range(self.params.num_topics):
             words_scores = self.model.show_topic(topic_id, topn=10)
+
+            filtered_words_scores = [
+                (w, s)
+                for (w, s) in words_scores
+                if w not in stopwords and len(w) >= 3
+            ]
+            if not filtered_words_scores:
+                filtered_words_scores = words_scores
+
             topics.append({
                 "topic_id": topic_id,
-                "top_words": [w for w, _ in words_scores],
-                "word_scores": [round(float(s), 4) for _, s in words_scores],
+                "top_words": [w for w, _ in filtered_words_scores],
+                "word_scores": [round(float(s), 4) for _, s in filtered_words_scores],
             })
 
         return topics

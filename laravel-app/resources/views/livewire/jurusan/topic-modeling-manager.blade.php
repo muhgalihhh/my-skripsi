@@ -459,6 +459,71 @@
 
             <x-ui.card title="Hasil Topic Modeling" description="Run aktif — topik tersimpan di database.">
                 @if ($activeRun && $activeRun->status === 'completed')
+                    {{-- Model actions (FastAPI artifacts) --}}
+                    @if ($activeRun->fastapi_training_job_id)
+                        <div class="mb-4 flex flex-wrap items-center gap-2">
+                            <x-ui.button wire:click="downloadModel" wire:loading.attr="disabled" variant="secondary">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                                </svg>
+                                Download Model
+                            </x-ui.button>
+                            <x-ui.button wire:click="testModelWithDataset" wire:loading.attr="disabled" variant="secondary">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-9 4h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span wire:loading.remove wire:target="testModelWithDataset">Test Model (Dataset)</span>
+                                <span wire:loading wire:target="testModelWithDataset">Testing…</span>
+                            </x-ui.button>
+                            <div class="text-xs text-gray-400">Job ID: {{ $activeRun->fastapi_training_job_id }}</div>
+                        </div>
+
+                        @if (!empty($modelTestDatasetResult) && !isset($modelTestDatasetResult['status']))
+                            @php
+                                $stored = $modelTestDatasetResult['stored_metrics'] ?? [];
+                                $retest = $modelTestDatasetResult['retest_metrics'] ?? [];
+                                $same = $modelTestDatasetResult['same'] ?? [];
+                                $dataset = $modelTestDatasetResult['dataset'] ?? [];
+                                $ok = ($same['coherence_cv'] ?? false) === true && ($same['topic_diversity'] ?? false) === true;
+                            @endphp
+                            <div class="mb-5 rounded-xl border {{ $ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50' }} p-4">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="text-sm font-semibold {{ $ok ? 'text-emerald-800' : 'text-amber-800' }}">
+                                        {{ $ok ? 'Hasil test: sama dengan training' : 'Hasil test: ada perbedaan dari training' }}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        Dataset: {{ (int) ($dataset['used'] ?? 0) }}/{{ (int) ($dataset['total'] ?? 0) }} dipakai
+                                    </div>
+                                </div>
+                                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+                                    <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
+                                        <div class="font-semibold text-gray-700">Training (stored)</div>
+                                        <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $stored['coherence_cv'] ?? '-' }}</span></div>
+                                        <div class="text-gray-600">Diversity: <span class="font-mono">{{ $stored['topic_diversity'] ?? '-' }}</span></div>
+                                        <div class="text-gray-600">#Topik: <span class="font-mono">{{ $stored['num_topics'] ?? '-' }}</span></div>
+                                    </div>
+                                    <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
+                                        <div class="font-semibold text-gray-700">Re-test (dataset sekarang)</div>
+                                        <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $retest['coherence_cv'] ?? '-' }}</span></div>
+                                        <div class="text-gray-600">Diversity: <span class="font-mono">{{ $retest['topic_diversity'] ?? '-' }}</span></div>
+                                        <div class="text-gray-600">#Topik: <span class="font-mono">{{ $retest['num_topics'] ?? '-' }}</span></div>
+                                    </div>
+                                    <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
+                                        <div class="font-semibold text-gray-700">Kecocokan</div>
+                                        <div class="mt-1 text-gray-600">Coherence match: <span class="font-mono">{{ ($same['coherence_cv'] ?? null) === true ? 'yes' : 'no' }}</span></div>
+                                        <div class="text-gray-600">Diversity match: <span class="font-mono">{{ ($same['topic_diversity'] ?? null) === true ? 'yes' : 'no' }}</span></div>
+                                        <div class="text-gray-600">Keyword match: <span class="font-mono">{{ isset($same['keyword_match_ratio']) ? round(((float) $same['keyword_match_ratio']) * 100) . '%' : '-' }}</span></div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 text-xs text-gray-500">
+                                    Catatan: jika dataset di DB berubah setelah training, hasil re-test bisa ikut berubah.
+                                </div>
+                            </div>
+                        @endif
+                    @endif
+
                     {{-- Stats row --}}
                     <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div class="rounded-xl bg-unsoed-blue-50 p-3 text-center">
@@ -498,10 +563,16 @@
                                     <th
                                         class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                         Kata Kunci Utama</th>
+                                    <th
+                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Skripsi Terkait</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 bg-white">
                                 @foreach ($activeRun->topics->sortBy('topic_id') as $t)
+                                    @php
+                                        $linkedDocs = $t->documentLinks->take(5);
+                                    @endphp
                                     <tr class="hover:bg-gray-50 transition-colors">
                                         <td class="px-4 py-3">
                                             <span
@@ -517,6 +588,25 @@
                                                         class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                                 @endforeach
                                             </div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            @if ($linkedDocs->isEmpty())
+                                                <div class="text-xs text-gray-400">Belum ada mapping dokumen</div>
+                                            @else
+                                                <div class="space-y-1">
+                                                    @foreach ($linkedDocs as $link)
+                                                        <div class="text-xs text-gray-700 line-clamp-1">
+                                                            #{{ $link->skripsi_id }}
+                                                            @if ($link->skripsi)
+                                                                - {{ $link->skripsi->title }}
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                    @if ($t->documentLinks->count() > 5)
+                                                        <div class="text-[11px] text-gray-400">+{{ $t->documentLinks->count() - 5 }} skripsi lain</div>
+                                                    @endif
+                                                </div>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -602,21 +692,21 @@
                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">UMAP</div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="text-xs text-gray-600">n_neighbors</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">n_neighbors</label>
                         <input type="number" min="2"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.umap_params.n_neighbors" />
                     </div>
                     <div>
-                        <label class="text-xs text-gray-600">n_components</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">n_components</label>
                         <input type="number" min="2"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.umap_params.n_components" />
                     </div>
                     <div class="col-span-2">
-                        <label class="text-xs text-gray-600">min_dist</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_dist</label>
                         <input type="number" step="0.01" min="0" max="1"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.umap_params.min_dist" />
                     </div>
                 </div>
@@ -627,15 +717,15 @@
                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">HDBSCAN</div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="text-xs text-gray-600">min_cluster_size</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_cluster_size</label>
                         <input type="number" min="2"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.hdbscan_params.min_cluster_size" />
                     </div>
                     <div>
-                        <label class="text-xs text-gray-600">min_samples</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_samples</label>
                         <input type="number" min="1"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.hdbscan_params.min_samples" />
                     </div>
                 </div>
@@ -646,18 +736,66 @@
                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">BERTopic</div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="text-xs text-gray-600">nr_topics</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">nr_topics</label>
                         <input type="number" min="2"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.nr_topics" />
                     </div>
                     <div>
-                        <label class="text-xs text-gray-600">min_topic_size</label>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_topic_size</label>
                         <input type="number" min="2"
-                            class="mt-1 w-full rounded-lg border-gray-300 text-sm focus:border-unsoed-blue-500 focus:ring-unsoed-blue-500"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
                             wire:model.live="bertopicParams.min_topic_size" />
                     </div>
                 </div>
+            </div>
+
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Vectorizer</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_df</label>
+                        <input type="number" step="0.01" min="1"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
+                            wire:model.live="bertopicParams.vectorizer_min_df" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">max_df</label>
+                        <input type="number" step="0.01" min="0.1" max="1"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
+                            wire:model.live="bertopicParams.vectorizer_max_df" />
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Outlier & Representation</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">reduce_outliers_threshold_ctfidf</label>
+                        <input type="number" step="0.01" min="0" max="1"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
+                            wire:model.live="bertopicParams.reduce_outliers_threshold_ctfidf" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">mmr_diversity</label>
+                        <input type="number" step="0.01" min="0" max="1"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
+                            wire:model.live="bertopicParams.mmr_diversity" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-2 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-gray-400">Simpan sebagai default di database (per akun).</div>
+                <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16v2a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h8m2 0l4 4m-4-4v4h4" />
+                    </svg>
+                    <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
+                    <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
+                </x-ui.button>
             </div>
         </div>
     </x-ui.card>

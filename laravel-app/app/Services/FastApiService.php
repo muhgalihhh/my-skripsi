@@ -342,4 +342,35 @@ class FastApiService
       return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
     }
   }
+
+  /**
+   * Re-test a saved model against the existing dataset in DB.
+   * Compares metrics/keywords vs stored training results.
+   */
+  public function testModelWithDataset(string $jobId): array
+  {
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(120)
+        ->get("{$this->baseUrl}/api/v1/training/model/{$jobId}/test-dataset");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Model/hasil {$jobId} tidak ditemukan"]; 
+      }
+
+      Log::warning('FastAPI model test-dataset failed', [
+        'status' => $response->status(),
+        'body' => $response->body(),
+      ]);
+
+      return ['status' => 'error', 'message' => 'Gagal test model. Status: ' . $response->status()];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI model test-dataset request failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
 }

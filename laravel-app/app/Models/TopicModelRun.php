@@ -57,6 +57,11 @@ class TopicModelRun extends Model
     return $this->hasMany(TopicModelTopic::class, 'topic_model_run_id');
   }
 
+  public function topicDocuments()
+  {
+    return $this->hasMany(TopicModelTopicDocument::class, 'topic_model_run_id');
+  }
+
   /**
    * Helper: label badge warna berdasarkan status.
    */

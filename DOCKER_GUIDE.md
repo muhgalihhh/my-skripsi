@@ -44,8 +44,22 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 
 - ✅ FastAPI: auto-reload saat edit kode Python
 - ✅ Laravel: source code di-mount (edit Blade/PHP langsung terlihat)
+- ✅ Vite/Tailwind: hot reload via dev server (port 5173)
 - ✅ Debug mode aktif
 - ✅ Memory limit lebih besar untuk ML tasks
+
+### 🎨 Frontend assets (Vite)
+
+Saat development, styling (Tailwind) akan muncul kalau **Vite dev server** berjalan.
+
+```bash
+# Lihat log Vite (harusnya listen di 5173)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f vite
+```
+
+Checklist cepat:
+- `http://localhost:5173/@vite/client` bisa diakses
+- File `laravel-app/public/hot` muncul (dibuat otomatis oleh Vite)
 
 ### 🚀 Production Mode
 
@@ -157,6 +171,22 @@ Koneksi internet lambat. Coba:
 ```bash
 docker exec -it skripsi-laravel php artisan key:generate --force
 ```
+
+### Training BERTopic gagal download model (HuggingFace)
+
+Kalau saat klik **Training** muncul error seperti `Temporary failure in name resolution` / `Failed to resolve huggingface.co` / `Network is unreachable`, itu berarti container **FastAPI tidak bisa download model embedding** dari HuggingFace.
+
+Cek cepat dari dalam container:
+
+```bash
+docker exec -it skripsi-fastapi curl -I https://huggingface.co  
+docker exec -it skripsi-fastapi curl -I https://huggingface.co/denaya/indoSBERT-large/resolve/main/modules.json
+```
+
+Solusi umum:
+- Pastikan koneksi internet stabil (download awal model bisa besar)
+- Jika jaringan kampus/ISP memblokir, coba VPN/hotspot
+- Setelah model berhasil ter-download sekali, biasanya training berikutnya lebih aman karena cache sudah ada
 
 ### MySQL connection refused
 

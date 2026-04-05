@@ -143,16 +143,16 @@ class BERTopicSettings(BaseSettings):
 
     # IndoSBERT-large: IndoBERT-large + Siamese Network (256-dim output)
     BERTOPIC_EMBEDDING_MODEL: str = "denaya/indoSBERT-large"
-    BERTOPIC_MIN_TOPIC_SIZE: int = 5       # Best: BT_031 pakai 5
-    BERTOPIC_NR_TOPICS: str = "10"         # Best: BT_031 pakai 10 (lalu reduce outliers)
+    BERTOPIC_MIN_TOPIC_SIZE: int = 10
+    BERTOPIC_NR_TOPICS: str = "auto"
     BERTOPIC_TOP_N_WORDS: int = 10
     BERTOPIC_EMBEDDING_BATCH_SIZE: int = 16
     BERTOPIC_SEED: int = 42
 
-    def get_nr_topics(self) -> Optional[int]:
-        """Return nr_topics as int or None if 'auto'."""
+    def get_nr_topics(self) -> Optional[int | str]:
+        """Return nr_topics as int, 'auto', or None."""
         if self.BERTOPIC_NR_TOPICS.lower() == "auto":
-            return None
+            return "auto"
         return int(self.BERTOPIC_NR_TOPICS)
 
 
@@ -168,7 +168,7 @@ class UMAPSettings(BaseSettings):
         extra="ignore",
     )
 
-    UMAP_N_NEIGHBORS: int = 5    # Best: BT_031 pakai 5 (bukan 15)
+    UMAP_N_NEIGHBORS: int = 75
     UMAP_N_COMPONENTS: int = 5
     UMAP_MIN_DIST: float = 0.0
     UMAP_METRIC: str = "cosine"
@@ -187,8 +187,8 @@ class HDBSCANSettings(BaseSettings):
         extra="ignore",
     )
 
-    HDBSCAN_MIN_CLUSTER_SIZE: int = 5    # Best: BT_031 pakai 5 (bukan 10)
-    HDBSCAN_MIN_SAMPLES: Optional[int] = 1  # Best: BT_031 pakai 1
+    HDBSCAN_MIN_CLUSTER_SIZE: int = 12
+    HDBSCAN_MIN_SAMPLES: Optional[int] = 1
     HDBSCAN_CLUSTER_SELECTION_METHOD: str = "eom"
 
     @field_validator("HDBSCAN_MIN_SAMPLES", mode="before")

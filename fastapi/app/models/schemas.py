@@ -10,9 +10,9 @@ Arsitektur:
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ============================================
 # Enums
@@ -92,7 +92,7 @@ class PreprocessingJobStatus(BaseModel):
 
 class UMAPHyperparameters(BaseModel):
     """UMAP dimensionality reduction parameters."""
-    n_neighbors: int = Field(15, ge=2, description="Number of neighbors for local structure")
+    n_neighbors: int = Field(75, ge=2, description="Number of neighbors for local structure")
     n_components: int = Field(5, ge=2, description="Target dimensions")
     min_dist: float = Field(0.0, ge=0.0, le=1.0, description="Minimum distance between points")
     metric: str = Field("cosine", description="Distance metric")
@@ -101,8 +101,8 @@ class UMAPHyperparameters(BaseModel):
 
 class HDBSCANHyperparameters(BaseModel):
     """HDBSCAN clustering parameters."""
-    min_cluster_size: int = Field(10, ge=2, description="Minimum cluster size")
-    min_samples: Optional[int] = Field(None, ge=1, description="Min samples (None = min_cluster_size)")
+    min_cluster_size: int = Field(12, ge=2, description="Minimum cluster size")
+    min_samples: Optional[int] = Field(1, ge=1, description="Min samples")
     cluster_selection_method: str = Field("eom", description="'eom' or 'leaf'")
 
 
@@ -122,15 +122,58 @@ class BERTopicHyperparameters(BaseModel):
             "(IndoBERT-large re-trained with Siamese Network)"
         ),
     )
-    min_topic_size: int = Field(10, ge=2, description="Minimum topic size for HDBSCAN")
-    nr_topics: Optional[int] = Field(None, ge=2, description="Number of topics (None = auto)")
+    min_topic_size: int = Field(10, ge=2, description="Minimum topic size for BERTopic")
+    nr_topics: Optional[int | Literal["auto"]] = Field(
+        None,
+        description="Number of topics. Use integer or 'auto'.",
+    )
     top_n_words: int = Field(10, ge=1, description="Number of words per topic representation")
-    n_gram_range: List[int] = Field(default=[1, 2], description="N-gram range [min, max]")
+    n_gram_range: List[int] = Field(default=[1, 2], description="Vectorizer n-gram range [min, max]")
+    vectorizer_min_df: int | float = Field(2, description="CountVectorizer min_df")
+    vectorizer_max_df: int | float = Field(0.95, description="CountVectorizer max_df")
+    vectorizer_token_pattern: str = Field(r"(?u)\b\w{3,}\b", description="CountVectorizer token pattern")
+    vectorizer_fallback_min_df: int = Field(1, ge=1, description="Fallback min_df when DF constraints fail")
+    vectorizer_fallback_max_df: float = Field(1.0, gt=0.0, le=1.0, description="Fallback max_df when DF constraints fail")
+
+    coherence_type: str = Field("c_v", description="Coherence metric type")
+    coherence_tokenization: Literal["vectorizer"] = Field(
+        "vectorizer",
+        description="Locked coherence tokenization to vectorizer analyzer",
+    )
+    coherence_dict_no_below: int = Field(3, ge=1, description="Dictionary filter no_below")
+    coherence_dict_no_above: float = Field(0.95, gt=0.0, le=1.0, description="Dictionary filter no_above")
+
+    reduce_outliers: bool = Field(True, description="Enable reduce_outliers during training")
+    reduce_outliers_threshold_ctfidf: float = Field(0.1, ge=0.0, le=1.0)
+    reduce_outliers_use_distributions: bool = Field(True)
+    reduce_outliers_threshold_distributions: float = Field(0.05, ge=0.0, le=1.0)
+
+    use_mmr_representation: bool = Field(True, description="Enable MMR representation model")
+    mmr_diversity: float = Field(0.3, ge=0.0, le=1.0)
+
     embedding_batch_size: int = Field(16, ge=1, description="Batch size for embedding computation")
     seed: int = Field(42, description="Random seed for reproducibility")
     # Sub-component parameters
     umap_params: UMAPHyperparameters = Field(default_factory=UMAPHyperparameters)
     hdbscan_params: HDBSCANHyperparameters = Field(default_factory=HDBSCANHyperparameters)
+
+    @field_validator("n_gram_range")
+    @classmethod
+    def validate_ngram_range(cls, value: List[int]) -> List[int]:
+        if len(value) != 2:
+            raise ValueError("n_gram_range must contain exactly two integers")
+        if value[0] < 1 or value[1] < value[0]:
+            raise ValueError("Invalid n_gram_range")
+        return value
+
+    @field_validator("nr_topics")
+    @classmethod
+    def validate_nr_topics(cls, value):
+        if value is None or value == "auto":
+            return value
+        if isinstance(value, int) and value >= 2:
+            return value
+        raise ValueError("nr_topics must be >=2, null, or 'auto'")
 
 
 class LDAHyperparameters(BaseModel):

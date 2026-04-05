@@ -23,7 +23,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 # Fix for "Matplotlib created a temporary cache directory ... Errno 13 Permission Denied"
 # Matplotlib attempts to write to /app/.config which appuser cannot write to.
@@ -45,6 +45,8 @@ from umap import UMAP
 from hdbscan import HDBSCAN
 from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
+
+from app.services.stopwords import load_stopwords
 
 class BERTopicTrainer:
     """
@@ -92,6 +94,8 @@ class BERTopicTrainer:
         self.probabilities = None
         self.embeddings = None
         self.topic_info = None
+        self.vectorizer_model = None
+        self.representation_model = None
 
     def _build_embedding_model(self):
         """
@@ -105,7 +109,30 @@ class BERTopicTrainer:
             f"Loading sentence encoder: {self.params.embedding_model} "
             f"(IndoBERT-large + Siamese Network, output: 256-dim)"
         )
-        return SentenceTransformer(self.params.embedding_model)
+
+        try:
+            return SentenceTransformer(self.params.embedding_model)
+        except Exception as e:
+            error_text = str(e)
+            network_hints = (
+                "Failed to resolve",
+                "Temporary failure in name resolution",
+                "NameResolutionError",
+                "Network is unreachable",
+                "Max retries exceeded",
+                "HTTPSConnectionPool",
+            )
+
+            if any(hint in error_text for hint in network_hints):
+                raise RuntimeError(
+                    "Gagal download/load embedding model dari HuggingFace. "
+                    "Pastikan container FastAPI bisa akses internet dan DNS stabil. "
+                    "Host yang biasanya dibutuhkan: huggingface.co dan cas-bridge.xethub.hf.co. "
+                    "Jika jaringan kampus/ISP memblokir, coba VPN/hotspot atau jalankan sekali saat internet stabil "
+                    "agar model ter-cache, lalu ulangi training."
+                ) from e
+
+            raise
 
     def _build_umap_model(self):
         """Configure UMAP dimensionality reduction."""
@@ -128,7 +155,7 @@ class BERTopicTrainer:
             prediction_data=True,
         )
 
-    def _build_vectorizer(self):
+    def _build_vectorizer(self, use_fallback: bool = False):
         """
         Configure CountVectorizer untuk c-TF-IDF topic representation.
 
@@ -139,26 +166,45 @@ class BERTopicTrainer:
           - stop_words=None: stopword sudah ditangani di preprocessing
         """
         n_gram_range = tuple(self.params.n_gram_range)
+
+        # Stopwords only affect topic representation (c-TF-IDF keywords),
+        # not the semantic embedding/clustering itself.
+        stopwords = sorted(load_stopwords(language="indonesian", include_academic=True))
         return CountVectorizer(
             ngram_range=n_gram_range,
-            stop_words=None,           # Sudah di-handle di preprocessing
-            min_df=2,                  # Toleran untuk cluster kecil (fix dari eksperimen)
-            max_df=0.95,               # Toleran untuk kata umum (fix dari eksperimen)
-            token_pattern=r"(?u)\b\w{3,}\b",  # Minimal 3 huruf per token
+            stop_words=stopwords,
+            min_df=(self.params.vectorizer_fallback_min_df if use_fallback else self.params.vectorizer_min_df),
+            max_df=(self.params.vectorizer_fallback_max_df if use_fallback else self.params.vectorizer_max_df),
+            token_pattern=self.params.vectorizer_token_pattern,
         )
 
-    def _build_model(self):
+    def _build_representation_model(self):
+        """Optional MMR representation, aligned with notebook final pipeline."""
+        if not self.params.use_mmr_representation:
+            return None
+
+        from bertopic.representation import MaximalMarginalRelevance
+
+        return MaximalMarginalRelevance(diversity=self.params.mmr_diversity)
+
+    @staticmethod
+    def _is_vectorizer_df_error(exc: Exception) -> bool:
+        return "max_df corresponds to < documents than min_df" in str(exc)
+
+    def _build_model(self, use_fallback_vectorizer: bool = False):
         """Build the full BERTopic pipeline."""
         embedding_model = self._build_embedding_model()
         umap_model = self._build_umap_model()
         hdbscan_model = self._build_hdbscan_model()
-        vectorizer_model = self._build_vectorizer()
+        self.vectorizer_model = self._build_vectorizer(use_fallback=use_fallback_vectorizer)
+        self.representation_model = self._build_representation_model()
 
         self.model = BERTopic(
             embedding_model=embedding_model,
             umap_model=umap_model,
             hdbscan_model=hdbscan_model,
-            vectorizer_model=vectorizer_model,
+            vectorizer_model=self.vectorizer_model,
+            representation_model=self.representation_model,
             top_n_words=self.params.top_n_words,
             nr_topics=self.params.nr_topics,
             min_topic_size=self.params.min_topic_size,
@@ -182,7 +228,27 @@ class BERTopicTrainer:
             f"Computing sentence embeddings for {len(documents)} documents "
             f"using {self.params.embedding_model}..."
         )
-        embedding_model = SentenceTransformer(self.params.embedding_model)
+        try:
+            embedding_model = SentenceTransformer(self.params.embedding_model)
+        except Exception as e:
+            error_text = str(e)
+            network_hints = (
+                "Failed to resolve",
+                "Temporary failure in name resolution",
+                "NameResolutionError",
+                "Network is unreachable",
+                "Max retries exceeded",
+                "HTTPSConnectionPool",
+            )
+
+            if any(hint in error_text for hint in network_hints):
+                raise RuntimeError(
+                    "Gagal download/load embedding model dari HuggingFace saat menghitung embeddings. "
+                    "Cek koneksi internet/DNS dari container FastAPI. "
+                    "Coba akses https://huggingface.co dari dalam container atau gunakan VPN/hotspot."
+                ) from e
+
+            raise
         embeddings = embedding_model.encode(
             documents,
             show_progress_bar=True,
@@ -197,6 +263,7 @@ class BERTopicTrainer:
         documents: List[str],
         embeddings: Optional[np.ndarray] = None,
         timestamps: Optional[List[int]] = None,
+        document_ids: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         """
         Train BERTopic model.
@@ -221,27 +288,64 @@ class BERTopicTrainer:
             embeddings = self.compute_embeddings(documents)
 
         # Fit the model
-        logger.info("Fitting BERTopic model (UMAP → HDBSCAN → c-TF-IDF)...")
-        self.topics, self.probabilities = self.model.fit_transform(
-            documents, embeddings=embeddings
-        )
+        logger.info("Fitting BERTopic model (UMAP → HDBSCAN → c-TF-IDF + MMR)...")
+        try:
+            self.topics, self.probabilities = self.model.fit_transform(
+                documents, embeddings=embeddings
+            )
+        except ValueError as e:
+            if self._is_vectorizer_df_error(e):
+                logger.warning("Vectorizer df constraint failed, retrying with fallback min_df/max_df")
+                self._build_model(use_fallback_vectorizer=True)
+                self.topics, self.probabilities = self.model.fit_transform(
+                    documents, embeddings=embeddings
+                )
+            else:
+                raise
 
         # Hitung outlier sebelum reduce
         outlier_count_before = int((np.array(self.topics) == -1).sum())
         logger.info(f"Outliers before reduce: {outlier_count_before}/{len(documents)}")
 
-        # Reduce outliers: paksa semua dokumen outlier ke topik terdekat
-        # Sesuai dengan hasil eksperimen notebook (outlier 42 → 0)
-        logger.info("Reducing outliers (assigning outlier docs to nearest topic)...")
-        self.topics = self.model.reduce_outliers(
-            documents, self.topics, strategy="c-tf-idf"
-        )
-        # Update representasi topik setelah reduce outliers
-        self.model.update_topics(
-            documents,
-            topics=self.topics,
-            vectorizer_model=self._build_vectorizer(),
-        )
+        if self.params.reduce_outliers and outlier_count_before > 0:
+            logger.info("Reducing outliers (c-tf-idf -> distributions)...")
+            try:
+                self.topics = self.model.reduce_outliers(
+                    documents,
+                    self.topics,
+                    strategy="c-tf-idf",
+                    threshold=self.params.reduce_outliers_threshold_ctfidf,
+                )
+            except ValueError as e:
+                if "No outliers to reduce" in str(e):
+                    logger.info("No outliers detected during c-tf-idf reduction. Skipping reduction stage.")
+                else:
+                    raise
+
+            remaining_outliers = int((np.array(self.topics) == -1).sum())
+            if self.params.reduce_outliers_use_distributions and remaining_outliers > 0:
+                try:
+                    self.topics = self.model.reduce_outliers(
+                        documents,
+                        self.topics,
+                        strategy="distributions",
+                        threshold=self.params.reduce_outliers_threshold_distributions,
+                    )
+                except ValueError as e:
+                    if "No outliers to reduce" in str(e):
+                        logger.info("No outliers detected during distributions reduction. Skipping reduction stage.")
+                    else:
+                        raise
+
+            # Keep representation consistent after outlier reassignment.
+            self.model.update_topics(
+                documents,
+                topics=self.topics,
+                vectorizer_model=self.vectorizer_model,
+                representation_model=self.representation_model,
+            )
+        elif self.params.reduce_outliers:
+            logger.info("Outlier reduction skipped: no outliers found.")
 
         outlier_count_after = int((np.array(self.topics) == -1).sum())
         logger.info(f"Outliers after reduce: {outlier_count_after}/{len(documents)}")
@@ -271,6 +375,16 @@ class BERTopicTrainer:
             "topic_info": self._extract_topic_info(),
         }
 
+        if document_ids is not None and len(document_ids) == len(self.topics):
+            result["document_topics"] = [
+                {
+                    "skripsi_id": int(doc_id),
+                    "topic_id": int(topic_id),
+                    "is_outlier": int(topic_id) == -1,
+                }
+                for doc_id, topic_id in zip(document_ids, self.topics)
+            ]
+
         # Dynamic Topic Analysis jika timestamps tersedia
         if timestamps is not None:
             logger.info("Running Dynamic Topic Analysis (topics_over_time)...")
@@ -286,15 +400,27 @@ class BERTopicTrainer:
         if self.model is None:
             return []
 
+        stopwords = load_stopwords(language="indonesian", include_academic=True)
+
         topics = []
         for topic_id in self.model.get_topics():
             if topic_id == -1:
                 continue  # Skip outlier topic
             words_scores = self.model.get_topic(topic_id)
+
+            # Safety net: filter stopwords from displayed keywords.
+            filtered_words_scores = [
+                (w, s)
+                for (w, s) in words_scores
+                if w not in stopwords and len(w) >= 3
+            ]
+            if not filtered_words_scores:
+                filtered_words_scores = words_scores
+
             topics.append({
                 "topic_id": topic_id,
-                "top_words": [w for w, _ in words_scores],
-                "word_scores": [round(float(s), 4) for _, s in words_scores],
+                "top_words": [w for w, _ in filtered_words_scores],
+                "word_scores": [round(float(s), 4) for _, s in filtered_words_scores],
                 "count": int(
                     self.topic_info[self.topic_info["Topic"] == topic_id]["Count"].values[0]
                 )

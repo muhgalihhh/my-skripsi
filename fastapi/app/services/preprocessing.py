@@ -1,16 +1,8 @@
-"""
-Text Preprocessing Service
-Handles text cleaning, tokenization, stopword removal, and stemming
-specifically for Indonesian academic text (abstracts/titles).
+"""Text preprocessing service aligned with notebook pipeline.
 
-Dual preprocessing pipeline:
-  - BERTopic pipeline (preprocess_cleaned): teks NATURAL untuk IndoSBERT
-    → Hanya basic clean: lowercase, hapus URL/email/karakter aneh
-    → TIDAK hapus stopword → IndoSBERT sudah punya konteks semantik sendiri
-    → TIDAK filter kata pendek → terlalu agresif untuk sentence embedding
-    → TIDAK stemming → IndoSBERT dilatih pada teks natural
-  - LDA pipeline (preprocess): teks STEMMED + FILTERED untuk bag-of-words
-    → Full clean + stopword removal + stemming (Sastrawi)
+Dual pipeline output:
+- cleaned_text   : soft clean for BERTopic/IndoSBERT
+- processed_text : full clean + stopword + stemming for LDA
 """
 
 import re
@@ -18,6 +10,8 @@ from typing import List, Optional
 
 import pandas as pd
 from loguru import logger
+
+from app.services.stopwords import load_stopwords
 
 
 class TextPreprocessor:
@@ -43,30 +37,7 @@ class TextPreprocessor:
         if self._stopwords is not None:
             return self._stopwords
 
-        try:
-            import nltk
-
-            nltk.download("stopwords", quiet=True)
-            from nltk.corpus import stopwords as nltk_stopwords
-
-            self._stopwords = set(nltk_stopwords.words("indonesian"))
-        except Exception:
-            logger.warning("Could not load NLTK stopwords, using empty set")
-            self._stopwords = set()
-
-        # Tambah stopword akademik umum (untuk LDA pipeline)
-        academic_stopwords = {
-            "penelitian", "menggunakan", "digunakan", "berdasarkan",
-            "hasil", "menunjukkan", "bahwa", "dapat", "dilakukan",
-            "metode", "sistem", "data", "proses", "dalam",
-            "dengan", "untuk", "pada", "dari", "yang",
-            "ini", "tersebut", "adalah", "merupakan", "yaitu",
-            "juga", "serta", "atau", "dan", "di",
-            "ke", "se", "ber", "ter", "per",
-            "skripsi", "tugas", "akhir", "universitas", "mahasiswa",
-            "informatika", "jurusan", "program", "studi",
-        }
-        self._stopwords.update(academic_stopwords)
+        self._stopwords = set(load_stopwords(language=self.language, include_academic=True))
         return self._stopwords
 
     def _load_stemmer(self):
@@ -88,6 +59,99 @@ class TextPreprocessor:
             self._stemmer = None
 
         return self._stemmer
+
+    def deep_clean_pdf_text(self, text: str) -> str:
+        """Remove common PDF/scraping artifacts and normalize whitespace."""
+        if not text or not isinstance(text, str):
+            return ""
+
+        text = text.replace("\\n", "\n")
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+        text = re.sub(r"Item\s+Type\s*:.*", "", text, flags=re.DOTALL | re.IGNORECASE)
+
+        metadata_patterns = [
+            r"Nomor\s+Inventaris\s*:\s*\S+",
+            r"Uncontrolled\s+Keywords\s*:.*?(?=\n[A-Z]|\Z)",
+            r"Subjects\s*:[A-Z\s>]+[A-Z0-9\s]+",
+            r"Divisions\s*:.*?(?=\n[A-Z]|\Z)",
+            r"Depositing\s+User\s*:.*?(?=\n|\Z)",
+            r"Date\s+Deposited\s*:.*?(?=\n|\Z)",
+            r"Last\s+Modified\s*:.*?(?=\n|\Z)",
+            r"URI\s*:\s*http\S*",
+            r"[A-Z][a-z]+\s+[A-Z][a-z]+\s*:\s*[A-Z0-9\s]+(?=\n|$)",
+        ]
+        for pattern in metadata_patterns:
+            text = re.sub(pattern, " ", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"^\s*\d{1,4}\s*$", "", text, flags=re.MULTILINE)
+        text = re.sub(r"(?:^|\n)\s*\d{1,4}\s*(?:\n|$)", "\n", text)
+
+        text = re.sub(r"\bBAB\s+[IVXLCDM]+\b", "", text, flags=re.IGNORECASE)
+
+        section_headers = [
+            r"KESIMPULAN\s+DAN\s+SARAN",
+            r"KESIMPULAN\s*&\s*SARAN",
+            r"PENUTUP",
+            r"KESIMPULAN",
+            r"SARAN",
+            r"DAFTAR\s+PUSTAKA",
+            r"DAFTAR\s+REFERENSI",
+            r"ABSTRAK",
+            r"ABSTRACT",
+            r"KATA\s+PENGANTAR",
+            r"DAFTAR\s+ISI",
+            r"DAFTAR\s+GAMBAR",
+            r"DAFTAR\s+TABEL",
+            r"DAFTAR\s+LAMPIRAN",
+            r"PENDAHULUAN",
+            r"TINJAUAN\s+PUSTAKA",
+            r"LANDASAN\s+TEORI",
+            r"METODOLOGI\s+PENELITIAN",
+            r"METODE\s+PENELITIAN",
+            r"HASIL\s+DAN\s+PEMBAHASAN",
+        ]
+        for header in section_headers:
+            text = re.sub(rf"(?:^|\n)\s*{header}\s*(?:\n|$)", "\n", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"(?:^|\n)\s*\d+\.\d+\.?\s*", "\n", text)
+        text = re.sub(r"(?:^|\n)\s*\d+\.\s+", "\n", text)
+        text = re.sub(r"(?:^|\n)\s*[a-z]\.\s+", "\n", text)
+
+        text = re.sub(r"(?:Gambar|Tabel|Lampiran)\s+\d+[\.\-]?\s*\d*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"(?:halaman|hal\.?|hlm\.?)\s+\d+[\-–]?\d*", "", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"PDF\s*\([^)]*\)", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"https?://\S+|www\.\S+", "", text)
+        text = re.sub(r"\S+@\S+\.\S+", "", text)
+        text = re.sub(r"(?:doi|DOI)\s*:\s*\S+", "", text)
+        text = re.sub(r"https?://doi\.org/\S+", "", text)
+
+        text = text.replace("\u2013", "-").replace("\u2014", "-")
+        text = text.replace("\u201c", '"').replace("\u201d", '"')
+        text = text.replace("\u2018", "'").replace("\u2019", "'")
+
+        text = re.sub(r"\n+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    def _is_valid_conclusion(self, text: str, min_chars: int = 100) -> bool:
+        t = (text or "").strip()
+        if not t:
+            return False
+        if t.lower() in ("nan", "none", "tidak tersedia"):
+            return False
+        return len(self.deep_clean_pdf_text(t)) >= min_chars
+
+    def combine_text(self, title: str, abstract: str, conclusion: str) -> str:
+        """Build combined_text: title + abstract (+ valid conclusion)."""
+        clean_title = self.deep_clean_pdf_text(str(title or "").strip())
+        clean_abstract = self.deep_clean_pdf_text(str(abstract or "").strip())
+        clean_conclusion = self.deep_clean_pdf_text(str(conclusion or "").strip())
+
+        if self._is_valid_conclusion(clean_conclusion, min_chars=100):
+            return f"{clean_title}. {clean_abstract}. {clean_conclusion}".strip()
+        return f"{clean_title}. {clean_abstract}".strip()
 
     def clean_text_for_embedding(self, text: str) -> str:
         """
@@ -114,16 +178,9 @@ class TextPreprocessor:
         if not text or not isinstance(text, str):
             return ""
 
-        # Lowercase
+        text = self.deep_clean_pdf_text(text)
         text = text.lower()
-        # Hapus URL
-        text = re.sub(r"https?://\S+|www\.\S+", "", text)
-        # Hapus email
-        text = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", "", text)
-        # Hapus karakter kontrol dan non-printable (bukan tanda baca lazim)
-        # Pertahankan: huruf, angka, spasi, tanda baca standar (.,!?:;-()[]"')
-        text = re.sub(r"[^\w\s.,!?:;\-()\[\]\"']", " ", text)
-        # Normalisasi whitespace (tapi jangan hapus newline yang jadi spasi)
+        text = re.sub(r"[^\x20-\x7E\u00C0-\u024F\u1E00-\u1EFF\w\s.,;:!?\"'()\-/]", " ", text)
         text = re.sub(r"\s+", " ", text).strip()
 
         return text
@@ -136,17 +193,10 @@ class TextPreprocessor:
         if not text or not isinstance(text, str):
             return ""
 
-        # Lowercase
+        text = self.deep_clean_pdf_text(text)
         text = text.lower()
-        # Hapus URL
-        text = re.sub(r"http\S+|www\.\S+", "", text)
-        # Hapus email
-        text = re.sub(r"\S+@\S+", "", text)
-        # Hapus angka
         text = re.sub(r"\d+", "", text)
-        # Hapus tanda baca dan karakter khusus
         text = re.sub(r"[^\w\s]", " ", text)
-        # Normalisasi whitespace
         text = re.sub(r"\s+", " ", text).strip()
 
         return text
@@ -218,6 +268,8 @@ class TextPreprocessor:
         self,
         df: pd.DataFrame,
         text_column: str = "abstract",
+        title_column: str = "title",
+        conclusion_column: str = "conclusion",
     ) -> pd.DataFrame:
         """
         Preprocess semua teks dalam DataFrame dengan DUAL pipeline:
@@ -233,13 +285,30 @@ class TextPreprocessor:
 
         df = df.copy()
 
+        # Build combined text first to align with notebook: title + abstract (+ valid conclusion)
+        if title_column in df.columns:
+            title_series = df[title_column]
+        else:
+            title_series = pd.Series([""] * len(df))
+
+        if conclusion_column in df.columns:
+            conclusion_series = df[conclusion_column]
+        else:
+            conclusion_series = pd.Series([""] * len(df))
+
+        logger.info("  Building combined_text (title + abstract + optional conclusion)...")
+        df["combined_text"] = [
+            self.combine_text(t, a, c)
+            for t, a, c in zip(title_series, df[text_column], conclusion_series)
+        ]
+
         # Pipeline 1: clean ringan — untuk BERTopic / IndoSBERT
         logger.info("  [BERTopic pipeline] Soft clean (no stopword removal, no stemming)...")
-        df["cleaned_text"] = df[text_column].apply(self.preprocess_cleaned)
+        df["cleaned_text"] = df["combined_text"].apply(self.preprocess_cleaned)
 
         # Pipeline 2: full preprocessing — untuk LDA
         logger.info("  [LDA pipeline] Full clean + stopword removal + stemming...")
-        df["processed_text"] = df[text_column].apply(self.preprocess)
+        df["processed_text"] = df["combined_text"].apply(self.preprocess)
 
         # Hapus dokumen di mana KEDUA output kosong
         before_count = len(df)

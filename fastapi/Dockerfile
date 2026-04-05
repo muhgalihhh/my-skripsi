@@ -64,11 +64,10 @@ RUN find lib/python3.11/site-packages/torch -type d -name "test" -exec rm -rf {}
     find lib/python3.11/site-packages/torch -name "*.pyi" -delete 2>/dev/null || true && \
     find lib/python3.11/site-packages/torch -name "*.h" -delete 2>/dev/null || true
 
-# --- Hapus transformers bloat (~200MB saving) ---
-# Hapus tokenizer backends yang tidak dipakai (TensorFlow, Flax, dll)
-# Hapus contoh/benchmark
-RUN rm -rf lib/python3.11/site-packages/transformers/models/deprecated 2>/dev/null || true && \
-    find lib/python3.11/site-packages/transformers -name "*.pyi" -delete 2>/dev/null || true && \
+# --- Hapus transformers bloat (tetap aman untuk runtime) ---
+# NOTE: Jangan hapus `transformers/models/deprecated`.
+# Versi transformers tertentu masih import modul itu saat startup.
+RUN find lib/python3.11/site-packages/transformers -name "*.pyi" -delete 2>/dev/null || true && \
     find lib/python3.11/site-packages/transformers -type d -name "benchmark*" -exec rm -rf {} + 2>/dev/null || true
 
 # --- Hapus __pycache__ dan *.pyc di SEMUA packages (~100-200MB saving) ---
@@ -83,11 +82,10 @@ RUN find lib/python3.11/site-packages -type d \( \
         -name "test" \
     \) -exec rm -rf {} + 2>/dev/null || true
 
-# --- Hapus dokumentasi dan metadata yang tidak diperlukan (~30MB saving) ---
-RUN find lib/python3.11/site-packages -name "METADATA" -delete 2>/dev/null || true && \
-    find lib/python3.11/site-packages -name "RECORD" -delete 2>/dev/null || true && \
-    find lib/python3.11/site-packages -name "*.dist-info" -type d \
-        -exec sh -c 'rm -f "$1/METADATA" "$1/RECORD" "$1/WHEEL" "$1/top_level.txt"' _ {} \; 2>/dev/null || true
+# NOTE:
+# Jangan hapus file `*.dist-info/METADATA`.
+# Beberapa library (mis. transformers) membaca versi package via importlib.metadata
+# dan akan crash bila metadata dihapus.
 
 # --- Hapus matplotlib data yang tidak dipakai (font caches, sample data) ---
 RUN rm -rf lib/python3.11/site-packages/matplotlib/mpl-data/sample_data 2>/dev/null || true && \
@@ -128,7 +126,11 @@ ENV PATH="/app/venv/bin:$PATH" \
     # Torch: matikan telemetry dan progress bar saat import
     TOKENIZERS_PARALLELISM=false \
     HF_HUB_DISABLE_PROGRESS_BARS=1 \
-    HF_HUB_DISABLE_TELEMETRY=1
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    # Cache HuggingFace/Transformers harus writable (container pakai user non-root)
+    HF_HOME="/app/data/.cache/huggingface" \
+    TRANSFORMERS_CACHE="/app/data/.cache/huggingface/transformers" \
+    SENTENCE_TRANSFORMERS_HOME="/app/data/.cache/sentence_transformers"
 
 # Non-root user untuk keamanan
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
@@ -141,7 +143,8 @@ COPY . .
 # JANGAN chown -R /app karena akan scan seluruh venv (PyTorch, Transformers, dll)
 # dan memakan waktu 10+ menit. Library di venv hanya perlu read-only.
 RUN mkdir -p data/raw data/processed data/results data/embeddings \
-        app/ml/trained_models logs \
+    data/.cache/huggingface data/.cache/sentence_transformers \
+    app/ml/trained_models logs \
     && chown -R appuser:appuser /app/data /app/logs /app/app/ml/trained_models \
     && chmod -R 755 /app/data /app/logs /app/app/ml/trained_models
 

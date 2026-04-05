@@ -55,4 +55,14 @@ class Skripsi extends Model
   {
     return $query->whereBetween('year', [$startYear, $endYear]);
   }
+
+  public function topicDocumentLinks()
+  {
+    return $this->hasMany(TopicModelTopicDocument::class, 'skripsi_id');
+  }
+
+  public function topicModelDataset()
+  {
+    return $this->hasOne(TopicModelDataset::class, 'skripsi_id');
+  }
 }

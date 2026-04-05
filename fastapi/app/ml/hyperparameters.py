@@ -29,24 +29,25 @@ from app.models.schemas import (BERTopicHyperparameters,
 
 BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
     "default": BERTopicHyperparameters(
-        # BT_031: n_neighbors=5, n_components=5, hdbscan_min_cluster_size=5,
-        #         min_samples=1, nr_topics=10 → Coherence=0.6250, Diversity=0.9333
+        # Notebook-aligned baseline
         embedding_model="denaya/indoSBERT-large",
-        min_topic_size=5,
-        nr_topics=10,
+        min_topic_size=10,
+        nr_topics="auto",
         top_n_words=10,
         n_gram_range=[1, 2],
+        vectorizer_min_df=2,
+        vectorizer_max_df=0.95,
         embedding_batch_size=16,
         seed=42,
         umap_params=UMAPHyperparameters(
-            n_neighbors=5,
+            n_neighbors=75,
             n_components=5,
             min_dist=0.0,
             metric="cosine",
             random_state=42,
         ),
         hdbscan_params=HDBSCANHyperparameters(
-            min_cluster_size=5,
+            min_cluster_size=12,
             min_samples=1,
             cluster_selection_method="eom",
         ),
@@ -54,44 +55,48 @@ BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
     "fine_grained": BERTopicHyperparameters(
         # Lebih banyak topik, lebih detail per topik
         embedding_model="denaya/indoSBERT-large",
-        min_topic_size=5,
-        nr_topics=15,
+        min_topic_size=10,
+        nr_topics=None,
         top_n_words=15,
-        n_gram_range=[1, 3],
+        n_gram_range=[1, 2],
+        vectorizer_min_df=2,
+        vectorizer_max_df=0.9,
         embedding_batch_size=16,
         seed=42,
         umap_params=UMAPHyperparameters(
-            n_neighbors=5,
+            n_neighbors=30,
             n_components=5,
             min_dist=0.0,
             metric="cosine",
             random_state=42,
         ),
         hdbscan_params=HDBSCANHyperparameters(
-            min_cluster_size=5,
-            min_samples=3,
+            min_cluster_size=8,
+            min_samples=1,
             cluster_selection_method="eom",
         ),
     ),
     "coarse": BERTopicHyperparameters(
         # Lebih sedikit topik, lebih broad
         embedding_model="denaya/indoSBERT-large",
-        min_topic_size=10,
-        nr_topics=8,
+        min_topic_size=20,
+        nr_topics=10,
         top_n_words=10,
         n_gram_range=[1, 2],
+        vectorizer_min_df=3,
+        vectorizer_max_df=0.95,
         embedding_batch_size=16,
         seed=42,
         umap_params=UMAPHyperparameters(
-            n_neighbors=15,
-            n_components=5,
-            min_dist=0.0,
+            n_neighbors=75,
+            n_components=10,
+            min_dist=0.1,
             metric="cosine",
             random_state=42,
         ),
         hdbscan_params=HDBSCANHyperparameters(
-            min_cluster_size=10,
-            min_samples=5,
+            min_cluster_size=16,
+            min_samples=2,
             cluster_selection_method="eom",
         ),
     ),
@@ -99,19 +104,23 @@ BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
 
 # Grid search ranges — sesuai actual grid yang dipakai di eksperimen notebook
 BERTOPIC_GRID: Dict[str, List[Any]] = {
-    # UMAP — dari step1_hyperparameter_grid_config.csv
-    "umap_n_neighbors": [5, 10, 15],
+    # UMAP
+    "umap_n_neighbors": [30, 50, 75],
     "umap_n_components": [5, 10],
-    "umap_min_dist": [0.0],
+    "umap_min_dist": [0.0, 0.1],
     "umap_metric": ["cosine"],
     # HDBSCAN
-    "hdbscan_min_cluster_size": [5, 8, 10, 15],
-    "hdbscan_min_samples": [1, 3],
+    "hdbscan_min_cluster_size": [8, 12, 16],
+    "hdbscan_min_samples": [1, 2],
     "hdbscan_cluster_selection_method": ["eom"],
     # BERTopic
-    "nr_topics": [8, 10, 12, 15],
-    "min_topic_size": [5],
+    "nr_topics": [None, "auto"],
+    "min_topic_size": [10, 15, 20],
     "top_n_words": [10],
+    # Vectorizer
+    "vectorizer_ngram_range": [(1, 1), (1, 2)],
+    "vectorizer_min_df": [2, 3],
+    "vectorizer_max_df": [0.9, 0.95],
 }
 
 

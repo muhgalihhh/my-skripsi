@@ -36,6 +36,10 @@ pip-wheel-metadata/
 coverage.xml
 htmlcov/
 
+# Root virtualenvs
+.venv/
+.venv-*/
+
 fastapi/.venv/
 fastapi/venv/
 fastapi/env/
@@ -75,6 +79,7 @@ data/processed/
 data/results/
 analysis/output/
 analysis/data/
+analysis/data_user/
 
 # Model artifacts (very large) — keep only best model metadata for reproducibility
 analysis/output/models/**
