@@ -230,7 +230,7 @@ class SkripsiManager extends Component
 
   public function exportCsv(): StreamedResponse
   {
-    $query = $this->getFilteredQuery()->reorder()->orderBy('year', 'asc')->orderBy('id', 'asc');
+    $query = $this->getRepositoryOrderedQuery();
     $filename = 'data-skripsi-' . now()->format('Ymd-His') . '.csv';
 
     return response()->streamDownload(function () use ($query) {
@@ -288,7 +288,7 @@ class SkripsiManager extends Component
 
   public function exportExcel(): StreamedResponse
   {
-    $query = $this->getFilteredQuery()->reorder()->orderBy('year', 'asc')->orderBy('id', 'asc');
+    $query = $this->getRepositoryOrderedQuery();
     $filename = 'data-skripsi-' . now()->format('Ymd-His') . '.xls';
 
     return response()->streamDownload(function () use ($query) {
@@ -357,6 +357,51 @@ class SkripsiManager extends Component
       }))
       ->when($this->yearFilter, fn($q) => $q->where('year', $this->yearFilter))
       ->orderBy($this->sortField, $this->sortDirection)
+      ->orderBy('id', 'asc');
+  }
+
+  /**
+   * Export order must follow original scraping listing order from repository.
+   * Prefer explicit `repository_order` (stable + deterministic).
+   * Falls back to legacy heuristic when the column does not exist yet.
+   */
+  protected function getRepositoryOrderedQuery(): Builder
+  {
+    $query = $this->getFilteredQuery()->reorder();
+
+    static $hasRepositoryOrderColumn = null;
+    if ($hasRepositoryOrderColumn === null) {
+      $hasRepositoryOrderColumn = in_array(
+        'repository_order',
+        $query->getModel()->getConnection()->getSchemaBuilder()->getColumnListing($query->getModel()->getTable()),
+        true,
+      );
+    }
+
+    if ($hasRepositoryOrderColumn) {
+      return $query
+        ->orderByRaw('CASE WHEN repository_order IS NULL THEN 1 ELSE 0 END')
+        ->orderBy('repository_order', 'asc')
+        ->orderBy('id', 'asc');
+    }
+
+    $driver = $query->getModel()->getConnection()->getDriverName();
+
+    if ($driver === 'mysql') {
+      $query->orderByRaw("COALESCE(
+          STR_TO_DATE(deposit_date, '%Y-%m-%d %H:%i:%s'),
+          STR_TO_DATE(deposit_date, '%Y-%m-%d'),
+          STR_TO_DATE(deposit_date, '%d %b %Y %H:%i:%s'),
+          STR_TO_DATE(deposit_date, '%d %b %Y'),
+          STR_TO_DATE(deposit_date, '%d %M %Y %H:%i:%s'),
+          STR_TO_DATE(deposit_date, '%d %M %Y')
+        ) DESC");
+    }
+
+    return $query
+      ->orderByDesc('year')
+      ->orderByRaw("LOWER(COALESCE(author, '')) ASC")
+      ->orderByRaw("LOWER(COALESCE(title, '')) ASC")
       ->orderBy('id', 'asc');
   }
 

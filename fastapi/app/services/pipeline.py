@@ -65,8 +65,8 @@ class PipelineService:
                 before,
             )
 
-        if "id" in df.columns:
-            df = df.sort_values("id").reset_index(drop=True)
+        # Preserve DB source order (repository listing order) and keep aligned index.
+        df = df.reset_index(drop=True)
 
         if df.empty:
             raise ValueError("No valid text data found after dropping empty records.")
@@ -109,7 +109,7 @@ class PipelineService:
 
         raise ValueError(f"Unsupported model_type: {model_type}")
 
-    def build_dta_payload(self, year_start: int, year_end: int) -> DTAPayload:
+    def build_dta_payload(self, year_start: Optional[int] = None, year_end: Optional[int] = None) -> DTAPayload:
         """Load BERTopic input documents + years for DTA from DB dataset."""
         df = self.load_training_dataset()
 
@@ -120,10 +120,21 @@ class PipelineService:
         df = df.assign(year=years_numeric).dropna(subset=["year"]).copy()
         df["year"] = df["year"].astype(int)
 
-        df = df[(df["year"] >= year_start) & (df["year"] <= year_end)].copy()
+        if df.empty:
+            raise ValueError("No documents with valid 'year' values found for DTA.")
+
+        resolved_start = int(df["year"].min()) if year_start is None else int(year_start)
+        resolved_end = int(df["year"].max()) if year_end is None else int(year_end)
+
+        if resolved_start > resolved_end:
+            raise ValueError(
+                f"Invalid year range: start ({resolved_start}) must be <= end ({resolved_end})"
+            )
+
+        df = df[(df["year"] >= resolved_start) & (df["year"] <= resolved_end)].copy()
 
         if df.empty:
-            raise ValueError(f"No documents found in year range {year_start}-{year_end}")
+            raise ValueError(f"No documents found in year range {resolved_start}-{resolved_end}")
 
         documents = df["cleaned_text"].tolist()
         years = df["year"].tolist()
@@ -131,7 +142,7 @@ class PipelineService:
         if not documents:
             raise ValueError("No valid cleaned_text documents for DTA.")
 
-        year_range = list(range(year_start, year_end + 1))
+        year_range = list(range(resolved_start, resolved_end + 1))
         return DTAPayload(documents=documents, years=years, year_range=year_range)
 
     def summarize_training_dataset(self) -> Dict[str, Any]:

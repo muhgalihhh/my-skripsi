@@ -15,6 +15,25 @@ def _table_exists(conn, table_name: str) -> bool:
     return int(conn.execute(query, {"table_name": table_name}).scalar() or 0) > 0
 
 
+def _column_exists(conn, table_name: str, column_name: str) -> bool:
+    query = text(
+        """
+        SELECT COUNT(*)
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = :table_name
+          AND column_name = :column_name
+        """
+    )
+    return int(
+        conn.execute(
+            query,
+            {"table_name": table_name, "column_name": column_name},
+        ).scalar()
+        or 0
+    ) > 0
+
+
 def get_engine():
     """Create and return a SQLAlchemy engine for MySQL."""
     try:
@@ -27,11 +46,23 @@ def get_engine():
 def load_abstracts_from_db(limit=None):
     """Load source columns needed by notebook-aligned preprocessing."""
     engine = get_engine()
-    query = "SELECT id, title, abstract, conclusion, year FROM skripsi ORDER BY id ASC"
-    if limit:
-        query += f" LIMIT {limit}"
 
     try:
+        with engine.begin() as conn:
+            has_repository_order = _column_exists(conn, "skripsi", "repository_order")
+
+        if has_repository_order:
+            query = (
+                "SELECT id, title, abstract, conclusion, year FROM skripsi "
+                "ORDER BY CASE WHEN repository_order IS NULL THEN 1 ELSE 0 END, "
+                "repository_order ASC, id ASC"
+            )
+        else:
+            query = "SELECT id, title, abstract, conclusion, year FROM skripsi ORDER BY id ASC"
+
+        if limit:
+            query += f" LIMIT {limit}"
+
         logger.info("Loading texts from MySQL database...")
         df = pd.read_sql(query, con=engine)
         logger.info(f"Loaded {len(df)} records from database")
@@ -70,6 +101,7 @@ def load_processed_data_from_db(limit=None):
         logger.info("Loading processed texts from MySQL database...")
         with engine.begin() as conn:
             has_dataset_table = _table_exists(conn, "topic_model_datasets")
+            has_repository_order = _column_exists(conn, "skripsi", "repository_order")
 
         if has_dataset_table:
             dataset_count_query = text("SELECT COUNT(*) FROM topic_model_datasets")
@@ -79,21 +111,42 @@ def load_processed_data_from_db(limit=None):
             dataset_count = 0
 
         if has_dataset_table and dataset_count > 0:
-            query = (
-                "SELECT skripsi_id AS id, cleaned_text, processed_text, year "
-                "FROM topic_model_datasets "
-                "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
-                "ORDER BY skripsi_id ASC"
-            )
-            source = "topic_model_datasets"
+            if has_repository_order:
+                query = (
+                    "SELECT d.skripsi_id AS id, d.cleaned_text, d.processed_text, d.year "
+                    "FROM topic_model_datasets d "
+                    "LEFT JOIN skripsi s ON s.id = d.skripsi_id "
+                    "WHERE d.cleaned_text IS NOT NULL AND d.processed_text IS NOT NULL "
+                    "ORDER BY CASE WHEN s.repository_order IS NULL THEN 1 ELSE 0 END, "
+                    "s.repository_order ASC, d.skripsi_id ASC"
+                )
+                source = "topic_model_datasets(repository_order)"
+            else:
+                query = (
+                    "SELECT skripsi_id AS id, cleaned_text, processed_text, year "
+                    "FROM topic_model_datasets "
+                    "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
+                    "ORDER BY skripsi_id ASC"
+                )
+                source = "topic_model_datasets"
         else:
-            query = (
-                "SELECT id, cleaned_text, processed_text, year "
-                "FROM skripsi "
-                "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
-                "ORDER BY id ASC"
-            )
-            source = "skripsi"
+            if has_repository_order:
+                query = (
+                    "SELECT id, cleaned_text, processed_text, year "
+                    "FROM skripsi "
+                    "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
+                    "ORDER BY CASE WHEN repository_order IS NULL THEN 1 ELSE 0 END, "
+                    "repository_order ASC, id ASC"
+                )
+                source = "skripsi(repository_order)"
+            else:
+                query = (
+                    "SELECT id, cleaned_text, processed_text, year "
+                    "FROM skripsi "
+                    "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
+                    "ORDER BY id ASC"
+                )
+                source = "skripsi"
 
         if limit:
             query += f" LIMIT {limit}"

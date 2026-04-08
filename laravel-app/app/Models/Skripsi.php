@@ -26,6 +26,7 @@ class Skripsi extends Model
     'modified_date',
     'uri',
     'year',
+    'repository_order',
     'pdf_documents',
     'url',
     'conclusion',
@@ -37,6 +38,7 @@ class Skripsi extends Model
     return [
       'pdf_documents' => 'array',
       'year' => 'integer',
+      'repository_order' => 'integer',
     ];
   }
 

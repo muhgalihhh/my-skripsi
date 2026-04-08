@@ -18,7 +18,7 @@ class ScrapingManager extends Component
 {
     use WithPagination;
 
-    public int $startYear = 2019;
+    public int $startYear = 2018;
     public int $endYear = 2026;
     public bool $isProcessing = false;
     public string $statusMessage = '';
@@ -275,7 +275,7 @@ class ScrapingManager extends Component
         $newAdded = 0;
         $dataUpdated = 0;
 
-        foreach ($documents as $doc) {
+        foreach ($documents as $index => $doc) {
             $url = $doc['URL'] ?? $doc['url'] ?? null;
             if (!$url)
                 continue;
@@ -296,6 +296,7 @@ class ScrapingManager extends Component
                 'modified_date' => $doc['Tanggal Modifikasi'] ?? $doc['modified_date'] ?? null,
                 'uri' => $doc['URI'] ?? $doc['uri'] ?? null,
                 'pdf_documents' => $doc['Dokumen_PDF'] ?? $doc['pdf_documents'] ?? [],
+                'repository_order' => $index + 1,
             ];
 
             try {
@@ -399,12 +400,82 @@ class ScrapingManager extends Component
             return true;
         }
 
-        $hasRunningScraping = ScrapingLog::where('status', 'running')->exists();
-        $hasRunningTopicModeling = TopicModelRun::query()
-            ->whereIn('status', ['preprocessing', 'training'])
-            ->exists();
+        $fastApi = app(FastApiService::class);
 
-        return $hasRunningScraping || $hasRunningTopicModeling;
+        $runningScrapingLogs = ScrapingLog::query()
+            ->where('status', 'running')
+            ->get(['id', 'fastapi_job_id']);
+
+        foreach ($runningScrapingLogs as $log) {
+            $jobId = trim((string) ($log->fastapi_job_id ?? ''));
+
+            // Stale running log without job id should not block destructive action.
+            if ($jobId === '') {
+                continue;
+            }
+
+            $status = $fastApi->getJobStatus($jobId);
+            $state = (string) ($status['status'] ?? 'unknown');
+
+            if (in_array($state, ['pending', 'running'], true)) {
+                return true;
+            }
+
+            // If FastAPI is unreachable, keep a safe default and block reset.
+            if ($state === 'unreachable') {
+                return true;
+            }
+        }
+
+        $candidateRuns = TopicModelRun::query()
+            ->whereIn('status', ['preprocessing', 'training'])
+            ->get(['id', 'status', 'fastapi_preprocessing_job_id', 'fastapi_training_job_id']);
+
+        foreach ($candidateRuns as $run) {
+            if ($run->status === 'preprocessing') {
+                $jobId = trim((string) ($run->fastapi_preprocessing_job_id ?? ''));
+
+                // Stale preprocessing row without FastAPI job id should not block reset.
+                if ($jobId === '') {
+                    continue;
+                }
+
+                $status = $fastApi->getPreprocessingStatus($jobId);
+                $state = (string) ($status['status'] ?? 'unknown');
+
+                if (in_array($state, ['pending', 'running'], true)) {
+                    return true;
+                }
+
+                if ($state === 'unreachable') {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($run->status === 'training') {
+                $jobId = trim((string) ($run->fastapi_training_job_id ?? ''));
+
+                // Stale training row without FastAPI job id should not block reset.
+                if ($jobId === '') {
+                    continue;
+                }
+
+                $status = $fastApi->getTrainingStatus($jobId);
+                $state = (string) ($status['status'] ?? 'unknown');
+
+                if (in_array($state, ['pending', 'running'], true)) {
+                    return true;
+                }
+
+                if ($state === 'unreachable') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -187,8 +187,18 @@ class DTARequest(BaseModel):
     and classifies trends as emerging, declining, or stable.
     """
     job_id: str = Field(description="BERTopic training job ID to use")
-    year_start: int = Field(2019, ge=2000, le=2030)
-    year_end: int = Field(2025, ge=2000, le=2030)
+    year_start: Optional[int] = Field(
+        None,
+        ge=2000,
+        le=2030,
+        description="Start year (optional). If omitted, uses minimum available year from dataset.",
+    )
+    year_end: Optional[int] = Field(
+        None,
+        ge=2000,
+        le=2030,
+        description="End year (optional). If omitted, uses maximum available year from dataset.",
+    )
     evolution_tuning: bool = Field(
         True,
         description="Fine-tune topic representation per time bin",
