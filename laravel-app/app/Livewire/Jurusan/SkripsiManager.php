@@ -3,11 +3,13 @@
 namespace App\Livewire\Jurusan;
 
 use App\Models\Skripsi;
+use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 #[Layout('layouts.jurusan')]
 #[Title('Manajemen Skripsi')]
@@ -22,7 +24,7 @@ class SkripsiManager extends Component
   public string $yearFilter = '';
 
   #[Url]
-  public string $sortField = 'created_at';
+  public string $sortField = 'year';
 
   #[Url]
   public string $sortDirection = 'desc';
@@ -75,14 +77,7 @@ class SkripsiManager extends Component
   {
     if ($this->selectAll) {
       // Get all IDs on current page
-      $this->selectedIds = Skripsi::query()
-        ->when($this->search, fn($q) => $q->where(function ($q) {
-          $q->where('title', 'like', "%{$this->search}%")
-            ->orWhere('author', 'like', "%{$this->search}%")
-            ->orWhere('keywords', 'like', "%{$this->search}%");
-        }))
-        ->when($this->yearFilter, fn($q) => $q->where('year', $this->yearFilter))
-        ->orderBy($this->sortField, $this->sortDirection)
+      $this->selectedIds = $this->getFilteredQuery()
         ->paginate($this->perPage)
         ->pluck('id')
         ->map(fn($id) => (string) $id)
@@ -233,29 +228,146 @@ class SkripsiManager extends Component
     $this->dispatch('toast', type: 'success', message: 'Data skripsi berhasil dihapus.');
   }
 
-  public function render()
+  public function exportCsv(): StreamedResponse
   {
-    $query = Skripsi::query();
+    $query = $this->getFilteredQuery()->reorder()->orderBy('year', 'asc')->orderBy('id', 'asc');
+    $filename = 'data-skripsi-' . now()->format('Ymd-His') . '.csv';
 
-    // Search
-    if ($this->search) {
-      $query->where(function ($q) {
+    return response()->streamDownload(function () use ($query) {
+      $output = fopen('php://output', 'w');
+      if ($output === false) {
+        return;
+      }
+
+      // BOM agar karakter UTF-8 (mis. Bahasa Indonesia) tampil benar di Excel.
+      fwrite($output, "\xEF\xBB\xBF");
+
+      fputcsv($output, [
+        'ID',
+        'Judul',
+        'Penulis',
+        'Tahun',
+        'Tipe',
+        'ID Code',
+        'Kata Kunci',
+        'Subjects',
+        'Divisions',
+        'Abstrak',
+        'Kesimpulan',
+        'Sumber Kesimpulan',
+        'URL',
+        'Tanggal Deposit',
+        'Tanggal Modifikasi',
+      ]);
+
+      foreach ($query->cursor() as $skripsi) {
+        fputcsv($output, [
+          $skripsi->id,
+          $skripsi->title,
+          $skripsi->author,
+          $skripsi->year,
+          $skripsi->type,
+          $skripsi->id_code,
+          $skripsi->keywords,
+          $skripsi->subjects,
+          $skripsi->divisions,
+          $skripsi->abstract,
+          $skripsi->conclusion,
+          $skripsi->conclusion_source,
+          $skripsi->url,
+          $skripsi->deposit_date,
+          $skripsi->modified_date,
+        ]);
+      }
+
+      fclose($output);
+    }, $filename, [
+      'Content-Type' => 'text/csv; charset=UTF-8',
+    ]);
+  }
+
+  public function exportExcel(): StreamedResponse
+  {
+    $query = $this->getFilteredQuery()->reorder()->orderBy('year', 'asc')->orderBy('id', 'asc');
+    $filename = 'data-skripsi-' . now()->format('Ymd-His') . '.xls';
+
+    return response()->streamDownload(function () use ($query) {
+      echo '<html><head><meta charset="UTF-8"></head><body>';
+      echo '<table border="1">';
+      echo '<thead><tr>';
+      foreach ([
+        'ID',
+        'Judul',
+        'Penulis',
+        'Tahun',
+        'Tipe',
+        'ID Code',
+        'Kata Kunci',
+        'Subjects',
+        'Divisions',
+        'Abstrak',
+        'Kesimpulan',
+        'Sumber Kesimpulan',
+        'URL',
+        'Tanggal Deposit',
+        'Tanggal Modifikasi',
+      ] as $heading) {
+        echo '<th>' . $this->escapeForExcel($heading) . '</th>';
+      }
+      echo '</tr></thead><tbody>';
+
+      foreach ($query->cursor() as $skripsi) {
+        echo '<tr>';
+        foreach ([
+          $skripsi->id,
+          $skripsi->title,
+          $skripsi->author,
+          $skripsi->year,
+          $skripsi->type,
+          $skripsi->id_code,
+          $skripsi->keywords,
+          $skripsi->subjects,
+          $skripsi->divisions,
+          $skripsi->abstract,
+          $skripsi->conclusion,
+          $skripsi->conclusion_source,
+          $skripsi->url,
+          $skripsi->deposit_date,
+          $skripsi->modified_date,
+        ] as $value) {
+          echo '<td>' . $this->escapeForExcel($value) . '</td>';
+        }
+        echo '</tr>';
+      }
+
+      echo '</tbody></table></body></html>';
+    }, $filename, [
+      'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+    ]);
+  }
+
+  protected function getFilteredQuery(): Builder
+  {
+    return Skripsi::query()
+      ->when($this->search, fn($q) => $q->where(function ($q) {
         $q->where('title', 'like', "%{$this->search}%")
           ->orWhere('author', 'like', "%{$this->search}%")
           ->orWhere('keywords', 'like', "%{$this->search}%")
           ->orWhere('abstract', 'like', "%{$this->search}%");
-      });
-    }
+      }))
+      ->when($this->yearFilter, fn($q) => $q->where('year', $this->yearFilter))
+      ->orderBy($this->sortField, $this->sortDirection)
+      ->orderBy('id', 'asc');
+  }
 
-    // Year filter
-    if ($this->yearFilter) {
-      $query->where('year', $this->yearFilter);
-    }
+  protected function escapeForExcel(mixed $value): string
+  {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+  }
 
-    // Sort
-    $query->orderBy($this->sortField, $this->sortDirection);
-
-    $skripsiList = $query->paginate($this->perPage);
+  public function render()
+  {
+    $skripsiList = $this->getFilteredQuery()->paginate($this->perPage);
 
     // Get available years for filter
     $availableYears = Skripsi::selectRaw('DISTINCT year')

@@ -4,7 +4,6 @@ Uses loguru for structured logging.
 """
 
 import sys
-from pathlib import Path
 
 from app.core.config import BASE_DIR, app_settings
 from loguru import logger

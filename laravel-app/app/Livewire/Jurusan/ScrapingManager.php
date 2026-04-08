@@ -4,7 +4,9 @@ namespace App\Livewire\Jurusan;
 
 use App\Models\ScrapingLog;
 use App\Models\Skripsi;
+use App\Models\TopicModelRun;
 use App\Services\FastApiService;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -41,6 +43,9 @@ class ScrapingManager extends Component
 
     // Cancel confirm modal
     public bool $showCancelConfirm = false;
+
+    // Reset skripsi confirm modal
+    public bool $showResetSkripsiConfirm = false;
 
     // Bulk delete history
     public array $selectedLogIds = [];
@@ -383,6 +388,95 @@ class ScrapingManager extends Component
     public function closeCancelConfirm(): void
     {
         $this->showCancelConfirm = false;
+    }
+
+    /**
+     * Determine if background jobs are still running and block destructive actions.
+     */
+    protected function hasActiveBackgroundJobs(): bool
+    {
+        if ($this->isProcessing || $this->activeJobId !== '') {
+            return true;
+        }
+
+        $hasRunningScraping = ScrapingLog::where('status', 'running')->exists();
+        $hasRunningTopicModeling = TopicModelRun::query()
+            ->whereIn('status', ['preprocessing', 'training'])
+            ->exists();
+
+        return $hasRunningScraping || $hasRunningTopicModeling;
+    }
+
+    /**
+     * Open reset confirm modal.
+     */
+    public function openResetSkripsiConfirm(): void
+    {
+        if ($this->hasActiveBackgroundJobs()) {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Tidak bisa reset database saat scraping/preprocessing/training masih berjalan.';
+            $this->dispatch('toast', type: 'warning', message: 'Tunggu semua job selesai sebelum reset database.');
+            return;
+        }
+
+        $this->showResetSkripsiConfirm = true;
+    }
+
+    /**
+     * Close reset confirm modal.
+     */
+    public function closeResetSkripsiConfirm(): void
+    {
+        $this->showResetSkripsiConfirm = false;
+    }
+
+    /**
+     * Delete all skripsi data so scraping can be rerun from a clean state.
+     */
+    public function resetSkripsiData(): void
+    {
+        if ($this->hasActiveBackgroundJobs()) {
+            $this->showResetSkripsiConfirm = false;
+            $this->statusType = 'error';
+            $this->statusMessage = 'Reset dibatalkan karena masih ada job aktif.';
+            $this->dispatch('toast', type: 'warning', message: 'Masih ada job aktif. Reset database dibatalkan.');
+            return;
+        }
+
+        try {
+            $totalBefore = Skripsi::count();
+
+            if ($totalBefore > 0) {
+                Skripsi::query()->delete();
+            }
+
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement('ALTER TABLE skripsi AUTO_INCREMENT = 1');
+            }
+
+            $this->showResetSkripsiConfirm = false;
+            $this->jobProgress = 0;
+            $this->jobStep = '';
+            $this->jobScrapedCount = 0;
+            $this->jobTotalUrls = 0;
+            $this->jobSkippedCount = 0;
+            $this->jobFilteredCount = 0;
+
+            if ($totalBefore === 0) {
+                $message = 'Database skripsi sudah kosong. Auto increment tetap direset ke 1.';
+            } else {
+                $message = "Database skripsi berhasil direset. {$totalBefore} data dihapus dan auto increment direset ke 1.";
+            }
+
+            $this->statusType = 'success';
+            $this->statusMessage = $message;
+            $this->resetPage();
+            $this->dispatch('toast', type: 'success', message: $message);
+        } catch (\Throwable $e) {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Gagal reset database skripsi: ' . $e->getMessage();
+            $this->dispatch('toast', type: 'error', message: 'Gagal reset database skripsi.');
+        }
     }
 
     /**

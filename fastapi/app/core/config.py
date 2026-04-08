@@ -1,21 +1,3 @@
-"""
-Application Settings
-Loads configuration from .env file using pydantic-settings.
-
-Arsitektur model:
-    - Fondasi teori   : IndoBERT (indobenchmark/indobert-large-p1)
-    - Sentence Encoder : IndoSBERT-large (denaya/indoSBERT-large)
-      → IndoBERT-large yang dilatih ulang dengan Siamese Network
-      → Menghasilkan 256-dim sentence embeddings untuk Bahasa Indonesia
-    - Topic Modeling   : BERTopic (neural) vs LDA (baseline tradisional)
-
-Default hyperparameter dari hasil grid search (folder analysis/):
-    BERTopic best (BT_031): UMAP n_neighbors=5, n_components=5;
-                            HDBSCAN min_cluster_size=5, min_samples=1;
-                            nr_topics=10 → C_v=0.625, Diversity=0.933
-    LDA best (LDA_039)    : num_topics=15, passes=20, alpha='symmetric', eta='auto'
-                            → C_v=0.400, Diversity=0.707
-"""
 
 from pathlib import Path
 from typing import List, Optional
@@ -23,7 +5,7 @@ from typing import List, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Base directory of the fastapi project
+# Base directory of the FastAPI project
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
@@ -52,10 +34,16 @@ class AppSettings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Get SQLAlchemy database URL."""
-        return f"mysql+pymysql://{self.DB_USERNAME}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
+        return (
+            f"mysql+pymysql://{self.DB_USERNAME}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
+        )
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:8080,http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000"
+    CORS_ORIGINS: str = (
+        "http://localhost:8080,http://localhost:3000,"
+        "http://localhost:8000,http://127.0.0.1:8000"
+    )
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -127,12 +115,7 @@ class BERTopicSettings(BaseSettings):
     """
     BERTopic core configuration.
 
-    Embedding model: denaya/indoSBERT-large
-      → IndoBERT-large re-trained dengan Siamese Network
-      → Output: 256-dim sentence embeddings untuk Bahasa Indonesia
-
-    Default values dari hasil best config grid search (BT_031):
-      min_topic_size=5, nr_topics=10
+    Default values are aligned with the latest clean notebook setup.
     """
 
     model_config = SettingsConfigDict(
@@ -143,7 +126,7 @@ class BERTopicSettings(BaseSettings):
 
     # IndoSBERT-large: IndoBERT-large + Siamese Network (256-dim output)
     BERTOPIC_EMBEDDING_MODEL: str = "denaya/indoSBERT-large"
-    BERTOPIC_MIN_TOPIC_SIZE: int = 10
+    BERTOPIC_MIN_TOPIC_SIZE: int = 12
     BERTOPIC_NR_TOPICS: str = "auto"
     BERTOPIC_TOP_N_WORDS: int = 10
     BERTOPIC_EMBEDDING_BATCH_SIZE: int = 16
@@ -157,10 +140,7 @@ class BERTopicSettings(BaseSettings):
 
 
 class UMAPSettings(BaseSettings):
-    """
-    UMAP dimensionality reduction configuration for BERTopic.
-    Default dari best config grid search (BT_031): n_neighbors=5, n_components=5.
-    """
+    """UMAP dimensionality reduction settings for BERTopic."""
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
@@ -168,7 +148,7 @@ class UMAPSettings(BaseSettings):
         extra="ignore",
     )
 
-    UMAP_N_NEIGHBORS: int = 75
+    UMAP_N_NEIGHBORS: int = 40
     UMAP_N_COMPONENTS: int = 5
     UMAP_MIN_DIST: float = 0.0
     UMAP_METRIC: str = "cosine"
@@ -176,10 +156,7 @@ class UMAPSettings(BaseSettings):
 
 
 class HDBSCANSettings(BaseSettings):
-    """
-    HDBSCAN clustering configuration for BERTopic.
-    Default dari best config grid search (BT_031): min_cluster_size=5, min_samples=1.
-    """
+    """HDBSCAN clustering settings for BERTopic."""
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
@@ -187,8 +164,9 @@ class HDBSCANSettings(BaseSettings):
         extra="ignore",
     )
 
-    HDBSCAN_MIN_CLUSTER_SIZE: int = 12
+    HDBSCAN_MIN_CLUSTER_SIZE: int = 16
     HDBSCAN_MIN_SAMPLES: Optional[int] = 1
+    HDBSCAN_METRIC: str = "euclidean"
     HDBSCAN_CLUSTER_SELECTION_METHOD: str = "eom"
 
     @field_validator("HDBSCAN_MIN_SAMPLES", mode="before")
@@ -202,12 +180,7 @@ class HDBSCANSettings(BaseSettings):
 
 class LDASettings(BaseSettings):
     """
-    LDA (Gensim) hyperparameters configuration — baseline model.
-    Default dari best config grid search (LDA_039): num_topics=15, passes=20,
-    alpha='symmetric', eta='auto' → Coherence=0.4001, Diversity=0.7067.
-
-    CATATAN: alpha='symmetric' + eta='auto' menggunakan LdaModel (bukan LdaMulticore)
-    karena LdaMulticore tidak support alpha='auto' atau eta='auto'.
+    LDA baseline hyperparameters aligned with the latest clean notebook setup.
     """
 
     model_config = SettingsConfigDict(
@@ -216,47 +189,17 @@ class LDASettings(BaseSettings):
         extra="ignore",
     )
 
-    LDA_NUM_TOPICS: int = 15        # Best: LDA_039 pakai 15
-    LDA_PASSES: int = 20            # Best: LDA_039 pakai 20
-    LDA_ITERATIONS: int = 400
+    LDA_NUM_TOPICS: int = 12
+    LDA_PASSES: int = 20
+    LDA_ITERATIONS: int = 300
     LDA_CHUNKSIZE: int = 100
     LDA_RANDOM_STATE: int = 42
-    LDA_ALPHA: str = "symmetric"    # Best: LDA_039 pakai 'symmetric'
-    LDA_ETA: str = "auto"           # Best: LDA_039 pakai 'auto'
-    LDA_NO_BELOW: int = 5
-    LDA_NO_ABOVE: float = 0.5
+    LDA_ALPHA: str = "asymmetric"
+    LDA_ETA: str = "none"
+    LDA_NO_BELOW: int = 2
+    LDA_NO_ABOVE: float = 0.95
 
 
-class DTASettings(BaseSettings):
-    """Dynamic Topic Analysis configuration."""
-
-    model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"),
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    DTA_YEAR_START: int = 2019
-    DTA_YEAR_END: int = 2025
-    DTA_EVOLUTION_TUNING: bool = True
-    DTA_GLOBAL_TUNING: bool = True
-
-
-class TrainingSettings(BaseSettings):
-    """General training configuration."""
-
-    model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"),
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    TRAINING_RANDOM_STATE: int = 42
-
-
-# ============================================
-# Singleton instances
-# ============================================
 app_settings = AppSettings()
 path_settings = PathSettings()
 scraping_settings = ScrapingSettings()
@@ -264,5 +207,3 @@ bertopic_settings = BERTopicSettings()
 umap_settings = UMAPSettings()
 hdbscan_settings = HDBSCANSettings()
 lda_settings = LDASettings()
-dta_settings = DTASettings()
-training_settings = TrainingSettings()

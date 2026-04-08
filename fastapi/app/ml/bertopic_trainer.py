@@ -20,9 +20,9 @@ Catatan preprocessing:
 
 import json
 import os
+import random
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Fix for "Matplotlib created a temporary cache directory ... Errno 13 Permission Denied"
@@ -30,7 +30,6 @@ from typing import Any, Dict, List, Optional
 os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib'
 
 import numpy as np
-import pandas as pd
 import torch
 
 # Fix for "Unable to find torch_shm_manager" inside restrictive Docker environments
@@ -84,6 +83,7 @@ class BERTopicTrainer:
                 hdbscan_params=HDBSCANHyperparameters(
                     min_cluster_size=hdbscan_settings.HDBSCAN_MIN_CLUSTER_SIZE,
                     min_samples=hdbscan_settings.HDBSCAN_MIN_SAMPLES,
+                    metric=hdbscan_settings.HDBSCAN_METRIC,
                     cluster_selection_method=hdbscan_settings.HDBSCAN_CLUSTER_SELECTION_METHOD,
                 ),
             )
@@ -93,9 +93,46 @@ class BERTopicTrainer:
         self.topics = None
         self.probabilities = None
         self.embeddings = None
+        self.embedding_model = None
         self.topic_info = None
         self.vectorizer_model = None
         self.representation_model = None
+
+    def _set_reproducibility(self):
+        """Set deterministic seeds/threads for reproducible BERTopic runs."""
+        seed = int(self.params.seed)
+
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
+        # Make torch execution deterministic when possible.
+        try:
+            torch.use_deterministic_algorithms(True, warn_only=True)
+        except TypeError:
+            try:
+                torch.use_deterministic_algorithms(True)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Stabilize CPU threading behavior across runs.
+        try:
+            torch.set_num_threads(1)
+        except Exception:
+            pass
+
+        try:
+            torch.set_num_interop_threads(1)
+        except Exception:
+            pass
+
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
 
     def _build_embedding_model(self):
         """
@@ -143,6 +180,7 @@ class BERTopicTrainer:
             min_dist=p.min_dist,
             metric=p.metric,
             random_state=p.random_state,
+            transform_seed=int(self.params.seed),
         )
 
     def _build_hdbscan_model(self):
@@ -151,8 +189,10 @@ class BERTopicTrainer:
         return HDBSCAN(
             min_cluster_size=p.min_cluster_size,
             min_samples=p.min_samples,
+            metric=p.metric,
             cluster_selection_method=p.cluster_selection_method,
             prediction_data=True,
+            core_dist_n_jobs=1,
         )
 
     def _build_vectorizer(self, use_fallback: bool = False):
@@ -189,11 +229,50 @@ class BERTopicTrainer:
 
     @staticmethod
     def _is_vectorizer_df_error(exc: Exception) -> bool:
-        return "max_df corresponds to < documents than min_df" in str(exc)
+        current: Optional[BaseException] = exc
+        while current is not None:
+            message = str(current).lower()
+            if "max_df corresponds to < documents than min_df" in message:
+                return True
+            if (
+                "max_df" in message
+                and "min_df" in message
+                and "documents" in message
+                and "correspond" in message
+            ):
+                return True
+            current = current.__cause__ or current.__context__
+        return False
+
+    @staticmethod
+    def _df_to_doc_count(df_value: int | float, n_docs: int, *, ceil_value: bool) -> int:
+        """Convert sklearn df threshold into an absolute document count."""
+        if isinstance(df_value, float) and 0.0 < df_value <= 1.0:
+            scaled = df_value * n_docs
+            return int(np.ceil(scaled) if ceil_value else np.floor(scaled))
+        return int(df_value)
+
+    def _should_use_fallback_vectorizer_for_topics(self, topic_doc_count: int) -> bool:
+        """Check whether configured min_df/max_df are invalid for topic-level c-TF-IDF."""
+        if topic_doc_count <= 0:
+            return True
+
+        min_doc_count = self._df_to_doc_count(
+            self.params.vectorizer_min_df,
+            topic_doc_count,
+            ceil_value=True,
+        )
+        max_doc_count = self._df_to_doc_count(
+            self.params.vectorizer_max_df,
+            topic_doc_count,
+            ceil_value=False,
+        )
+        return max_doc_count < min_doc_count
 
     def _build_model(self, use_fallback_vectorizer: bool = False):
         """Build the full BERTopic pipeline."""
         embedding_model = self._build_embedding_model()
+        self.embedding_model = embedding_model
         umap_model = self._build_umap_model()
         hdbscan_model = self._build_hdbscan_model()
         self.vectorizer_model = self._build_vectorizer(use_fallback=use_fallback_vectorizer)
@@ -222,14 +301,13 @@ class BERTopicTrainer:
         IndoSBERT membutuhkan teks natural tanpa stemming/stopword-removal agresif.
         Output: 256-dimensional embedding vectors per dokumen.
         """
-        from sentence_transformers import SentenceTransformer
-
         logger.info(
             f"Computing sentence embeddings for {len(documents)} documents "
             f"using {self.params.embedding_model}..."
         )
         try:
-            embedding_model = SentenceTransformer(self.params.embedding_model)
+            embedding_model = self.embedding_model or self._build_embedding_model()
+            self.embedding_model = embedding_model
         except Exception as e:
             error_text = str(e)
             network_hints = (
@@ -253,6 +331,7 @@ class BERTopicTrainer:
             documents,
             show_progress_bar=True,
             batch_size=self.params.embedding_batch_size,
+            convert_to_numpy=True,
         )
         self.embeddings = embeddings
         logger.info(f"Embeddings shape: {embeddings.shape} (dim={embeddings.shape[1]})")
@@ -279,6 +358,9 @@ class BERTopicTrainer:
         start_time = time.time()
         logger.info(f"Starting BERTopic training on {len(documents)} documents")
         logger.info(f"Embedding model: {self.params.embedding_model} (256-dim)")
+
+        self._set_reproducibility()
+        logger.info(f"Reproducibility settings applied with seed={self.params.seed}")
 
         # Build model
         self._build_model()
@@ -338,12 +420,48 @@ class BERTopicTrainer:
                         raise
 
             # Keep representation consistent after outlier reassignment.
-            self.model.update_topics(
-                documents,
-                topics=self.topics,
-                vectorizer_model=self.vectorizer_model,
-                representation_model=self.representation_model,
-            )
+            topic_doc_count = len({int(topic_id) for topic_id in self.topics if int(topic_id) != -1})
+            use_fallback_for_update = self._should_use_fallback_vectorizer_for_topics(topic_doc_count)
+            update_vectorizer = self.vectorizer_model
+
+            if use_fallback_for_update:
+                logger.warning(
+                    "Topic-level c-TF-IDF has {} topic documents; using fallback "
+                    "vectorizer min_df={} max_df={} before update_topics",
+                    topic_doc_count,
+                    self.params.vectorizer_fallback_min_df,
+                    self.params.vectorizer_fallback_max_df,
+                )
+                update_vectorizer = self._build_vectorizer(use_fallback=True)
+
+            try:
+                self.model.update_topics(
+                    documents,
+                    topics=self.topics,
+                    vectorizer_model=update_vectorizer,
+                    representation_model=self.representation_model,
+                )
+                self.vectorizer_model = update_vectorizer
+            except Exception as e:
+                if self._is_vectorizer_df_error(e):
+                    if use_fallback_for_update:
+                        raise RuntimeError(
+                            "Vectorizer df constraint failed during update_topics "
+                            "even after fallback min_df/max_df"
+                        ) from e
+                    logger.warning(
+                        "Vectorizer df constraint failed during update_topics, "
+                        "retrying with fallback min_df/max_df"
+                    )
+                    self.vectorizer_model = self._build_vectorizer(use_fallback=True)
+                    self.model.update_topics(
+                        documents,
+                        topics=self.topics,
+                        vectorizer_model=self.vectorizer_model,
+                        representation_model=self.representation_model,
+                    )
+                else:
+                    raise
         elif self.params.reduce_outliers:
             logger.info("Outlier reduction skipped: no outliers found.")
 

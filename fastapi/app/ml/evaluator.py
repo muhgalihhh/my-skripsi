@@ -4,6 +4,7 @@ Computes Topic Coherence (C_v) and Topic Diversity metrics
 for both BERTopic and LDA models.
 """
 
+import math
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -138,11 +139,13 @@ class TopicEvaluator:
         model,
         documents: List[str],
         tokenized_docs: Optional[List[List[str]]] = None,
+        topics: Optional[List[int]] = None,
         vectorizer_model=None,
         coherence_type: str = "c_v",
         coherence_tokenization: str = "vectorizer",
         coherence_dict_no_below: int = 3,
         coherence_dict_no_above: float = 0.95,
+        top_n_words: int = 10,
     ) -> Dict[str, Any]:
         """
         Full evaluation of a BERTopic model.
@@ -171,7 +174,7 @@ class TopicEvaluator:
         for topic_id in model.get_topics():
             if topic_id == -1:
                 continue
-            words = [w for w, _ in model.get_topic(topic_id)]
+            words = [w for w, _ in model.get_topic(topic_id)[:top_n_words]]
             topic_words.append(words)
 
         # Compute metrics
@@ -189,12 +192,38 @@ class TopicEvaluator:
             dictionary=dictionary,
             coherence_type=coherence_type,
         )
-        diversity = self.compute_topic_diversity(topic_words)
+        diversity = self.compute_topic_diversity(topic_words, top_n=top_n_words)
+
+        if topics is None:
+            model_topics = getattr(model, "topics_", None)
+            if model_topics is not None and len(model_topics) == len(documents):
+                topics = [int(t) for t in model_topics]
+
+        if topics:
+            total_docs = len(topics)
+            outlier_count = int(sum(int(t) == -1 for t in topics))
+        else:
+            total_docs = len(documents)
+            outlier_count = 0
+
+        outlier_pct = round(outlier_count / max(total_docs, 1) * 100.0, 2)
+
+        coh_safe = 0.0 if not isinstance(coherence, (int, float)) or math.isnan(coherence) else float(coherence)
+        div_safe = 0.0 if not isinstance(diversity, (int, float)) or math.isnan(diversity) else float(diversity)
+
+        score = round(coh_safe * div_safe * (1 - outlier_pct / 100.0), 6)
+        score_hmean_cv_td = round((2 * coh_safe * div_safe) / (coh_safe + div_safe + 1e-12), 6)
+        score_cv_td = round((0.65 * coh_safe + 0.35 * div_safe) * (1 - outlier_pct / 100.0), 6)
 
         return {
             "coherence_cv": coherence,
             "topic_diversity": diversity,
             "num_topics": len(topic_words),
+            "num_outliers": outlier_count,
+            "outlier_pct": outlier_pct,
+            "score": score,
+            "score_hmean_cv_td": score_hmean_cv_td,
+            "score_cv_td": score_cv_td,
         }
 
     def evaluate_lda(
@@ -229,40 +258,13 @@ class TopicEvaluator:
 
         diversity = self.compute_topic_diversity(topic_words)
 
+        coh_safe = 0.0 if not isinstance(coherence, (int, float)) or math.isnan(coherence) else float(coherence)
+        div_safe = 0.0 if not isinstance(diversity, (int, float)) or math.isnan(diversity) else float(diversity)
+        score = round(coh_safe * div_safe, 6)
+
         return {
             "coherence_cv": coherence,
             "topic_diversity": diversity,
             "num_topics": model.num_topics,
-        }
-
-    def compare_models(
-        self,
-        bertopic_metrics: Dict[str, Any],
-        lda_metrics: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """
-        Compare BERTopic vs LDA evaluation results.
-
-        Returns:
-            Comparison summary dictionary
-        """
-        return {
-            "bertopic": bertopic_metrics,
-            "lda": lda_metrics,
-            "coherence_winner": (
-                "bertopic"
-                if bertopic_metrics["coherence_cv"] > lda_metrics["coherence_cv"]
-                else "lda"
-            ),
-            "diversity_winner": (
-                "bertopic"
-                if bertopic_metrics["topic_diversity"] > lda_metrics["topic_diversity"]
-                else "lda"
-            ),
-            "coherence_diff": round(
-                bertopic_metrics["coherence_cv"] - lda_metrics["coherence_cv"], 4
-            ),
-            "diversity_diff": round(
-                bertopic_metrics["topic_diversity"] - lda_metrics["topic_diversity"], 4
-            ),
+            "score": score,
         }

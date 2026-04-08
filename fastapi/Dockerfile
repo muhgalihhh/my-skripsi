@@ -35,11 +35,12 @@ ENV PATH="/build/venv/bin:$PATH"
 COPY requirements.txt .
 
 # Install PyTorch CPU-only DULU (terpisah agar tidak conflict dengan PyPI index)
+# Pin versi agar konsisten dengan environment notebook reproducibility.
 # --default-timeout=300: timeout 5 menit per request
 # --retries=10 --resume-retries=20: retry banyak untuk handle koneksi lambat/putus
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --default-timeout=300 --retries=10 --resume-retries=20 \
-        torch==2.6.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu && \
+        torch==2.11.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir --default-timeout=300 --retries=10 --resume-retries=20 \
         -r requirements.txt
 

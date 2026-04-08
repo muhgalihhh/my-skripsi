@@ -1,14 +1,4 @@
-"""Stopword utilities.
-
-Centralized stopword list for Indonesian topic modeling outputs.
-Used by:
-- LDA preprocessing pipeline (bag-of-words)
-- BERTopic topic representation (c-TF-IDF keywords)
-
-Goal: ensure displayed keywords are meaningful (remove common/function words).
-"""
-
-from __future__ import annotations
+"""Stopword utilities for Indonesian topic modeling."""
 
 import os
 from functools import lru_cache
@@ -18,58 +8,27 @@ from loguru import logger
 
 
 ACADEMIC_STOPWORDS: Set[str] = {
+    # Keep this list aligned with notebook clean preprocessing for fair CV/TD comparison.
     "penelitian",
-    "menggunakan",
-    "digunakan",
-    "berdasarkan",
     "hasil",
-    "menunjukkan",
-    "bahwa",
-    "dapat",
-    "dilakukan",
     "metode",
     "sistem",
     "data",
-    "proses",
-    "dalam",
+    "skripsi",
+    "mahasiswa",
+    "menggunakan",
     "dengan",
+    "dalam",
     "untuk",
     "pada",
-    "dari",
-    "yang",
-    "ini",
-    "tersebut",
-    "adalah",
-    "merupakan",
-    "yaitu",
-    "juga",
-    "serta",
-    "atau",
     "dan",
-    "di",
-    "ke",
-    "se",
-    "ber",
-    "ter",
-    "per",
-    "skripsi",
-    "tugas",
-    "akhir",
-    "universitas",
-    "mahasiswa",
-    "informatika",
-    "jurusan",
-    "program",
-    "studi",
+    "yang",
 }
 
 
 @lru_cache(maxsize=8)
 def load_stopwords(language: str = "indonesian", include_academic: bool = True) -> Set[str]:
-    """Load stopwords for a language, optionally adding academic stopwords.
-
-    Returns a lowercase set suitable for sklearn CountVectorizer(stop_words=...).
-    """
+    """Load stopwords for a language, optionally adding academic stopwords."""
 
     stopwords: Set[str] = set()
 
@@ -77,8 +36,6 @@ def load_stopwords(language: str = "indonesian", include_academic: bool = True) 
         import nltk
         from nltk.corpus import stopwords as nltk_stopwords
 
-        # Prefer loading from pre-bundled NLTK_DATA (set in Dockerfile).
-        # Only download if the corpus is genuinely missing.
         try:
             stopwords.update(w.lower() for w in nltk_stopwords.words(language))
         except LookupError:

@@ -12,10 +12,12 @@ class TopicModelSetting extends Model
   protected $fillable = [
     'user_id',
     'bertopic_params',
+    'lda_params',
   ];
 
   protected $casts = [
     'bertopic_params' => 'array',
+    'lda_params' => 'array',
   ];
 
   public function user()

@@ -12,12 +12,11 @@ import pandas as pd
 from app.core import database
 from app.core.config import path_settings
 from app.ml.evaluator import TopicEvaluator
-from app.ml.hyperparameters import (BERTOPIC_PRESETS, LDA_PRESETS,
-                                    get_bertopic_preset, get_lda_preset)
+from app.ml.hyperparameters import BERTOPIC_PRESETS, LDA_PRESETS
 from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 ModelType, TrainingRequest,
-                                TrainingResultResponse, TrainingStatus,
-                                TrainingStatusResponse)
+                                TrainingStatus, TrainingStatusResponse)
+from app.services.pipeline import pipeline_service
 from app.services.training import TrainingService
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -50,58 +49,23 @@ def _run_training_job(
       - LDA      → 'processed_text' (tokenized + stemmed + stopword removed)
     """
     try:
-        # Load processed data from MySQL database
-        df = database.load_processed_data_from_db()
-        
-        if df.empty:
-            raise ValueError(
-                "Processed data not found in DB. Run preprocessing first via /api/v1/preprocessing/start"
-            )
-
-        # Clean dataframe to prevent NoneType errors in embeddings / tokenization
-        before = len(df)
-        df = df.dropna(subset=["cleaned_text", "processed_text"])
-        df["cleaned_text"] = df["cleaned_text"].astype(str)
-        df["processed_text"] = df["processed_text"].astype(str)
-        df = df[(df["cleaned_text"].str.strip() != "") & (df["processed_text"].str.strip() != "")]
-        removed = before - len(df)
-
-        if removed > 0:
-            # Avoid super noisy logs; just report counts
-            from loguru import logger
-            logger.warning(
-                f"Dropped {removed}/{before} rows due to empty/None cleaned_text/processed_text before training"
-            )
-
-        if df.empty:
-            raise ValueError("No valid text data found after dropping empty records.")
-
-        timestamps = df["year"].tolist() if "year" in df.columns else None
+        # Load and validate pipeline dataset from DB snapshot produced by preprocessing.
+        df = pipeline_service.load_training_dataset()
+        payload = pipeline_service.build_training_payload(df=df, model_type=model_type)
 
         if model_type == ModelType.BERTOPIC:
-            # BERTopic needs cleaned (non-stemmed) text for IndoSBERT embeddings
-            documents = df["cleaned_text"].tolist()
-            document_ids = [int(i) for i in df["id"].tolist()]
-
-            if not documents:
-                raise ValueError("No valid cleaned_text documents available for BERTopic training.")
             service.train_bertopic(
                 job_id=job_id,
-                documents=documents,
-                timestamps=timestamps,
-                document_ids=document_ids,
+                documents=payload.documents,
+                timestamps=payload.timestamps,
+                document_ids=payload.document_ids,
                 params=bertopic_params,
             )
         elif model_type == ModelType.LDA:
-            # LDA needs fully preprocessed (stemmed) text
-            documents = df["processed_text"].tolist()
-
-            if not documents:
-                raise ValueError("No valid processed_text documents available for LDA training.")
             service.train_lda(
                 job_id=job_id,
-                documents=documents,
-                timestamps=timestamps,
+                documents=payload.documents,
+                timestamps=payload.timestamps,
                 params=lda_params,
             )
 
@@ -466,7 +430,23 @@ async def test_trained_model_with_dataset(job_id: str):
     trainer = BERTopicTrainer()
     trainer.load_model(job_id)
 
-    retest_metrics = evaluator.evaluate_bertopic(model=trainer.model, documents=documents)
+    hyper = stored_results.get("hyperparameters") or {}
+    top_n_words = int(hyper.get("top_n_words", 10))
+    coherence_type = str(hyper.get("coherence_type", "c_v"))
+    coherence_tokenization = str(hyper.get("coherence_tokenization", "vectorizer"))
+    coherence_dict_no_below = int(hyper.get("coherence_dict_no_below", 3))
+    coherence_dict_no_above = float(hyper.get("coherence_dict_no_above", 0.95))
+
+    retest_metrics = evaluator.evaluate_bertopic(
+        model=trainer.model,
+        documents=documents,
+        vectorizer_model=getattr(trainer.model, "vectorizer_model", None),
+        coherence_type=coherence_type,
+        coherence_tokenization=coherence_tokenization,
+        coherence_dict_no_below=coherence_dict_no_below,
+        coherence_dict_no_above=coherence_dict_no_above,
+        top_n_words=top_n_words,
+    )
 
     stopwords = load_stopwords("indonesian", include_academic=True)
     current_topic_info = []
@@ -485,7 +465,7 @@ async def test_trained_model_with_dataset(job_id: str):
     keyword_match = _keyword_match_ratio(
         stored_topic_info=stored_results.get("topic_info"),
         current_topic_info=current_topic_info,
-        topn=10,
+        topn=top_n_words,
     )
 
     return _sanitize_json({
@@ -533,56 +513,7 @@ async def get_training_dataset_summary():
     - rows valid for LDA (processed_text non-empty)
     - year range
     """
-    df = database.load_processed_data_from_db()
-
-    total = int(len(df))
-    if total == 0:
-        return {
-            "status": "ok",
-            "total": 0,
-            "valid_bertopic": 0,
-            "valid_lda": 0,
-            "dropped": 0,
-            "year_min": None,
-            "year_max": None,
-        }
-
-    # Normalize potential NaN/None and empty strings
-    cleaned = df["cleaned_text"].fillna("").astype(str).str.strip()
-    processed = df["processed_text"].fillna("").astype(str).str.strip()
-
-    valid_bertopic = int((cleaned != "").sum())
-    valid_lda = int((processed != "").sum())
-    valid_both = int(((cleaned != "") & (processed != "")).sum())
-    dropped = int(total - valid_both)
-
-    year_min = None
-    year_max = None
-    if "year" in df.columns:
-        try:
-            years = pd.to_numeric(df["year"], errors="coerce").dropna().astype(int)
-            if not years.empty:
-                year_min = int(years.min())
-                year_max = int(years.max())
-        except Exception:
-            year_min = None
-            year_max = None
-
-    return {
-        "status": "ok",
-        "total": total,
-        "valid_bertopic": valid_bertopic,
-        "valid_lda": valid_lda,
-        "valid_both": valid_both,
-        "dropped": dropped,
-        "year_min": year_min,
-        "year_max": year_max,
-    }
-
-
-# ============================================
-# Hyperparameter Presets
-# ============================================
+    return pipeline_service.summarize_training_dataset()
 
 @router.get("/presets/bertopic")
 async def get_bertopic_presets():

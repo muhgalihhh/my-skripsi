@@ -15,9 +15,6 @@ class TopicModelRun extends Model
     'status',
     'fastapi_training_job_id',
     'fastapi_preprocessing_job_id',
-    'remove_stopwords',
-    'min_word_length',
-    'language',
     'bertopic_params',
     'lda_params',
     'total_documents',
@@ -33,8 +30,6 @@ class TopicModelRun extends Model
   ];
 
   protected $casts = [
-    'remove_stopwords'          => 'boolean',
-    'min_word_length'           => 'integer',
     'total_documents'           => 'integer',
     'bertopic_params'           => 'array',
     'lda_params'                => 'array',

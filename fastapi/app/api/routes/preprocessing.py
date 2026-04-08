@@ -1,16 +1,6 @@
-"""
-Preprocessing Routes
-Endpoints for text preprocessing operations.
+"""Preprocessing API routes."""
 
-Architecture:
-  - POST /preprocessing/start            → Start preprocessing in background, returns job_id
-  - GET  /preprocessing/jobs/{job_id}     → Poll job progress
-  - GET  /preprocessing/jobs              → List all jobs
-  - GET  /preprocessing/status            → Active job status
-  - POST /preprocessing/jobs/{job_id}/cancel → Cancel a running job
-"""
-
-from app.models.schemas import PreprocessingStartRequest, PreprocessingJobStatus
+from app.models.schemas import PreprocessingStartRequest
 from app.services.preprocessing_job_manager import preprocessing_job_manager
 
 from fastapi import APIRouter, HTTPException
@@ -59,6 +49,23 @@ async def get_preprocessing_job_status(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     return job.to_dict()
+
+
+@router.get("/jobs/{job_id}/dropped")
+async def get_preprocessing_job_dropped(job_id: str):
+    """Get dropped-record report for a preprocessing job."""
+    job = preprocessing_job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    info = job.to_dict()
+    return {
+        "job_id": info["job_id"],
+        "status": info["status"],
+        "dropped_summary": info.get("dropped_summary", {}),
+        "dropped_records_total": info.get("dropped_records_total", 0),
+        "dropped_records_sample": info.get("dropped_records_sample", []),
+    }
 
 
 @router.get("/jobs")

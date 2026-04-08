@@ -7,12 +7,11 @@ Based on analysis/scraping_unsoed.py — adapted for FastAPI microservice.
 import io
 import re
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
-import pandas as pd
 import requests
-from app.core.config import path_settings, scraping_settings
+from app.core.config import scraping_settings
 from bs4 import BeautifulSoup
 from loguru import logger
 
@@ -50,6 +49,33 @@ class ScrapingService:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
         })
+
+    def _normalize_space(self, text: Any) -> str:
+        return re.sub(r"\s+", " ", str(text or "")).strip()
+
+    def _normalize_url(self, url: str) -> str:
+        cleaned = (url or "").strip()
+        if cleaned.startswith("/"):
+            cleaned = urljoin(self.base_url, cleaned)
+        return cleaned.rstrip("/")
+
+    def _safe_int(self, val: Any) -> Optional[int]:
+        try:
+            if val is None:
+                return None
+            return int(str(val).strip())
+        except Exception:
+            return None
+
+    def _in_year_range(self, year: Any, start_year: Optional[int], end_year: Optional[int]) -> bool:
+        y = self._safe_int(year)
+        if y is None:
+            return True
+        if start_year is not None and y < start_year:
+            return False
+        if end_year is not None and y > end_year:
+            return False
+        return True
 
     def scrape(
         self,
@@ -121,7 +147,9 @@ class ScrapingService:
                 rows = results_div.find_all("tr", class_="ep_search_result")
                 for row in rows:
                     basic_info = self._extract_basic_info(row)
-                    if basic_info.get("detail_url"):
+                    if basic_info.get("detail_url") and self._in_year_range(
+                        basic_info.get("tahun_listing"), start_year, end_year
+                    ):
                         all_detail_urls.append(basic_info["detail_url"])
                         all_basic_info.append(basic_info)
                         # Track found URL for monitoring
@@ -245,10 +273,10 @@ class ScrapingService:
             return {}
 
         info_td = tds[1]
-        text_content = info_td.get_text(separator=" ", strip=True)
+        text_content = self._normalize_space(info_td.get_text(separator=" ", strip=True))
 
         author_span = info_td.find("span", class_="person_name")
-        author = author_span.text.strip() if author_span else ""
+        author = self._normalize_space(author_span.text if author_span else "")
 
         year_match = re.search(r"\((\d{4})\)", text_content)
         year = year_match.group(1) if year_match else ""
@@ -257,9 +285,9 @@ class ScrapingService:
         detail_url = ""
         title = ""
         if link_tag:
-            detail_url = link_tag.get("href", "")
+            detail_url = self._normalize_url(link_tag.get("href", ""))
             em_tag = link_tag.find("em")
-            title = em_tag.text.strip() if em_tag else link_tag.text.strip()
+            title = self._normalize_space(em_tag.text if em_tag else link_tag.text)
 
         return {
             "penulis_listing": author,
@@ -270,7 +298,8 @@ class ScrapingService:
 
     def _parse_detail_page(self, url: str) -> Optional[Dict]:
         """Extract detailed data from individual thesis page."""
-        response = self._fetch_page(url)
+        normalized_url = self._normalize_url(url)
+        response = self._fetch_page(normalized_url)
         if not response:
             return None
 
@@ -281,7 +310,7 @@ class ScrapingService:
         h1_tags = soup.find_all("h1")
         judul = ""
         for h1 in h1_tags:
-            text = h1.get_text(strip=True)
+            text = self._normalize_space(h1.get_text(strip=True))
             if text and text not in [
                 "Welcome to",
                 "Repository Universitas Jenderal Soedirman",
@@ -294,7 +323,7 @@ class ScrapingService:
         abstract = ""
         meta_desc = soup.find("meta", attrs={"name": "eprints.abstract"})
         if meta_desc:
-            abstract = meta_desc.get("content", "").strip()
+            abstract = self._normalize_space(meta_desc.get("content", ""))
 
         if not abstract:
             abstract_header = None
@@ -321,9 +350,9 @@ class ScrapingService:
                     if raw_text:
                         abstract_parts.append(raw_text)
                     sibling = sibling.find_next_sibling()
-                abstract = " ".join(abstract_parts).strip()
+                abstract = self._normalize_space(" ".join(abstract_parts))
 
-        data["Abstrak"] = abstract.strip()
+        data["Abstrak"] = self._normalize_space(abstract)
 
         # Metadata table
         metadata = {}
@@ -339,7 +368,7 @@ class ScrapingService:
                         metadata[key] = value
 
         def clean_meta(val: str) -> str:
-            return re.sub(r"\s+", " ", val).strip()
+            return self._normalize_space(val)
 
         data["Tipe"] = clean_meta(metadata.get("Item Type", metadata.get("Type", "")))
         data["ID Code"] = clean_meta(metadata.get("ID Code", ""))
@@ -359,7 +388,7 @@ class ScrapingService:
         tahun = ""
         citation_div = soup.find("div", class_="ep_summary_content_main")
         if citation_div:
-            citation_text = citation_div.get_text(strip=True)
+            citation_text = self._normalize_space(citation_div.get_text(strip=True))
             # Extract author: everything before the first (YYYY)
             author_match = re.match(r"^(.+?)\s*\(\d{4}\)", citation_text)
             if author_match:
@@ -391,78 +420,93 @@ class ScrapingService:
         if not doc_table:
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag.get("href", "")
-                if href.endswith(".pdf"):
-                    text = a_tag.get_text(strip=True)
-                    if text:
-                        pdf_links[text] = urljoin(self.base_url, href)
+                if ".pdf" in href.lower():
+                    text = self._normalize_space(a_tag.get_text(strip=True))
+                    doc_type = self._identify_doc_type(text, href)
+                    if doc_type:
+                        pdf_links[doc_type] = self._normalize_url(href)
         else:
             rows = doc_table.find_all("tr")
             for row_tag in rows:
                 cells = row_tag.find_all("td")
                 for cell in cells:
-                    text = cell.get_text(separator=" ", strip=True)
+                    text = self._normalize_space(cell.get_text(separator=" ", strip=True))
                     links_in_cell = cell.find_all("a", href=True)
                     for a_tag in links_in_cell:
                         href = a_tag.get("href", "")
-                        if href.endswith(".pdf"):
+                        if ".pdf" in href.lower():
                             doc_type = self._identify_doc_type(text, href)
                             if doc_type:
-                                pdf_links[doc_type] = urljoin(self.base_url, href)
+                                pdf_links[doc_type] = self._normalize_url(href)
 
         data["Dokumen_PDF"] = pdf_links
-        data["URL"] = url
+        data["URL"] = normalized_url
 
         return data
 
     def _identify_doc_type(self, text: str, href: str) -> Optional[str]:
-        """Identify document type from text and URL."""
-        text_lower = text.lower()
-        href_lower = href.lower()
-        combined = text_lower + " " + href_lower
+        """Identify document type from surrounding text and file name."""
+        combined = f"{text} {href}".lower()
 
-        patterns = {
-            "Cover": ["cover"],
-            "Legalitas": ["legalitas", "legal"],
-            "Abstrak": ["abstrak", "abstract"],
-            "Bab I": ["bab-i", "bab_i", "bab i", "babi"],
-            "Bab II": ["bab-ii", "bab_ii", "bab ii", "babii"],
-            "Bab III": ["bab-iii", "bab_iii", "bab iii", "babiii"],
-            "Bab IV": ["bab-iv", "bab_iv", "bab iv", "babiv"],
-            "Bab V": ["bab-v", "bab_v", "bab v", "babv"],
-            "Bab VI": ["bab-vi", "bab_vi", "bab vi", "babvi"],
-            "Daftar Pustaka": [
-                "daftar pustaka", "daftar_pustaka", "daftarpustaka", "references"
-            ],
-            "Lampiran": ["lampiran", "appendix"],
-        }
+        if re.search(r"\bbab[\s\-_]*vi\b|\bbab[\s\-_]*6\b", combined):
+            return "Bab VI"
+        if re.search(r"\bbab[\s\-_]*v\b|\bbab[\s\-_]*5\b", combined):
+            return "Bab V"
 
-        for doc_type, keywords in patterns.items():
-            for kw in keywords:
-                if kw in combined:
-                    return doc_type
+        if "kesimpulan" in combined and "abstrak" not in combined:
+            return "Bab V"
+        if any(k in combined for k in ["daftarpustaka", "daftar pustaka", "references"]):
+            return "Daftar Pustaka"
+        if any(k in combined for k in ["abstrak", "abstract"]):
+            return "Abstrak"
+        if "cover" in combined:
+            return "Cover"
+        if any(k in combined for k in ["legalitas", "legal"]):
+            return "Legalitas"
+        if "lampiran" in combined:
+            return "Lampiran"
+
         return None
 
     def _try_extract_pdf_text(self, pdf_url: str) -> Optional[str]:
         """Try to download a PDF and extract its text."""
         try:
             response = self.session.get(pdf_url, timeout=30, allow_redirects=True)
-            if (
-                response.status_code == 200
-                and "application/pdf" in response.headers.get("Content-Type", "")
-            ):
-                try:
-                    import pdfplumber
+            response.raise_for_status()
+            content_type = (response.headers.get("Content-Type") or "").lower()
+            if "pdf" not in content_type and ".pdf" not in pdf_url.lower():
+                return None
 
-                    with pdfplumber.open(io.BytesIO(response.content)) as pdf:
-                        text_parts = []
-                        for page in pdf.pages:
-                            page_text = page.extract_text()
-                            if page_text:
-                                text_parts.append(page_text)
-                        return "\n".join(text_parts) if text_parts else None
-                except ImportError:
-                    logger.warning("pdfplumber not installed. Skipping PDF extraction.")
-                    return None
+            pdf_bytes = io.BytesIO(response.content)
+
+            try:
+                import pdfplumber
+
+                with pdfplumber.open(pdf_bytes) as pdf:
+                    text_parts = []
+                    for page in pdf.pages:
+                        page_text = page.extract_text() or ""
+                        if page_text.strip():
+                            text_parts.append(page_text)
+                    if text_parts:
+                        return "\n".join(text_parts).strip()
+            except ImportError:
+                logger.warning("pdfplumber not installed. Trying PyPDF2 fallback.")
+
+            try:
+                import PyPDF2
+
+                reader = PyPDF2.PdfReader(pdf_bytes)
+                text_parts = []
+                for page in reader.pages:
+                    page_text = page.extract_text() or ""
+                    if page_text.strip():
+                        text_parts.append(page_text)
+                if text_parts:
+                    return "\n".join(text_parts).strip()
+            except ImportError:
+                logger.warning("PyPDF2 not installed. Skipping PDF extraction.")
+                return None
         except Exception as e:
             logger.warning(f"Failed to extract PDF {pdf_url}: {e}")
         return None
@@ -486,21 +530,4 @@ class ScrapingService:
                 conclusion = re.sub(r"\s+", " ", conclusion)
                 return conclusion
 
-        return text.strip()
-
-    def save_raw_data(self, df: pd.DataFrame, filename: str = "raw_data.csv") -> str:
-        """Save scraped data to CSV."""
-        path_settings.ensure_dirs()
-        output_path = path_settings.get_raw_data_dir() / filename
-        df.to_csv(output_path, index=False, encoding="utf-8")
-        logger.info(f"Saved {len(df)} documents to {output_path}")
-        return str(output_path)
-
-    def load_raw_data(self, filename: str = "raw_data.csv") -> pd.DataFrame:
-        """Load previously scraped data."""
-        input_path = path_settings.get_raw_data_dir() / filename
-        if not input_path.exists():
-            raise FileNotFoundError(f"Raw data not found at {input_path}")
-        df = pd.read_csv(input_path, encoding="utf-8")
-        logger.info(f"Loaded {len(df)} documents from {input_path}")
-        return df
+        return ""

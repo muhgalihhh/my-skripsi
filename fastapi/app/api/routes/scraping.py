@@ -1,14 +1,4 @@
-"""
-Scraping API Routes
-Endpoints for triggering and monitoring web scraping from UNSOED repository.
-
-Architecture:
-  - POST /scraping/start  → Starts scraping in a background thread, returns job_id immediately
-  - GET  /scraping/jobs/{job_id} → Poll job progress (used by Laravel Livewire polling)
-  - GET  /scraping/jobs   → List all jobs
-  - GET  /scraping/status → General scraping config/status
-  - POST /scraping/jobs/{job_id}/cancel → Cancel a running job
-"""
+"""Scraping API routes."""
 
 from app.core.config import scraping_settings
 from app.core.logging import get_logger

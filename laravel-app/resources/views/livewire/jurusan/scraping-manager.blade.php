@@ -195,21 +195,32 @@
         {{-- ── Scraping Form ────────────────────────────────── --}}
         <div
             class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 {{ $isProcessing ? 'opacity-60 pointer-events-none' : '' }}">
-            <div class="flex items-center mb-4">
-                <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
-                    <svg class="w-5 h-5 text-unsoed-blue-600" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
+            <div class="flex items-start justify-between mb-4 gap-3">
+                <div class="flex items-center">
+                    <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
+                        <svg class="w-5 h-5 text-unsoed-blue-600" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">Jalankan Scraping Manual</h2>
+                        <p class="text-xs text-gray-400">Data yang sudah ada (URL sama) akan otomatis diperbarui dengan
+                            data terbaru</p>
+                    </div>
+                </div>
+                <button type="button" wire:click="openResetSkripsiConfirm"
+                    class="inline-flex items-center px-3 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    @disabled($isProcessing || $totalSkripsi === 0)>
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                </div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Jalankan Scraping Manual</h2>
-                    <p class="text-xs text-gray-400">Data yang sudah ada (URL sama) akan otomatis diperbarui dengan
-                        data terbaru</p>
-                </div>
+                    Reset Database Skripsi
+                </button>
             </div>
 
             <form wire:submit="startScraping">
@@ -428,6 +439,13 @@
         title="Hapus {{ count($selectedLogIds) }} Riwayat?"
         message="Riwayat scraping yang dipilih akan dihapus secara permanen dan tidak dapat dikembalikan."
         confirmLabel="Ya, Hapus Semua" confirmWire="bulkDeleteLogs" closeWire="closeBulkDeleteLogsConfirm" />
+
+    {{-- ════════════════════════════════════════════════════
+         Confirm: Reset Database Skripsi
+    ═════════════════════════════════════════════════════ --}}
+    <x-confirm-modal wireModel="showResetSkripsiConfirm" type="danger" title="Reset Database Skripsi?"
+        message="Semua data pada tabel skripsi akan dihapus permanen agar proses scraping bisa dimulai ulang dari nol. Data turunan dataset/topic document terkait juga akan ikut terhapus."
+        confirmLabel="Ya, Reset Database" confirmWire="resetSkripsiData" closeWire="closeResetSkripsiConfirm" />
 
     {{-- ════════════════════════════════════════════════════
          MODAL: Pantau Detail Scraping (Monitoring)

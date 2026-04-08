@@ -1,7 +1,7 @@
 import pandas as pd
-from sqlalchemy import create_engine, text
 from app.core.config import app_settings
 from loguru import logger
+from sqlalchemy import create_engine, text
 
 
 def _table_exists(conn, table_name: str) -> bool:
@@ -18,23 +18,19 @@ def _table_exists(conn, table_name: str) -> bool:
 def get_engine():
     """Create and return a SQLAlchemy engine for MySQL."""
     try:
-        engine = create_engine(app_settings.database_url)
-        return engine
+        return create_engine(app_settings.database_url)
     except Exception as e:
         logger.error(f"Failed to create database engine: {e}")
-        raise e
+        raise
+
 
 def load_abstracts_from_db(limit=None):
     """Load source columns needed by notebook-aligned preprocessing."""
     engine = get_engine()
-    query = (
-        "SELECT id, title, abstract, conclusion, year "
-        "FROM skripsi "
-        "WHERE abstract IS NOT NULL AND LENGTH(abstract) > 30"
-    )
+    query = "SELECT id, title, abstract, conclusion, year FROM skripsi ORDER BY id ASC"
     if limit:
         query += f" LIMIT {limit}"
-        
+
     try:
         logger.info("Loading texts from MySQL database...")
         df = pd.read_sql(query, con=engine)
@@ -42,7 +38,23 @@ def load_abstracts_from_db(limit=None):
         return df
     except Exception as e:
         logger.error(f"Failed to load data from database: {e}")
-        raise e
+        raise
+
+
+def count_skripsi_rows() -> int:
+    """Count total rows in source `skripsi` table."""
+    engine = get_engine()
+    query = "SELECT COUNT(*) AS total FROM skripsi"
+
+    try:
+        df = pd.read_sql(query, con=engine)
+        if df.empty:
+            return 0
+        return int(df.iloc[0]["total"] or 0)
+    except Exception as e:
+        logger.error(f"Failed to count skripsi rows: {e}")
+        raise
+
 
 def load_processed_data_from_db(limit=None):
     """Load fully preprocessed texts for training.
@@ -70,14 +82,16 @@ def load_processed_data_from_db(limit=None):
             query = (
                 "SELECT skripsi_id AS id, cleaned_text, processed_text, year "
                 "FROM topic_model_datasets "
-                "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL"
+                "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
+                "ORDER BY skripsi_id ASC"
             )
             source = "topic_model_datasets"
         else:
             query = (
                 "SELECT id, cleaned_text, processed_text, year "
                 "FROM skripsi "
-                "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL"
+                "WHERE cleaned_text IS NOT NULL AND processed_text IS NOT NULL "
+                "ORDER BY id ASC"
             )
             source = "skripsi"
 
@@ -89,23 +103,19 @@ def load_processed_data_from_db(limit=None):
         return df
     except Exception as e:
         logger.error(f"Failed to load processed data from database: {e}")
-        raise e
+        raise
+
 
 def update_processed_texts_in_db(df):
-    """
-    Update the Skripsi table with the cleaned text and processed text.
-    We iterate over the dataframe and run an update query for each record. 
-    Alternatively, updating could be batched, but an iteration is fine for this scale if transactions are used.
-    """
+    """Update `skripsi` cleaned/processed text columns from a dataframe."""
     engine = get_engine()
-    
-    # Check if necessary columns exist
-    if 'id' not in df.columns or 'cleaned_text' not in df.columns or 'processed_text' not in df.columns:
+
+    if "id" not in df.columns or "cleaned_text" not in df.columns or "processed_text" not in df.columns:
         logger.error("Missing columns in dataframe. Required: 'id', 'cleaned_text', 'processed_text'")
         return False
-        
+
     try:
-        with engine.begin() as conn:  # This uses a transaction
+        with engine.begin() as conn:
             # Reset previous outputs first so dropped/duplicate rows are excluded from next training.
             conn.execute(text("UPDATE skripsi SET cleaned_text = NULL, processed_text = NULL"))
 
@@ -128,7 +138,7 @@ def update_processed_texts_in_db(df):
         return True
     except Exception as e:
         logger.error(f"Failed to update database: {e}")
-        raise e
+        raise
 
 
 def replace_preprocessed_dataset_in_db(df):
@@ -193,24 +203,23 @@ def replace_preprocessed_dataset_in_db(df):
         return True
     except Exception as e:
         logger.error(f"Failed to replace topic_model_datasets: {e}")
-        raise e
+        raise
+
 
 def get_run_config(run_id: int):
-    """Fetch preprocessing configurations from topic_model_runs by run_id."""
+    """Return default preprocessing configurations if run exists."""
     engine = get_engine()
-    query = text("SELECT remove_stopwords, min_word_length, language FROM topic_model_runs WHERE id = :id")
+    query = text("SELECT id FROM topic_model_runs WHERE id = :id")
     try:
         with engine.begin() as conn:
             result = conn.execute(query, {"id": run_id}).fetchone()
             if result:
-                # `result` is a tuple-like object, mapping depends on the sqlalchemy version, 
-                # but typically _mapping or index access works.
                 return {
-                    "remove_stopwords": True if result.remove_stopwords is None else bool(result.remove_stopwords),
-                    "min_word_length": int(result.min_word_length or 3),
-                    "language": str(result.language or "indonesian")
+                    "remove_stopwords": True,
+                    "min_word_length": 3,
+                    "language": "indonesian",
                 }
             return None
     except Exception as e:
         logger.error(f"Failed to get run config for run_id {run_id}: {e}")
-        raise e
+        raise

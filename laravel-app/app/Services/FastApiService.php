@@ -213,6 +213,31 @@ class FastApiService
   }
 
   /**
+   * Get dropped-record report for a preprocessing job.
+   */
+  public function getPreprocessingDroppedReport(string $jobId): array
+  {
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(10)
+        ->get("{$this->baseUrl}/api/v1/preprocessing/jobs/{$jobId}/dropped");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Preprocessing job {$jobId} tidak ditemukan"];
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal mendapatkan laporan data ter-drop'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI preprocessing dropped-report check failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
    * Cancel a running preprocessing job.
    */
   public function cancelPreprocessingJob(string $jobId): array
@@ -233,7 +258,7 @@ class FastApiService
   }
 
   // ============================================
-  // Training (BERTopic)
+  // Training (BERTopic/LDA)
   // ============================================
 
   /**
@@ -286,6 +311,42 @@ class FastApiService
       ];
     } catch (\Exception $e) {
       Log::error('FastAPI start training request failed: ' . $e->getMessage());
+      return [
+        'status' => 'error',
+        'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),
+      ];
+    }
+  }
+
+  /**
+   * Start LDA training job.
+   *
+   * Payload shape follows TrainingRequest schema in FastAPI.
+   */
+  public function startLdaTraining(array $ldaParams = [], ?string $description = null): array
+  {
+    try {
+      $payload = array_filter([
+        'model_type' => 'lda',
+        'lda_params' => $ldaParams ?: null,
+        'description' => $description,
+      ], fn($v) => $v !== null);
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(30)
+        ->post("{$this->baseUrl}/api/v1/training/start", $payload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      return [
+        'status' => 'error',
+        'message' => 'Gagal memulai training LDA. Status: ' . $response->status(),
+        'detail' => $response->json() ?? $response->body(),
+      ];
+    } catch (\Exception $e) {
+      Log::error('FastAPI start LDA training request failed: ' . $e->getMessage());
       return [
         'status' => 'error',
         'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),

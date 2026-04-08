@@ -1,50 +1,66 @@
 <div>
     @section('page-title', 'Topic Modeling')
 
-    <div class="space-y-6" x-data="{ activeTab: 'overview', activePreviewTab: 'final', activePreviewIdx: 0 }">
+    <div class="space-y-5 sm:space-y-6" x-data="{ activeTab: 'overview', activePreviewTab: 'final', activePreviewIdx: 0 }">
 
         {{-- ── Page Header ──────────────────────────────────── --}}
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">Topic Modeling</h1>
-                <p class="mt-1 text-sm text-gray-500">
-                    Pipeline BERTopic (IndoSBERT → UMAP → HDBSCAN → c-TF-IDF) untuk analisis topik skripsi UNSOED.
-                </p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <x-ui.button wire:click="buildPreview" wire:loading.attr="disabled" variant="secondary">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh preview
-                </x-ui.button>
-                <x-ui.button wire:click="runPreprocessing" wire:loading.attr="disabled" variant="primary"
-                    :disabled="(($apiStatus['status'] ?? '') !== 'ok')">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
-                    <span wire:loading wire:target="runPreprocessing">Processing…</span>
-                </x-ui.button>
-                <x-ui.button type="button" wire:click="startTraining" wire:loading.attr="disabled" variant="success"
-                    :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed']))">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span wire:loading.remove wire:target="startTraining">Start Training</span>
-                    <span wire:loading wire:target="startTraining">Starting…</span>
-                </x-ui.button>
+        <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div class="max-w-3xl">
+                    <span class="inline-flex items-center rounded-full bg-unsoed-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-unsoed-blue-700">FastAPI Pipeline</span>
+                    <h1 class="mt-2 text-2xl font-bold text-gray-900">Topic Modeling</h1>
+                    <p class="mt-1.5 text-sm text-gray-500">
+                        Pipeline FastAPI-Laravel untuk BERTopic dan LDA (preprocessing bersama, training per-model) pada analisis topik skripsi UNSOED.
+                    </p>
+                </div>
+                <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2 sm:p-2.5 xl:w-auto">
+                    <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap xl:w-auto">
+                        <div class="w-full sm:w-[200px]">
+                            <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Model Training</label>
+                            <select
+                                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                                wire:model.live="modelType"
+                            >
+                                <option value="bertopic">BERTopic</option>
+                                <option value="lda">LDA</option>
+                            </select>
+                        </div>
+                        <x-ui.button wire:click="buildPreview" wire:loading.attr="disabled" variant="secondary" class="w-full sm:w-auto">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Refresh preview
+                        </x-ui.button>
+                        <x-ui.button wire:click="runPreprocessing" wire:loading.attr="disabled" variant="primary"
+                            :disabled="(($apiStatus['status'] ?? '') !== 'ok')" class="w-full sm:w-auto">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
+                            <span wire:loading wire:target="runPreprocessing">Processing…</span>
+                        </x-ui.button>
+                        <x-ui.button type="button" wire:click="startTraining" wire:loading.attr="disabled" variant="success"
+                            :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed']))"
+                            class="w-full sm:w-auto">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span wire:loading.remove wire:target="startTraining">Start Training {{ strtoupper($modelType) }}</span>
+                            <span wire:loading wire:target="startTraining">Starting…</span>
+                        </x-ui.button>
+                    </div>
+                </div>
             </div>
         </div>
 
         {{-- ── Tabs (reduce scrolling) ─────────────────────────────── --}}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
-            <div class="flex flex-wrap gap-2">
+        <div class="rounded-2xl border border-gray-200 bg-white p-2.5 shadow-sm">
+            <div class="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 @php
                     $tabs = [
                         'overview' => 'Overview',
@@ -56,9 +72,9 @@
                 @endphp
                 @foreach ($tabs as $key => $label)
                     <button type="button" @click="activeTab='{{ $key }}'"
-                        :class="activeTab === '{{ $key }}' ? 'bg-unsoed-blue-800 text-white' :
+                        :class="activeTab === '{{ $key }}' ? 'bg-unsoed-blue-800 text-white shadow-sm' :
                             'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                        class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
+                        class="snap-start whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors">
                         {{ $label }}
                     </button>
                 @endforeach
@@ -66,27 +82,29 @@
         </div>
 
         @if (($apiStatus['status'] ?? '') !== 'ok')
-            <div
-                class="flex items-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-
-                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53
-                0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1
-                1 0 00-1-1z"
-                clip-rule="evenodd" />
+            <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                        clip-rule="evenodd" />
                 </svg>
-                FastAPI service tidak aktif. Pastikan container <code
-                    class="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono">skripsi-fastapi</code>
-                berjalan.
+                <div>
+                    FastAPI service tidak aktif. Pastikan container <code
+                        class="mx-1 rounded bg-amber-100 px-1.5 py-0.5 font-mono">skripsi-fastapi</code>
+                    berjalan.
+                </div>
             </div>
         @endif
 
         {{-- ========================== TAB: OVERVIEW ========================== --}}
         <div x-show="activeTab === 'overview'" x-cloak class="space-y-6">
 
+            <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+
             {{-- ── API Status Card (selaras dengan Scraping Manager) ───────── --}}
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-3">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 xl:col-span-1">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-start gap-3">
                         @if (($apiStatus['status'] ?? '') === 'ok')
                             <span class="relative flex h-3 w-3">
                                 <span
@@ -107,7 +125,7 @@
                     </div>
 
                     <button wire:click="checkApiStatus"
-                        class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                        class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                         wire:loading.class="opacity-50" wire:target="checkApiStatus">
                         <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus"
                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,8 +138,8 @@
             </div>
 
             {{-- ── Dataset Readiness Card ──────────────────────────────── --}}
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 xl:col-span-2">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <div class="text-sm font-semibold text-gray-900">Kesiapan Dataset</div>
                         <div class="mt-0.5 text-xs text-gray-500">Ringkasan data hasil preprocessing yang siap
@@ -129,7 +147,7 @@
                             training.</div>
                     </div>
                     <button wire:click="loadDatasetSummary"
-                        class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                        class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                         wire:loading.class="opacity-50" wire:target="loadDatasetSummary">
                         <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadDatasetSummary"
                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,27 +159,31 @@
                 </div>
 
                 @if (($datasetSummary['status'] ?? '') === 'ok')
-                    <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
-                        <div class="bg-gray-50 rounded-lg p-2">
-                            <p class="text-xs text-gray-500">Total</p>
-                            <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['total'] ?? 0) }}</p>
+                    <div class="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-3 xl:grid-cols-6">
+                        <div class="rounded-lg border border-gray-200 bg-white p-2.5">
+                            <p class="text-xs text-gray-500">Total Skripsi</p>
+                            <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['source_total'] ?? $datasetSummary['total'] ?? 0) }}</p>
                         </div>
-                        <div class="bg-unsoed-blue-50 rounded-lg p-2">
+                        <div class="rounded-lg border border-gray-200 bg-white p-2.5">
+                            <p class="text-xs text-gray-500">Dataset Training</p>
+                            <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['dataset_total'] ?? 0) }}</p>
+                        </div>
+                        <div class="rounded-lg border border-unsoed-blue-200 bg-unsoed-blue-50/80 p-2.5">
                             <p class="text-xs text-unsoed-blue-600">Valid BERTopic</p>
                             <p class="text-lg font-bold text-unsoed-blue-800">
                                 {{ (int) ($datasetSummary['valid_bertopic'] ?? 0) }}</p>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="rounded-lg border border-gray-200 bg-white p-2.5">
                             <p class="text-xs text-gray-500">Valid LDA</p>
                             <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['valid_lda'] ?? 0) }}
                             </p>
                         </div>
-                        <div class="bg-amber-50 rounded-lg p-2">
-                            <p class="text-xs text-amber-600">Ter-drop</p>
-                            <p class="text-lg font-bold text-amber-700">{{ (int) ($datasetSummary['dropped'] ?? 0) }}
+                        <div class="rounded-lg border border-amber-200 bg-amber-50/80 p-2.5">
+                            <p class="text-xs text-amber-600">Ter-drop (dari sumber)</p>
+                            <p class="text-lg font-bold text-amber-700">{{ (int) ($datasetSummary['dropped_from_source'] ?? $datasetSummary['dropped'] ?? 0) }}
                             </p>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="rounded-lg border border-gray-200 bg-white p-2.5">
                             <p class="text-xs text-gray-500">Rentang Tahun</p>
                             <p class="text-lg font-bold text-gray-800">
                                 @if (($datasetSummary['year_min'] ?? null) && ($datasetSummary['year_max'] ?? null))
@@ -173,7 +195,14 @@
                         </div>
                     </div>
 
-                    @if (((int) ($datasetSummary['total'] ?? 0)) === 0)
+                    @if (isset($datasetSummary['dropped_within_dataset']))
+                        <div class="mt-2 text-[11px] text-gray-500">
+                            Drop internal dataset (cleaned/processed kosong):
+                            <span class="font-semibold text-gray-700">{{ (int) ($datasetSummary['dropped_within_dataset'] ?? 0) }}</span>
+                        </div>
+                    @endif
+
+                    @if (((int) ($datasetSummary['dataset_total'] ?? 0)) === 0)
                         <div
                             class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                             Dataset training masih kosong. Jalankan <strong>Preprocessing</strong> dulu.
@@ -193,6 +222,96 @@
                     </div>
                 @endif
             </div>
+            </div>
+
+            @if (!empty($preprocessingDroppedReport))
+                @php
+                    $dropSummary = collect($preprocessingDroppedReport['dropped_summary'] ?? [])->filter(fn($v) => (int) $v > 0);
+                    $dropSamples = $preprocessingDroppedReport['dropped_records_sample'] ?? [];
+                    $dropTotal = (int) ($preprocessingDroppedReport['dropped_records_total'] ?? 0);
+                    $dropJobId = $preprocessingDroppedReport['job_id'] ?? ($activeRun->fastapi_preprocessing_job_id ?? '-');
+                    $reasonLabels = [
+                        'dropna_abstract' => 'Abstract kosong/null',
+                        'short_abstract' => 'Abstract terlalu pendek',
+                        'duplicate_abstract' => 'Duplikat abstract',
+                        'year_out_of_range' => 'Tahun di luar rentang',
+                        'empty_after_preprocessing' => 'Kosong setelah preprocessing',
+                    ];
+                @endphp
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-gray-900">Laporan Data Ter-drop (Preprocessing)</div>
+                            <div class="mt-0.5 text-xs text-gray-500">
+                                Job: <span class="font-mono">{{ $dropJobId }}</span>
+                            </div>
+                        </div>
+                        <button wire:click="loadPreprocessingDroppedReport"
+                            class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
+                            wire:loading.class="opacity-50" wire:target="loadPreprocessingDroppedReport">
+                            <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadPreprocessingDroppedReport"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
+
+                    @if ($dropTotal === 0)
+                        <div class="mt-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                            Tidak ada data yang ter-drop pada preprocessing terakhir.
+                        </div>
+                    @else
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-6">
+                            <div class="col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-2 sm:col-span-1">
+                                <p class="text-[11px] text-amber-600">Total Drop</p>
+                                <p class="text-lg font-bold text-amber-700">{{ $dropTotal }}</p>
+                            </div>
+                            @foreach ($dropSummary as $reason => $count)
+                                <div class="rounded-lg border border-gray-200 bg-white p-2">
+                                    <p class="text-[11px] text-gray-500">{{ $reasonLabels[$reason] ?? $reason }}</p>
+                                    <p class="text-lg font-bold text-gray-700">{{ (int) $count }}</p>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        @if (count($dropSamples) > 0)
+                            <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+                                <table class="min-w-full divide-y divide-gray-200 text-xs">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">ID</th>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Tahun</th>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Reason</th>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Judul</th>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Abstract Preview</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 bg-white">
+                                        @foreach (array_slice($dropSamples, 0, 25) as $s)
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-3 py-2 text-gray-700">{{ $s['id'] ?? '-' }}</td>
+                                                <td class="px-3 py-2 text-gray-700">{{ $s['year'] ?? '-' }}</td>
+                                                <td class="px-3 py-2 text-gray-700">{{ $reasonLabels[$s['reason'] ?? ''] ?? ($s['reason'] ?? '-') }}</td>
+                                                <td class="px-3 py-2 text-gray-700">{{ $s['title'] ?? '-' }}</td>
+                                                <td class="px-3 py-2 text-gray-600">{{ $s['abstract_preview'] ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            @if (count($dropSamples) > 25)
+                                <div class="mt-2 text-xs text-gray-500">
+                                    Menampilkan 25 sample pertama dari total sample yang tersimpan di FastAPI.
+                                </div>
+                            @endif
+                        @endif
+                    @endif
+                </div>
+            @endif
 
             {{-- ---- Pipeline Progress Steps ---- --}}
             <x-ui.card>
@@ -207,7 +326,7 @@
                             ],
                             [
                                 'label' => 'Training',
-                                'desc' => 'IndoSBERT → UMAP → HDBSCAN',
+                                'desc' => $modelType === 'lda' ? 'LDA (Gensim) baseline' : 'IndoSBERT → UMAP → HDBSCAN',
                                 'statuses' => ['training', 'completed'],
                             ],
                             ['label' => 'Selesai', 'desc' => 'Hasil tersimpan di DB', 'statuses' => ['completed']],
@@ -248,21 +367,21 @@
         <div x-show="activeTab === 'preview'" x-cloak class="space-y-6">
 
             <x-ui.card no-padding>
-                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 class="text-sm font-semibold text-gray-900">Preview Preprocessing Pipeline</h2>
                         <p class="mt-0.5 text-xs text-gray-500">
-                            5 sampel abstrak — menampilkan setiap langkah pipeline secara transparan.
+                            5 sampel abstrak dari tabel <code class="font-mono">topic_model_datasets</code> — menampilkan setiap langkah pipeline secara transparan.
                         </p>
                     </div>
-                    <div class="flex flex-wrap gap-1.5">
+                    <div class="flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
                         @foreach (['final' => 'BERTopic Input', 'raw' => 'Raw', 'cleaned' => 'Cleaned', 'tokens' => 'Tokens', 'nostop' => 'LDA Input'] as $tab => $label)
                             <button type="button" @click="activePreviewTab = '{{ $tab }}'"
                                 :class="activePreviewTab === '{{ $tab }}'
                                     ?
                                     'bg-unsoed-blue-800 text-white' :
                                     'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                                class="rounded-full px-2.5 py-1 text-xs font-medium transition-colors">
+                                class="rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors">
                                 {{ $label }}
                             </button>
                         @endforeach
@@ -345,7 +464,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            Belum ada data abstrak. Pastikan scraping sudah dijalankan.
+                            Belum ada data abstrak di topic_model_datasets. Jalankan preprocessing terlebih dahulu.
                         </div>
                     @endforelse
                 </div>
@@ -357,7 +476,7 @@
         <div x-show="activeTab === 'database'" x-cloak class="space-y-6">
 
             <x-ui.card no-padding>
-                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                     <div>
                         <h2 class="text-sm font-semibold text-gray-900">Hasil Preprocessing (Database)</h2>
                         <p class="mt-0.5 text-xs text-gray-500">
@@ -367,7 +486,7 @@
                         </p>
                     </div>
                     <button wire:click="loadDbPreprocessedRows" wire:loading.attr="disabled"
-                        class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                        class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                         wire:loading.class="opacity-50" wire:target="loadDbPreprocessedRows">
                         <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin"
                             wire:target="loadDbPreprocessedRows" fill="none" stroke="currentColor"
@@ -381,42 +500,42 @@
 
                 @if (count($dbPreprocessedRows) > 0)
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th
-                                        class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="w-20 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         ID</th>
                                     <th
-                                        class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="w-20 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         Tahun</th>
                                     <th
-                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         Judul</th>
                                     <th
-                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         cleaned_text (BERTopic)</th>
                                     <th
-                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         processed_text (LDA)</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 bg-white">
                                 @foreach ($dbPreprocessedRows as $r)
                                     <tr class="hover:bg-gray-50 transition-colors align-top">
-                                        <td class="px-4 py-3 text-gray-600">{{ $r['id'] }}</td>
-                                        <td class="px-4 py-3 text-gray-600">{{ $r['year'] ?? '-' }}</td>
-                                        <td class="px-4 py-3">
+                                        <td class="px-3 py-3 text-gray-600 sm:px-4">{{ $r['id'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600 sm:px-4">{{ $r['year'] ?? '-' }}</td>
+                                        <td class="px-3 py-3 sm:px-4">
                                             <div class="text-xs font-semibold text-gray-800 line-clamp-2">
                                                 {{ $r['title'] ?? '-' }}
                                             </div>
                                         </td>
-                                        <td class="px-4 py-3">
+                                        <td class="px-3 py-3 sm:px-4">
                                             <div class="text-xs text-gray-700 whitespace-pre-wrap break-words">
                                                 {{ Str::limit($r['cleaned_text'] ?? '', 250) }}
                                             </div>
                                         </td>
-                                        <td class="px-4 py-3">
+                                        <td class="px-3 py-3 sm:px-4">
                                             <div class="text-xs text-gray-700 whitespace-pre-wrap break-words">
                                                 {{ Str::limit($r['processed_text'] ?? '', 250) }}
                                             </div>
@@ -461,7 +580,7 @@
                 @if ($activeRun && $activeRun->status === 'completed')
                     {{-- Model actions (FastAPI artifacts) --}}
                     @if ($activeRun->fastapi_training_job_id)
-                        <div class="mb-4 flex flex-wrap items-center gap-2">
+                        <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                             <x-ui.button wire:click="downloadModel" wire:loading.attr="disabled" variant="secondary">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -477,7 +596,7 @@
                                 <span wire:loading.remove wire:target="testModelWithDataset">Test Model (Dataset)</span>
                                 <span wire:loading wire:target="testModelWithDataset">Testing…</span>
                             </x-ui.button>
-                            <div class="text-xs text-gray-400">Job ID: {{ $activeRun->fastapi_training_job_id }}</div>
+                            <div class="text-xs text-gray-500 sm:ml-auto">Job ID: {{ $activeRun->fastapi_training_job_id }}</div>
                         </div>
 
                         @if (!empty($modelTestDatasetResult) && !isset($modelTestDatasetResult['status']))
@@ -525,47 +644,89 @@
                     @endif
 
                     {{-- Stats row --}}
-                    <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div class="rounded-xl bg-unsoed-blue-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-unsoed-blue-800">
-                                {{ $activeRun->num_topics ?? '-' }}</div>
-                            <div class="mt-0.5 text-xs text-unsoed-blue-600">Topik</div>
-                        </div>
-                        <div class="rounded-xl bg-gray-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-gray-700">{{ $activeRun->total_documents ?? '-' }}
+                    <div class="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+                        @php
+                            $resultStats = [
+                                [
+                                    'label' => 'Topik',
+                                    'value' => $activeRun->num_topics ?? '-',
+                                    'tone' => 'primary',
+                                ],
+                                [
+                                    'label' => 'Dokumen',
+                                    'value' => $activeRun->total_documents ?? '-',
+                                    'tone' => 'default',
+                                ],
+                                [
+                                    'label' => 'Outlier',
+                                    'value' => $activeRun->num_outliers ?? '-',
+                                    'tone' => 'default',
+                                ],
+                                [
+                                    'label' => 'Coherence (C_v)',
+                                    'value' => $activeRun->coherence_cv !== null ? number_format((float) $activeRun->coherence_cv, 4) : '-',
+                                    'tone' => 'success',
+                                ],
+                                [
+                                    'label' => 'Topic Diversity',
+                                    'value' => $activeRun->topic_diversity !== null ? number_format((float) $activeRun->topic_diversity, 4) : '-',
+                                    'tone' => 'default',
+                                ],
+                                [
+                                    'label' => 'Durasi',
+                                    'value' => $activeRun->training_duration_seconds ? round($activeRun->training_duration_seconds) . 's' : '-',
+                                    'tone' => 'default',
+                                ],
+                            ];
+                        @endphp
+
+                        @foreach ($resultStats as $stat)
+                            <div @class([
+                                'flex h-full flex-col justify-center rounded-xl border p-3 text-center shadow-sm',
+                                'border-unsoed-blue-200 bg-unsoed-blue-50/80' => $stat['tone'] === 'primary',
+                                'border-emerald-200 bg-emerald-50/80' => $stat['tone'] === 'success',
+                                'border-gray-200 bg-white' => $stat['tone'] === 'default',
+                            ])>
+                                <div @class([
+                                    'text-2xl font-bold',
+                                    'text-unsoed-blue-800' => $stat['tone'] === 'primary',
+                                    'text-emerald-700' => $stat['tone'] === 'success',
+                                    'text-gray-800' => $stat['tone'] === 'default',
+                                ])>
+                                    {{ $stat['value'] }}
+                                </div>
+                                <div @class([
+                                    'mt-0.5 text-xs',
+                                    'text-unsoed-blue-600' => $stat['tone'] === 'primary',
+                                    'text-emerald-600' => $stat['tone'] === 'success',
+                                    'text-gray-500' => $stat['tone'] === 'default',
+                                ])>
+                                    {{ $stat['label'] }}
+                                </div>
                             </div>
-                            <div class="mt-0.5 text-xs text-gray-500">Dokumen</div>
-                        </div>
-                        <div class="rounded-xl bg-gray-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-gray-700">{{ $activeRun->num_outliers ?? '-' }}
-                            </div>
-                            <div class="mt-0.5 text-xs text-gray-500">Outlier</div>
-                        </div>
-                        <div class="rounded-xl bg-gray-50 p-3 text-center">
-                            <div class="text-2xl font-bold text-gray-700">
-                                {{ $activeRun->training_duration_seconds ? round($activeRun->training_duration_seconds) . 's' : '-' }}
-                            </div>
-                            <div class="mt-0.5 text-xs text-gray-500">Durasi</div>
-                        </div>
+                        @endforeach
                     </div>
 
                     {{-- Topics table --}}
                     <div class="overflow-x-auto rounded-xl border border-gray-200">
-                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th
-                                        class="w-16 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="w-16 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         Topik</th>
                                     <th
-                                        class="w-20 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="w-20 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         Dokumen</th>
                                     <th
-                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         Kata Kunci Utama</th>
                                     <th
-                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
                                         Skripsi Terkait</th>
+                                    <th
+                                        class="w-28 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
+                                        Mapping</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 bg-white">
@@ -574,14 +735,14 @@
                                         $linkedDocs = $t->documentLinks->take(5);
                                     @endphp
                                     <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-4 py-3">
+                                        <td class="px-3 py-3 sm:px-4">
                                             <span
                                                 class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-unsoed-blue-100 text-xs font-bold text-unsoed-blue-800">
                                                 {{ $t->topic_id }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">{{ $t->count }}</td>
-                                        <td class="px-4 py-3">
+                                        <td class="px-3 py-3 text-gray-600 sm:px-4">{{ $t->count }}</td>
+                                        <td class="px-3 py-3 sm:px-4">
                                             <div class="flex flex-wrap gap-1">
                                                 @foreach (array_slice($t->top_words ?? [], 0, 8) as $word)
                                                     <span
@@ -589,7 +750,7 @@
                                                 @endforeach
                                             </div>
                                         </td>
-                                        <td class="px-4 py-3">
+                                        <td class="px-3 py-3 sm:px-4">
                                             @if ($linkedDocs->isEmpty())
                                                 <div class="text-xs text-gray-400">Belum ada mapping dokumen</div>
                                             @else
@@ -606,6 +767,19 @@
                                                         <div class="text-[11px] text-gray-400">+{{ $t->documentLinks->count() - 5 }} skripsi lain</div>
                                                     @endif
                                                 </div>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-3 sm:px-4">
+                                            @if ($t->documentLinks->isNotEmpty())
+                                                <button
+                                                    type="button"
+                                                    wire:click="openTopicMappingsModal({{ $t->id }})"
+                                                    class="rounded-lg border border-unsoed-blue-200 bg-unsoed-blue-50 px-2.5 py-1 text-xs font-medium text-unsoed-blue-700 transition hover:bg-unsoed-blue-100"
+                                                >
+                                                    Lihat List
+                                                </button>
+                                            @else
+                                                <span class="text-xs text-gray-400">-</span>
                                             @endif
                                         </td>
                                     </tr>
@@ -661,10 +835,12 @@
                                 <div class="text-xs font-semibold text-gray-800">Run #{{ $r->id }}</div>
                                 <div class="text-xs text-gray-400">{{ $r->created_at?->format('d/m/Y H:i') }}
                                 </div>
-                                @if ($r->num_topics)
-                                    <div class="text-xs text-gray-500">{{ $r->num_topics }} topik | C_v:
-                                        {{ $r->coherence_cv ? number_format($r->coherence_cv, 3) : '-' }}</div>
-                                @endif
+                                <div class="text-xs text-gray-500">
+                                    {{ $r->num_topics ?? 0 }} topik | C_v:
+                                    {{ $r->coherence_cv !== null ? number_format((float) $r->coherence_cv, 4) : '-' }}
+                                    | TD:
+                                    {{ $r->topic_diversity !== null ? number_format((float) $r->topic_diversity, 4) : '-' }}
+                                </div>
                             </div>
                             <div class="flex flex-col items-end gap-1">
                                 <x-ui.badge type="{{ $badgeType }}">{{ ucfirst($r->status) }}</x-ui.badge>
@@ -684,119 +860,192 @@
     <x-ui.card no-padding>
         <div class="border-b border-gray-200 px-5 py-4">
             <h2 class="text-sm font-semibold text-gray-900">Konfigurasi BERTopic</h2>
-            <p class="mt-0.5 text-xs text-gray-500">Best params dari eksperimen.</p>
+            <p class="mt-0.5 text-xs text-gray-500">Disederhanakan mengikuti rekomendasi official BERTopic parameter tuning.</p>
         </div>
-        <div class="space-y-4 px-5 py-4">
-            {{-- UMAP --}}
-            <div>
-                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">UMAP</div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">n_neighbors</label>
-                        <input type="number" min="2"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.umap_params.n_neighbors" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">n_components</label>
-                        <input type="number" min="2"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.umap_params.n_components" />
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_dist</label>
-                        <input type="number" step="0.01" min="0" max="1"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.umap_params.min_dist" />
-                    </div>
-                </div>
-            </div>
+        <div class="space-y-5 px-5 py-4">
+            <x-ui.alert type="info">
+                Parameter tuning yang aktif mengikuti halaman official BERTopic: <strong>top_n_words</strong>,
+                <strong>n_gram_range</strong>, <strong>min_topic_size</strong>, <strong>nr_topics</strong>,
+                UMAP (<strong>n_neighbors</strong>, <strong>n_components</strong>, <strong>metric</strong>),
+                dan HDBSCAN (<strong>min_cluster_size</strong>, <strong>min_samples</strong>, <strong>metric</strong>).
+            </x-ui.alert>
 
-            {{-- HDBSCAN --}}
-            <div>
-                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">HDBSCAN</div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_cluster_size</label>
-                        <input type="number" min="2"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.hdbscan_params.min_cluster_size" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_samples</label>
-                        <input type="number" min="1"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.hdbscan_params.min_samples" />
-                    </div>
-                </div>
-            </div>
-
-            {{-- BERTopic --}}
             <div>
                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">BERTopic</div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">nr_topics</label>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">min_topic_size</label>
                         <input type="number" min="2"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.min_topic_size" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">nr_topics</label>
+                        <input type="text" placeholder="auto | 12 | kosong=null"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                             wire:model.live="bertopicParams.nr_topics" />
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_topic_size</label>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">top_n_words</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.top_n_words" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">n_gram_range_min</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.n_gram_range.0" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">n_gram_range_max</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.n_gram_range.1" />
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">UMAP</div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">n_neighbors</label>
                         <input type="number" min="2"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.min_topic_size" />
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.umap_params.n_neighbors" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">n_components</label>
+                        <input type="number" min="2"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.umap_params.n_components" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">metric</label>
+                        <input type="text"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.umap_params.metric" />
                     </div>
                 </div>
             </div>
 
             <div>
-                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Vectorizer</div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">HDBSCAN</div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">min_df</label>
-                        <input type="number" step="0.01" min="1"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.vectorizer_min_df" />
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">min_cluster_size</label>
+                        <input type="number" min="2"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.hdbscan_params.min_cluster_size" />
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">max_df</label>
-                        <input type="number" step="0.01" min="0.1" max="1"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.vectorizer_max_df" />
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Outlier & Representation</div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">reduce_outliers_threshold_ctfidf</label>
-                        <input type="number" step="0.01" min="0" max="1"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.reduce_outliers_threshold_ctfidf" />
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">min_samples</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.hdbscan_params.min_samples" />
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">mmr_diversity</label>
-                        <input type="number" step="0.01" min="0" max="1"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition"
-                            wire:model.live="bertopicParams.mmr_diversity" />
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">metric</label>
+                        <input type="text"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="bertopicParams.hdbscan_params.metric" />
                     </div>
                 </div>
             </div>
 
-            <div class="pt-2 flex flex-wrap items-center justify-between gap-3">
-                <div class="text-xs text-gray-400">Simpan sebagai default di database (per akun).</div>
-                <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M17 16v2a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h8m2 0l4 4m-4-4v4h4" />
-                    </svg>
-                    <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
-                    <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
-                </x-ui.button>
+            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
+                <div class="text-xs text-gray-400">Simpan sebagai default di database (BERTopic + LDA per akun).</div>
+                <div class="flex items-center gap-2">
+                    <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span wire:loading.remove wire:target="resetTrainingParamsToNotebookBest">Reset ke Best Eksperimen</span>
+                        <span wire:loading wire:target="resetTrainingParamsToNotebookBest">Reset…</span>
+                    </x-ui.button>
+
+                    <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16v2a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h8m2 0l4 4m-4-4v4h4" />
+                        </svg>
+                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
+                        <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
+                    </x-ui.button>
+                </div>
             </div>
+        </div>
+    </x-ui.card>
+
+    {{-- ---- LDA Settings ---- --}}
+    <x-ui.card no-padding>
+        <div class="border-b border-gray-200 px-5 py-4">
+            <h2 class="text-sm font-semibold text-gray-900">Konfigurasi LDA</h2>
+            <p class="mt-0.5 text-xs text-gray-500">Parameter LDA juga tersimpan sebagai default user agar konsisten dengan training payload.</p>
+        </div>
+        <div class="space-y-4 px-5 py-4">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">num_topics</label>
+                    <input type="number" min="2"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.num_topics" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">passes</label>
+                    <input type="number" min="1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.passes" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">iterations</label>
+                    <input type="number" min="1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.iterations" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">chunksize</label>
+                    <input type="number" min="1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.chunksize" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">random_state</label>
+                    <input type="number" min="0"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.random_state" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">no_below</label>
+                    <input type="number" min="1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.no_below" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">no_above</label>
+                    <input type="number" step="0.01" min="0" max="1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.no_above" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">alpha</label>
+                    <input type="text" placeholder="asymmetric | symmetric | auto | 0.1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.alpha" />
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">eta</label>
+                    <input type="text" placeholder="null | auto | symmetric | asymmetric | 0.1"
+                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model.live="ldaParams.eta" />
+                </div>
+            </div>
+
+            <x-ui.alert type="info">
+                Pilih model di atas tombol training. Preprocessing tetap satu alur, lalu training dijalankan sesuai model yang dipilih.
+            </x-ui.alert>
         </div>
     </x-ui.card>
 
@@ -812,12 +1061,20 @@
 </div>
 
 {{-- ========================== STICKY JOB STATUS (only when running) ========================== --}}
-@if ($preprocessingJobId || $trainingJobId)
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        @if ($preprocessingJobId)
+@php
+    $showPreprocessingCard = (bool) $preprocessingJobId || (($activeRun?->status ?? '') === 'preprocessing');
+    $showTrainingCard = (bool) $trainingJobId || (($activeRun?->status ?? '') === 'training');
+    $stickyCardCount = ($showPreprocessingCard ? 1 : 0) + ($showTrainingCard ? 1 : 0);
+@endphp
+@if ($stickyCardCount > 0)
+    <div @class([
+        'grid grid-cols-1 gap-4',
+        'xl:grid-cols-2' => $stickyCardCount > 1,
+    ])>
+        @if ($showPreprocessingCard)
             <div class="bg-white rounded-xl shadow-sm border-2 border-unsoed-blue-200 p-6"
                 wire:poll.2s="pollPreprocessingProgress">
-                <div class="flex items-center justify-between mb-4">
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center">
                         <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
                             <svg class="w-5 h-5 text-unsoed-blue-600 animate-spin" fill="none"
@@ -830,12 +1087,12 @@
                         </div>
                         <div>
                             <h2 class="text-sm font-semibold text-gray-900">Preprocessing Sedang Berjalan</h2>
-                            <p class="text-xs text-gray-400">Job ID: {{ $preprocessingJobId }}</p>
+                            <p class="text-xs text-gray-400">Job ID: {{ $preprocessingJobId !== '' ? $preprocessingJobId : 'Menunggu sinkronisasi...' }}</p>
                         </div>
                     </div>
                     <button type="button" wire:click="cancelPreprocessing"
                         wire:confirm="Yakin ingin membatalkan preprocessing?"
-                        class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center"
+                        class="w-full justify-center px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center sm:w-auto"
                         title="Batalkan Preprocessing">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -870,7 +1127,7 @@
             </div>
         @endif
 
-        @if ($trainingJobId)
+        @if ($showTrainingCard)
             <div class="bg-white rounded-xl shadow-sm border-2 border-unsoed-blue-200 p-6"
                 wire:poll.5s="pollTrainingProgress">
                 <div class="flex items-center justify-between mb-4">
@@ -886,7 +1143,7 @@
                         </div>
                         <div>
                             <h2 class="text-sm font-semibold text-gray-900">Training Sedang Berjalan</h2>
-                            <p class="text-xs text-gray-400">Job ID: {{ $trainingJobId }}</p>
+                            <p class="text-xs text-gray-400">Job ID: {{ $trainingJobId !== '' ? $trainingJobId : 'Menunggu sinkronisasi...' }}</p>
                         </div>
                     </div>
                 </div>
@@ -919,6 +1176,104 @@
         @endif
     </div>
 @endif
+
+<div
+    x-data="{ open: @entangle('showTopicMappingsModal').live }"
+    x-show="open"
+    x-cloak
+    class="fixed inset-0 z-50 overflow-y-auto"
+    role="dialog"
+    aria-modal="true"
+>
+    <div
+        x-show="open"
+        x-transition:enter="ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        @click="$wire.closeTopicMappingsModal()"
+    ></div>
+
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div
+            x-show="open"
+            x-transition:enter="ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            @click.stop
+        >
+            <div class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-4 py-4 sm:px-6">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2.5">
+                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+                                <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 11H5m14-4H5m14 8H9m-7 4h20" />
+                                </svg>
+                            </div>
+                            <h3 class="text-base font-bold text-white">Mapping Skripsi Topik {{ $selectedTopicModalTopicId }}</h3>
+                        </div>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            @foreach ($selectedTopicModalTopWords as $word)
+                                <span class="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white">{{ $word }}</span>
+                            @endforeach
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        wire:click="closeTopicMappingsModal"
+                        class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25"
+                        aria-label="Tutup modal"
+                    >
+                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="max-h-[65vh] overflow-auto px-4 py-4 sm:px-6 sm:py-5">
+                @if (count($selectedTopicModalDocs) === 0)
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                        Belum ada dokumen yang ter-mapping untuk topik ini.
+                    </div>
+                @else
+                    <div class="mb-3 text-xs text-gray-500">Total dokumen: <span class="font-semibold text-gray-700">{{ count($selectedTopicModalDocs) }}</span></div>
+                    <div class="overflow-hidden rounded-xl border border-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="w-24 px-2.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-3">ID</th>
+                                    <th class="w-20 px-2.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-3">Tahun</th>
+                                    <th class="px-2.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-3">Judul Skripsi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                @foreach ($selectedTopicModalDocs as $doc)
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-2.5 py-2 text-gray-700 sm:px-3">#{{ $doc['skripsi_id'] }}</td>
+                                        <td class="px-2.5 py-2 text-gray-600 sm:px-3">{{ $doc['year'] ?? '-' }}</td>
+                                        <td class="px-2.5 py-2 text-gray-800 sm:px-3">{{ $doc['title'] }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
 
 </div>
 </div>

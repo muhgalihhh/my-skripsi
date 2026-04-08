@@ -1,14 +1,11 @@
-"""
-LDA Trainer
-Handles training Gensim LDA models with configurable hyperparameters.
-Used as baseline comparison against BERTopic.
-"""
+"""Gensim LDA trainer used as baseline topic model."""
 
 import json
+import os
+import random
 import time
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -22,13 +19,6 @@ from app.services.stopwords import load_stopwords
 class LDATrainer:
     """
     Trainer for Gensim LDA model.
-
-    Pipeline:
-        1. Build dictionary from tokenized documents
-        2. Create bag-of-words corpus
-        3. Filter extremes
-        4. Train LDA model
-        5. Evaluate with coherence and diversity metrics
     """
 
     def __init__(self, params: Optional[LDAHyperparameters] = None):
@@ -52,13 +42,23 @@ class LDATrainer:
         """Tokenize preprocessed documents (simple whitespace split)."""
         return [doc.split() for doc in documents]
 
+    def _set_reproducibility(self) -> None:
+        """Set deterministic seeds and thread settings for stable LDA results."""
+        seed = int(self.params.random_state)
+
+        os.environ.setdefault("PYTHONHASHSEED", str(seed))
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+
+        random.seed(seed)
+        np.random.seed(seed)
+
     def _build_dictionary(self, tokenized_docs: List[List[str]]):
         """Build Gensim dictionary with filtering."""
         from gensim.corpora import Dictionary
 
         self.dictionary = Dictionary(tokenized_docs)
 
-        # Filter extremes
         self.dictionary.filter_extremes(
             no_below=self.params.no_below,
             no_above=self.params.no_above,
@@ -77,13 +77,23 @@ class LDATrainer:
         logger.info(f"Corpus built: {len(self.corpus)} documents")
         return self.corpus
 
-    def _parse_alpha_eta(self, value: str):
-        """Parse alpha/eta parameter - can be 'auto', 'symmetric', 'asymmetric', or float."""
-        if value in ("auto", "symmetric", "asymmetric"):
-            return value
-        try:
+    def _parse_alpha_eta(self, value: Any):
+        """Parse alpha/eta parameter from API payload into a Gensim-compatible value."""
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
             return float(value)
-        except ValueError:
+
+        text = str(value).strip().lower()
+        if text in ("none", "null", ""):
+            return None
+        if text in ("auto", "symmetric", "asymmetric"):
+            return text
+
+        try:
+            return float(text)
+        except (TypeError, ValueError):
             return "auto"
 
     def train(
@@ -91,83 +101,43 @@ class LDATrainer:
         documents: List[str],
         timestamps: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
-        """
-        Train LDA model.
-
-        Args:
-            documents: List of preprocessed text documents (processed_text — stemmed)
-            timestamps: List of years (for per-year analysis, optional)
-
-        Returns:
-            Dictionary with training results and metrics
-
-        Catatan:
-            LdaMulticore TIDAK mendukung alpha='auto' atau eta='auto'.
-            Gunakan conditional: LdaModel jika salah satu pakai 'auto',
-            LdaMulticore jika keduanya menggunakan nilai fixed (lebih cepat).
-        """
-        from gensim.models import LdaModel, LdaMulticore
+        """Train LDA model and optionally compute per-year topic distribution."""
+        from gensim.models import LdaModel
 
         start_time = time.time()
         logger.info(f"Starting LDA training on {len(documents)} documents")
 
-        # Tokenize
+        self._set_reproducibility()
+
         self.tokenized_docs = self._tokenize_documents(documents)
 
-        # Build dictionary & corpus
         self._build_dictionary(self.tokenized_docs)
         self._build_corpus(self.tokenized_docs)
 
-        # Parse alpha dan eta
         alpha = self._parse_alpha_eta(self.params.alpha)
         eta = self._parse_alpha_eta(self.params.eta)
 
-        # Pilih model berdasarkan parameter:
-        # LdaMulticore TIDAK support alpha='auto' atau eta='auto'
-        # → Jika salah satu 'auto', gunakan LdaModel (single-core, support auto-tuning)
-        # → Jika keduanya non-auto, gunakan LdaMulticore (lebih cepat)
-        use_multicore = alpha != "auto" and eta != "auto"
-
-        # Train LDA
         logger.info(
             f"Training LDA with {self.params.num_topics} topics, "
             f"{self.params.passes} passes "
-            f"(model: {'LdaMulticore' if use_multicore else 'LdaModel'}, "
-            f"alpha={alpha}, eta={eta})..."
+            f"(model: LdaModel deterministic, alpha={alpha}, eta={eta})..."
         )
 
-        if use_multicore:
-            # Multicore: lebih cepat untuk parameter fixed
-            self.model = LdaMulticore(
-                corpus=self.corpus,
-                id2word=self.dictionary,
-                num_topics=self.params.num_topics,
-                passes=self.params.passes,
-                iterations=self.params.iterations,
-                chunksize=self.params.chunksize,
-                random_state=self.params.random_state,
-                alpha=alpha,
-                eta=eta,
-                per_word_topics=True,
-            )
-        else:
-            # LdaModel: single-core, tapi support auto-tuning alpha/eta
-            self.model = LdaModel(
-                corpus=self.corpus,
-                id2word=self.dictionary,
-                num_topics=self.params.num_topics,
-                passes=self.params.passes,
-                iterations=self.params.iterations,
-                random_state=self.params.random_state,
-                alpha=alpha,
-                eta=eta,
-                per_word_topics=True,
-            )
+        self.model = LdaModel(
+            corpus=self.corpus,
+            id2word=self.dictionary,
+            num_topics=self.params.num_topics,
+            passes=self.params.passes,
+            iterations=self.params.iterations,
+            random_state=self.params.random_state,
+            alpha=alpha,
+            eta=eta,
+            per_word_topics=True,
+        )
 
         duration = time.time() - start_time
         logger.info(f"LDA training complete in {duration:.2f}s")
 
-        # Build result
         result = {
             "model_type": "lda",
             "num_topics": self.params.num_topics,
@@ -176,7 +146,6 @@ class LDATrainer:
             "topic_info": self._extract_topic_info(),
         }
 
-        # Per-year topic distribution if timestamps provided
         if timestamps is not None:
             result["topics_per_year"] = self._compute_topics_per_year(
                 documents, timestamps

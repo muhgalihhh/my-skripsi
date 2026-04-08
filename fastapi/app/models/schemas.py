@@ -1,12 +1,4 @@
-"""
-Pydantic Schemas for API request/response models.
-
-Arsitektur:
-    BERTopic menggunakan IndoSBERT-large (denaya/indoSBERT-large) sebagai
-    sentence encoder. IndoSBERT sendiri adalah IndoBERT-large yang dilatih
-    ulang menggunakan Siamese Network, sehingga fondasi teorinya tetap
-    berbasis IndoBERT.
-"""
+"""Pydantic schemas for API request/response models."""
 
 from datetime import datetime
 from enum import Enum
@@ -14,9 +6,6 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-# ============================================
-# Enums
-# ============================================
 
 class ModelType(str, Enum):
     """Supported topic model types."""
@@ -39,60 +28,20 @@ class TrendDirection(str, Enum):
     STABLE = "stable"
 
 
-# ============================================
-# Scraping Schemas
-# ============================================
-
 class ScrapingRequest(BaseModel):
     """Request to start a scraping job."""
     start_year: int = Field(2019, ge=2000, le=2030, description="Start year for scraping")
-    end_year: int = Field(2025, ge=2000, le=2030, description="End year for scraping")
+    end_year: int = Field(2026, ge=2000, le=2030, description="End year for scraping")
     max_pages: Optional[int] = Field(None, ge=1, description="Max pages to scrape per year")
 
-
-class ScrapedDocument(BaseModel):
-    """Single scraped document."""
-    title: str
-    abstract: str
-    year: int
-    author: Optional[str] = None
-    url: Optional[str] = None
-
-
-class ScrapingResponse(BaseModel):
-    """Response from scraping job."""
-    status: str
-    total_documents: int
-    documents_per_year: Dict[str, int]
-    message: str
-
-
-# ============================================
-# Preprocessing Schemas
-# ============================================
 
 class PreprocessingStartRequest(BaseModel):
     """Request to start a preprocessing background job."""
     run_id: int = Field(description="Run ID from the database to load config")
 
-class PreprocessingJobStatus(BaseModel):
-    """Response containing preprocessing job status."""
-    job_id: str
-    status: str
-    progress: float
-    message: str
-    total_documents: int = 0
-    processed: int = 0
-    error: Optional[str] = None
-
-
-# ============================================
-# Hyperparameter Schemas
-# ============================================
-
 class UMAPHyperparameters(BaseModel):
     """UMAP dimensionality reduction parameters."""
-    n_neighbors: int = Field(75, ge=2, description="Number of neighbors for local structure")
+    n_neighbors: int = Field(40, ge=2, description="Number of neighbors for local structure")
     n_components: int = Field(5, ge=2, description="Target dimensions")
     min_dist: float = Field(0.0, ge=0.0, le=1.0, description="Minimum distance between points")
     metric: str = Field("cosine", description="Distance metric")
@@ -101,8 +50,9 @@ class UMAPHyperparameters(BaseModel):
 
 class HDBSCANHyperparameters(BaseModel):
     """HDBSCAN clustering parameters."""
-    min_cluster_size: int = Field(12, ge=2, description="Minimum cluster size")
+    min_cluster_size: int = Field(16, ge=2, description="Minimum cluster size")
     min_samples: Optional[int] = Field(1, ge=1, description="Min samples")
+    metric: str = Field("euclidean", description="Distance metric for HDBSCAN")
     cluster_selection_method: str = Field("eom", description="'eom' or 'leaf'")
 
 
@@ -111,8 +61,8 @@ class BERTopicHyperparameters(BaseModel):
     Hyperparameters for BERTopic model.
 
     Default embedding_model = denaya/indoSBERT-large
-    → IndoBERT-large architecture + Siamese Network training
-    → Produces 768-dim sentence embeddings optimized for Bahasa Indonesia
+    -> IndoBERT-large architecture + Siamese Network training
+    -> Produces 256-dim sentence embeddings optimized for Indonesian text
     """
     # Sentence encoder: IndoSBERT-large (Siamese from IndoBERT-large)
     embedding_model: str = Field(
@@ -122,7 +72,7 @@ class BERTopicHyperparameters(BaseModel):
             "(IndoBERT-large re-trained with Siamese Network)"
         ),
     )
-    min_topic_size: int = Field(10, ge=2, description="Minimum topic size for BERTopic")
+    min_topic_size: int = Field(12, ge=2, description="Minimum topic size for BERTopic")
     nr_topics: Optional[int | Literal["auto"]] = Field(
         None,
         description="Number of topics. Use integer or 'auto'.",
@@ -177,21 +127,17 @@ class BERTopicHyperparameters(BaseModel):
 
 
 class LDAHyperparameters(BaseModel):
-    """Hyperparameters for LDA model (Gensim) — baseline tradisional."""
-    num_topics: int = Field(10, ge=2, description="Number of topics")
-    passes: int = Field(15, ge=1, description="Number of passes through the corpus")
-    iterations: int = Field(400, ge=1, description="Max iterations for convergence")
+    """Hyperparameters for the LDA (Gensim) baseline model."""
+    num_topics: int = Field(12, ge=2, description="Number of topics")
+    passes: int = Field(20, ge=1, description="Number of passes through the corpus")
+    iterations: int = Field(300, ge=1, description="Max iterations for convergence")
     chunksize: int = Field(100, ge=1, description="Number of docs per training chunk")
     random_state: int = 42
-    alpha: str = Field("auto", description="Document-topic density ('auto', 'symmetric', or float)")
-    eta: str = Field("auto", description="Topic-word density ('auto', 'symmetric', or float)")
-    no_below: int = Field(5, ge=1, description="Filter tokens appearing in fewer than N docs")
-    no_above: float = Field(0.5, gt=0.0, le=1.0, description="Filter tokens appearing in more than fraction of docs")
+    alpha: str | float = Field("asymmetric", description="Document-topic density ('auto', 'symmetric', 'asymmetric', or float)")
+    eta: str | float | None = Field(None, description="Topic-word density ('auto', 'symmetric', 'asymmetric', float, or null)")
+    no_below: int = Field(2, ge=1, description="Filter tokens appearing in fewer than N docs")
+    no_above: float = Field(0.95, gt=0.0, le=1.0, description="Filter tokens appearing in more than fraction of docs")
 
-
-# ============================================
-# Training Schemas
-# ============================================
 
 class TrainingRequest(BaseModel):
     """Request to start a training job."""
@@ -213,27 +159,6 @@ class TrainingStatusResponse(BaseModel):
     error: Optional[str] = None
 
 
-class TrainingResultResponse(BaseModel):
-    """Response containing training results."""
-    job_id: str
-    model_type: ModelType
-    status: TrainingStatus
-    # Metrics
-    coherence_score: Optional[float] = None
-    topic_diversity: Optional[float] = None
-    num_topics_found: Optional[int] = None
-    # Topics
-    topics: Optional[List[Dict[str, Any]]] = None
-    # Metadata
-    training_duration_seconds: Optional[float] = None
-    hyperparameters: Optional[Dict[str, Any]] = None
-    created_at: Optional[datetime] = None
-
-
-# ============================================
-# Evaluation / Comparison Schemas
-# ============================================
-
 class ComparisonRequest(BaseModel):
     """Request to compare BERTopic vs LDA."""
     bertopic_job_id: str
@@ -254,17 +179,12 @@ class ComparisonResponse(BaseModel):
     summary: str
 
 
-# ============================================
-# Dynamic Topic Analysis (DTA) Schemas
-# ============================================
-
 class DTARequest(BaseModel):
     """
     Request for Dynamic Topic Analysis.
 
-    DTA menganalisis evolusi topik per tahun menggunakan
-    BERTopic.topics_over_time() untuk mendeteksi topik
-    emerging, declining, dan stable.
+    Tracks topic evolution by year using BERTopic.topics_over_time()
+    and classifies trends as emerging, declining, or stable.
     """
     job_id: str = Field(description="BERTopic training job ID to use")
     year_start: int = Field(2019, ge=2000, le=2030)
@@ -304,10 +224,6 @@ class DTAResponse(BaseModel):
     )
 
 
-# ============================================
-# General Response Schemas
-# ============================================
-
 class HealthResponse(BaseModel):
     """Health check response."""
     status: str = "ok"
@@ -317,9 +233,3 @@ class HealthResponse(BaseModel):
     embedding_model: str = Field(
         description="Active sentence-transformer model (IndoSBERT)"
     )
-
-
-class ErrorResponse(BaseModel):
-    """Standard error response."""
-    detail: str
-    error_code: Optional[str] = None

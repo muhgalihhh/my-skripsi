@@ -1,43 +1,29 @@
-"""
-Training Service (Orchestrator)
-Coordinates the full training pipeline:
-  data loading → preprocessing → model training → evaluation → saving results.
+"""Training service with in-memory job tracking."""
 
-Manages training jobs with status tracking.
-"""
-
+import hashlib
 import json
 import tarfile
-import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
 from app.core.config import path_settings
 from app.ml.bertopic_trainer import BERTopicTrainer
 from app.ml.evaluator import TopicEvaluator
 from app.ml.lda_trainer import LDATrainer
 from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 ModelType, TrainingStatus)
-from app.services.preprocessing import TextPreprocessor
 from loguru import logger
 
-# In-memory job store (replace with DB for production)
 _training_jobs: Dict[str, Dict[str, Any]] = {}
 
 
 class TrainingService:
-    """Orchestrates the full training pipeline."""
+    """Run BERTopic/LDA training and persist outputs."""
 
     def __init__(self):
-        self.preprocessor = TextPreprocessor()
         self.evaluator = TopicEvaluator()
-
-    # ============================================
-    # Job Management
-    # ============================================
 
     def create_job(self, model_type: ModelType, description: str = "") -> str:
         """Create a new training job and return its ID."""
@@ -70,49 +56,23 @@ class TrainingService:
         if job_id in _training_jobs:
             _training_jobs[job_id].update(kwargs)
 
-    # ============================================
-    # Data Loading
-    # ============================================
-
-    def load_data(self, filename: str = "raw_data.csv") -> pd.DataFrame:
-        """Load raw data from CSV."""
-        data_path = path_settings.get_raw_data_dir() / filename
-        if not data_path.exists():
-            raise FileNotFoundError(
-                f"Data file not found: {data_path}. "
-                f"Please place your data CSV in {path_settings.get_raw_data_dir()}"
-            )
-        df = pd.read_csv(data_path, encoding="utf-8")
-        logger.info(f"Loaded {len(df)} records from {data_path}")
-        return df
-
-    def preprocess_data(
-        self,
-        df: pd.DataFrame,
-        text_column: str = "abstract",
-    ) -> pd.DataFrame:
-        """
-        Preprocess data (dual pipeline) and save processed version.
-
-        Output DataFrame will contain both:
-          - cleaned_text  → for BERTopic (IndoSBERT)
-          - processed_text → for LDA (tokenized + stemmed)
-        """
-        processed_df = self.preprocessor.preprocess_dataframe(
-            df, text_column=text_column
-        )
-
-        # Save processed data
-        path_settings.ensure_dirs()
-        output_path = path_settings.get_processed_data_dir() / "processed_data.csv"
-        processed_df.to_csv(output_path, index=False, encoding="utf-8")
-        logger.info(f"Saved processed data to {output_path}")
-
-        return processed_df
-
-    # ============================================
-    # Training Pipelines
-    # ============================================
+    @staticmethod
+    def _build_run_fingerprint(
+        model_type: str,
+        documents: List[str],
+        params: Dict[str, Any],
+        timestamps: Optional[List[int]] = None,
+        document_ids: Optional[List[int]] = None,
+    ) -> str:
+        payload = {
+            "model_type": model_type,
+            "documents": documents,
+            "params": params,
+            "timestamps": timestamps or [],
+            "document_ids": document_ids or [],
+        }
+        canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def train_bertopic(
         self,
@@ -122,15 +82,7 @@ class TrainingService:
         document_ids: Optional[List[int]] = None,
         params: Optional[BERTopicHyperparameters] = None,
     ) -> Dict[str, Any]:
-        """
-        Full BERTopic training pipeline.
-
-        Args:
-            job_id: Training job ID
-            documents: Preprocessed text documents
-            timestamps: Year for each document (for dynamic analysis)
-            params: Hyperparameters (uses defaults if None)
-        """
+        """Run BERTopic training, evaluation, and persistence for one job."""
         self._update_job(
             job_id,
             status=TrainingStatus.RUNNING.value,
@@ -142,7 +94,6 @@ class TrainingService:
         try:
             trainer = BERTopicTrainer(params=params)
 
-            # Step 1: Train
             self._update_job(job_id, message="Training BERTopic model...", progress=30.0)
             result = trainer.train(
                 documents,
@@ -150,7 +101,17 @@ class TrainingService:
                 document_ids=document_ids,
             )
 
-            # Safety net: ensure topic-to-document mapping is always persisted.
+            result["reproducibility"] = {
+                "run_fingerprint": self._build_run_fingerprint(
+                    model_type="bertopic",
+                    documents=documents,
+                    params=trainer.params.model_dump(),
+                    timestamps=timestamps,
+                    document_ids=document_ids,
+                ),
+                "n_documents": len(documents),
+            }
+
             if (
                 document_ids is not None
                 and "document_topics" not in result
@@ -166,25 +127,24 @@ class TrainingService:
                     for doc_id, topic_id in zip(document_ids, trainer.topics)
                 ]
 
-            # Step 2: Evaluate
             self._update_job(job_id, message="Evaluating model...", progress=70.0)
             metrics = self.evaluator.evaluate_bertopic(
                 model=trainer.model,
                 documents=documents,
+                topics=trainer.topics,
                 vectorizer_model=trainer.vectorizer_model,
                 coherence_type=trainer.params.coherence_type,
                 coherence_tokenization=trainer.params.coherence_tokenization,
                 coherence_dict_no_below=trainer.params.coherence_dict_no_below,
                 coherence_dict_no_above=trainer.params.coherence_dict_no_above,
+                top_n_words=trainer.params.top_n_words,
             )
             result["metrics"] = metrics
 
-            # Step 3: Save model
             self._update_job(job_id, message="Saving model...", progress=90.0)
             model_path = trainer.save_model(job_id)
             result["model_path"] = model_path
 
-            # Step 4: Save results
             self._save_results(job_id, result)
 
             self._update_job(
@@ -217,15 +177,7 @@ class TrainingService:
         timestamps: Optional[List[int]] = None,
         params: Optional[LDAHyperparameters] = None,
     ) -> Dict[str, Any]:
-        """
-        Full LDA training pipeline.
-
-        Args:
-            job_id: Training job ID
-            documents: Preprocessed text documents
-            timestamps: Year for each document (for per-year analysis)
-            params: Hyperparameters (uses defaults if None)
-        """
+        """Run LDA training, evaluation, and persistence for one job."""
         self._update_job(
             job_id,
             status=TrainingStatus.RUNNING.value,
@@ -237,11 +189,19 @@ class TrainingService:
         try:
             trainer = LDATrainer(params=params)
 
-            # Step 1: Train
             self._update_job(job_id, message="Training LDA model...", progress=30.0)
             result = trainer.train(documents, timestamps=timestamps)
 
-            # Step 2: Evaluate
+            result["reproducibility"] = {
+                "run_fingerprint": self._build_run_fingerprint(
+                    model_type="lda",
+                    documents=documents,
+                    params=trainer.params.model_dump(),
+                    timestamps=timestamps,
+                ),
+                "n_documents": len(documents),
+            }
+
             self._update_job(job_id, message="Evaluating model...", progress=70.0)
             metrics = self.evaluator.evaluate_lda(
                 model=trainer.model,
@@ -250,12 +210,10 @@ class TrainingService:
             )
             result["metrics"] = metrics
 
-            # Step 3: Save model
             self._update_job(job_id, message="Saving model...", progress=90.0)
             model_path = trainer.save_model(job_id)
             result["model_path"] = model_path
 
-            # Step 4: Save results
             self._save_results(job_id, result)
 
             self._update_job(
@@ -281,18 +239,12 @@ class TrainingService:
             )
             raise
 
-    # ============================================
-    # Results Management
-    # ============================================
-
     def _save_results(self, job_id: str, result: Dict[str, Any]) -> str:
         """Save training results to JSON."""
         path_settings.ensure_dirs()
         results_dir = path_settings.get_results_dir()
         result_path = results_dir / f"result_{job_id}.json"
 
-        # Persist model artifacts alongside results for later reuse.
-        # This makes it easier to retrieve the model from the same "results" folder.
         model_path = result.get("model_path")
         archive_path = self._archive_model_artifacts(job_id=job_id, model_path=model_path)
 
@@ -300,7 +252,6 @@ class TrainingService:
         if archive_path is not None:
             result["model_archive_path"] = archive_path
 
-        # Make result JSON serializable
         serializable = json.loads(
             json.dumps(result, default=str)
         )
@@ -331,7 +282,6 @@ class TrainingService:
         results_dir = path_settings.get_results_dir()
         archive_file = results_dir / f"model_{job_id}.tar.gz"
 
-        # Overwrite if exists (retraining same job_id is unlikely, but keep deterministic).
         try:
             if archive_file.exists():
                 archive_file.unlink()
@@ -339,7 +289,6 @@ class TrainingService:
             pass
 
         with tarfile.open(archive_file, "w:gz") as tar:
-            # Store the folder under its basename to avoid absolute paths in the archive.
             tar.add(model_dir, arcname=model_dir.name)
 
         logger.info(f"Model archived to {archive_file}")

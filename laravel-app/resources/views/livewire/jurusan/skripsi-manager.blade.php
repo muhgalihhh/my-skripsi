@@ -43,6 +43,31 @@
                     <option value="50">50 per halaman</option>
                 </select>
             </div>
+
+            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-gray-500">Export mengikuti filter dan pencarian yang sedang aktif.</p>
+                <div class="flex flex-wrap gap-2">
+                    <button wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv"
+                        class="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-60">
+                        <svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 16V4m0 12l-4-4m4 4l4-4M5 20h14" />
+                        </svg>
+                        <span wire:loading.remove wire:target="exportCsv">Export CSV</span>
+                        <span wire:loading wire:target="exportCsv">Menyiapkan...</span>
+                    </button>
+
+                    <button wire:click="exportExcel" wire:loading.attr="disabled" wire:target="exportExcel"
+                        class="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition disabled:opacity-60">
+                        <svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 16V4m0 12l-4-4m4 4l4-4M5 20h14" />
+                        </svg>
+                        <span wire:loading.remove wire:target="exportExcel">Export Excel</span>
+                        <span wire:loading wire:target="exportExcel">Menyiapkan...</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
         {{-- ── Bulk Action Bar ──────────────────────────────── --}}

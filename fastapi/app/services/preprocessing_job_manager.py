@@ -29,6 +29,8 @@ class PreprocessingJobStatus(str, Enum):
 class PreprocessingJob:
     """Represents a single preprocessing job with progress tracking."""
 
+    DROP_SAMPLE_LIMIT = 200
+
     def __init__(self, job_id: str, run_id: int):
         self.job_id = job_id
         self.run_id = run_id
@@ -41,6 +43,15 @@ class PreprocessingJob:
         self.created_at = datetime.utcnow()
         self.started_at: Optional[datetime] = None
         self.completed_at: Optional[datetime] = None
+        self.dropped_summary: Dict[str, int] = {
+            "dropna_abstract": 0,
+            "short_abstract": 0,
+            "duplicate_abstract": 0,
+            "year_out_of_range": 0,
+            "empty_after_preprocessing": 0,
+        }
+        self.dropped_records_total = 0
+        self.dropped_records_sample: List[Dict[str, Any]] = []
         self._lock = threading.Lock()
 
     def update(self, **kwargs):
@@ -70,6 +81,21 @@ class PreprocessingJob:
             self.error = error
             self.message = f"Gagal: {error}"
 
+    def add_dropped_records(self, reason: str, records: List[Dict[str, Any]], total_count: int):
+        """Track dropped-record counts and keep a capped sample for inspection."""
+        if total_count <= 0:
+            return
+
+        with self._lock:
+            self.dropped_summary[reason] = self.dropped_summary.get(reason, 0) + int(total_count)
+            self.dropped_records_total += int(total_count)
+
+            remaining = self.DROP_SAMPLE_LIMIT - len(self.dropped_records_sample)
+            if remaining <= 0 or not records:
+                return
+
+            self.dropped_records_sample.extend(records[:remaining])
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert job to dictionary for API response."""
         with self._lock:
@@ -82,6 +108,9 @@ class PreprocessingJob:
                 "total_documents": self.total_documents,
                 "processed": self.processed,
                 "error": self.error,
+                "dropped_summary": self.dropped_summary,
+                "dropped_records_total": self.dropped_records_total,
+                "dropped_records_sample": self.dropped_records_sample,
                 "started_at": self.started_at.isoformat() if self.started_at else None,
                 "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             }
@@ -99,12 +128,45 @@ class PreprocessingJobManager:
     YEAR_MIN = 2018
     YEAR_MAX = 2026
 
+    @staticmethod
+    def _make_drop_samples(df: pd.DataFrame, reason: str, sample_limit: int = 25) -> List[Dict[str, Any]]:
+        """Build compact drop samples for API visibility."""
+        if df.empty:
+            return []
+
+        samples = []
+        for _, row in df.head(sample_limit).iterrows():
+            year_val = row.get("year")
+            if pd.isna(year_val):
+                year = None
+            else:
+                try:
+                    year = int(year_val)
+                except Exception:
+                    year = None
+
+            abstract_preview = row.get("abstract")
+            abstract_preview = None if pd.isna(abstract_preview) else str(abstract_preview).strip()
+            if abstract_preview:
+                abstract_preview = abstract_preview[:180]
+
+            samples.append(
+                {
+                    "id": int(row["id"]) if "id" in row and not pd.isna(row["id"]) else None,
+                    "title": None if pd.isna(row.get("title")) else str(row.get("title"))[:180],
+                    "year": year,
+                    "reason": reason,
+                    "abstract_preview": abstract_preview,
+                }
+            )
+        return samples
+
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
-                cls._instance._jobs: Dict[str, PreprocessingJob] = {}
-                cls._instance._active_job_id: Optional[str] = None
+                cls._instance._jobs = {}
+                cls._instance._active_job_id = None
             return cls._instance
 
     @property
@@ -207,27 +269,42 @@ class PreprocessingJobManager:
             )
 
             # 1.1 Notebook-aligned dataset cleaning
+            dropped_na_df = df[df["abstract"].isna()].copy()
             before_na = len(df)
             df = df.dropna(subset=["abstract"])
             after_na = len(df)
+            if not dropped_na_df.empty:
+                job.add_dropped_records(
+                    reason="dropna_abstract",
+                    records=self._make_drop_samples(dropped_na_df, "dropna_abstract"),
+                    total_count=len(dropped_na_df),
+                )
 
             before_dedup = len(df)
-            # Normalize abstract to make dedup robust against casing/whitespace differences.
-            # This keeps behavior aligned with notebook intent (remove semantic duplicates).
-            abstract_norm = (
-                df["abstract"]
-                .astype(str)
-                .str.lower()
-                .str.replace(r"\s+", " ", regex=True)
-                .str.strip()
-            )
-            df = df.loc[~abstract_norm.duplicated(keep="first")]
+            # Keep dedup logic identical to notebook: exact duplicate by abstract column.
+            duplicate_mask = df.duplicated(subset=["abstract"], keep="first")
+            dropped_dup_df = df.loc[duplicate_mask].copy()
+            df = df.loc[~duplicate_mask]
             after_dedup = len(df)
+            if not dropped_dup_df.empty:
+                job.add_dropped_records(
+                    reason="duplicate_abstract",
+                    records=self._make_drop_samples(dropped_dup_df, "duplicate_abstract"),
+                    total_count=len(dropped_dup_df),
+                )
 
+            dropped_year_df = pd.DataFrame()
             if "year" in df.columns:
                 year_series = pd.to_numeric(df["year"], errors="coerce")
+                dropped_year_df = df.loc[~year_series.between(self.YEAR_MIN, self.YEAR_MAX)].copy()
                 df = df[year_series.between(self.YEAR_MIN, self.YEAR_MAX)]
             after_year = len(df)
+            if not dropped_year_df.empty:
+                job.add_dropped_records(
+                    reason="year_out_of_range",
+                    records=self._make_drop_samples(dropped_year_df, "year_out_of_range"),
+                    total_count=len(dropped_year_df),
+                )
             df = df.reset_index(drop=True)
 
             job.update(
@@ -258,13 +335,27 @@ class PreprocessingJobManager:
                 return
 
             # 2.1 Build combined_text + dual pipeline (cleaned_text + processed_text)
-            job.update(message="Running notebook-aligned dual preprocessing...", progress=40.0)
+            job.update(message="Running dual preprocessing pipeline...", progress=40.0)
+            df_before_preprocess = df.copy()
+            ids_before_preprocess = set(df["id"].tolist()) if "id" in df.columns else set()
             df = preprocessor.preprocess_dataframe(
                 df,
                 text_column="abstract",
                 title_column="title",
                 conclusion_column="conclusion",
             )
+            if ids_before_preprocess and "id" in df.columns:
+                ids_after_preprocess = set(df["id"].tolist())
+                dropped_ids = ids_before_preprocess - ids_after_preprocess
+                if dropped_ids:
+                    dropped_preproc_df = df_before_preprocess[
+                        df_before_preprocess["id"].isin(dropped_ids)
+                    ].copy()
+                    job.add_dropped_records(
+                        reason="empty_after_preprocessing",
+                        records=self._make_drop_samples(dropped_preproc_df, "empty_after_preprocessing"),
+                        total_count=len(dropped_ids),
+                    )
 
             if len(df) == 0:
                 job.mark_completed(0)
