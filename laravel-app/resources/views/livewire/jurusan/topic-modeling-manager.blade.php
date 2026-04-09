@@ -26,30 +26,19 @@
                             </select>
                         </div>
                         <x-ui.button wire:click="buildPreview" wire:loading.attr="disabled" variant="secondary" class="w-full sm:w-auto">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
+                            <x-app.icon name="arrow-path" class="h-4 w-4" />
                             Refresh preview
                         </x-ui.button>
-                        <x-ui.button wire:click="runPreprocessing" wire:loading.attr="disabled" variant="primary"
+                        <x-ui.button wire:click="openRunPreprocessingConfirm" wire:loading.attr="disabled" variant="primary"
                             :disabled="(($apiStatus['status'] ?? '') !== 'ok')" class="w-full sm:w-auto">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
+                            <x-app.icon name="funnel" class="h-4 w-4" />
                             <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
                             <span wire:loading wire:target="runPreprocessing">Processing…</span>
                         </x-ui.button>
-                        <x-ui.button type="button" wire:click="startTraining" wire:loading.attr="disabled" variant="success"
+                        <x-ui.button type="button" wire:click="openStartTrainingConfirm" wire:loading.attr="disabled" variant="success"
                             :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed']))"
                             class="w-full sm:w-auto">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                            <x-app.icon name="play-circle" class="h-4 w-4" />
                             <span wire:loading.remove wire:target="startTraining">Start Training {{ strtoupper($modelType) }}</span>
                             <span wire:loading wire:target="startTraining">Starting…</span>
                         </x-ui.button>
@@ -83,11 +72,7 @@
 
         @if (($apiStatus['status'] ?? '') !== 'ok')
             <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd"
-                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                        clip-rule="evenodd" />
-                </svg>
+                <x-app.icon variant="o" name="exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <div>
                     FastAPI service tidak aktif. Pastikan container <code
                         class="mx-1 rounded bg-amber-100 px-1.5 py-0.5 font-mono">skripsi-fastapi</code>
@@ -127,11 +112,7 @@
                     <button wire:click="checkApiStatus"
                         class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                         wire:loading.class="opacity-50" wire:target="checkApiStatus">
-                        <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus"
-                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus" />
                         Refresh Status
                     </button>
                 </div>
@@ -149,11 +130,7 @@
                     <button wire:click="loadDatasetSummary"
                         class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                         wire:loading.class="opacity-50" wire:target="loadDatasetSummary">
-                        <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadDatasetSummary"
-                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadDatasetSummary" />
                         Refresh
                     </button>
                 </div>
@@ -250,11 +227,7 @@
                         <button wire:click="loadPreprocessingDroppedReport"
                             class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                             wire:loading.class="opacity-50" wire:target="loadPreprocessingDroppedReport">
-                            <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadPreprocessingDroppedReport"
-                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
+                            <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadPreprocessingDroppedReport" />
                             Refresh
                         </button>
                     </div>
@@ -459,11 +432,7 @@
                         </div>
                     @empty
                         <div class="px-5 py-8 text-center text-sm text-gray-400">
-                            <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                            <x-app.icon name="funnel" class="mx-auto mb-3 h-10 w-10 text-gray-300" />
                             Belum ada data abstrak di topic_model_datasets. Jalankan preprocessing terlebih dahulu.
                         </div>
                     @endforelse
@@ -488,12 +457,7 @@
                     <button wire:click="loadDbPreprocessedRows" wire:loading.attr="disabled"
                         class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
                         wire:loading.class="opacity-50" wire:target="loadDbPreprocessedRows">
-                        <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin"
-                            wire:target="loadDbPreprocessedRows" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadDbPreprocessedRows" />
                         Refresh
                     </button>
                 </div>
@@ -560,11 +524,7 @@
                     </div>
                 @else
                     <div class="px-5 py-8 text-center text-sm text-gray-400">
-                        <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
+                        <x-app.icon name="funnel" class="mx-auto mb-3 h-10 w-10 text-gray-300" />
                         Belum ada hasil preprocessing tersimpan di database.
                         <div class="mt-1 text-xs">Jalankan <strong>Preprocessing</strong> dulu.</div>
                     </div>
@@ -582,17 +542,11 @@
                     @if ($activeRun->fastapi_training_job_id)
                         <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                             <x-ui.button wire:click="downloadModel" wire:loading.attr="disabled" variant="secondary">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-                                </svg>
+                                <x-app.icon name="arrow-down-tray" class="h-4 w-4" />
                                 Download Model
                             </x-ui.button>
-                            <x-ui.button wire:click="testModelWithDataset" wire:loading.attr="disabled" variant="secondary">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-9 4h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
+                            <x-ui.button wire:click="openTestModelWithDatasetConfirm" wire:loading.attr="disabled" variant="secondary">
+                                <x-app.icon name="beaker" class="h-4 w-4" />
                                 <span wire:loading.remove wire:target="testModelWithDataset">Test Model (Dataset)</span>
                                 <span wire:loading wire:target="testModelWithDataset">Testing…</span>
                             </x-ui.button>
@@ -740,6 +694,11 @@
                                                 class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-unsoed-blue-100 text-xs font-bold text-unsoed-blue-800">
                                                 {{ $t->topic_id }}
                                             </span>
+                                            @if (filled($t->custom_name))
+                                                <div class="mt-1 text-xs font-semibold text-unsoed-blue-800 line-clamp-1" title="{{ $t->custom_name }}">
+                                                    {{ $t->custom_name }}
+                                                </div>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-3 text-gray-600 sm:px-4">{{ $t->count }}</td>
                                         <td class="px-3 py-3 sm:px-4">
@@ -749,6 +708,11 @@
                                                         class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                                 @endforeach
                                             </div>
+                                            @if (filled($t->representation_description))
+                                                <div class="mt-1.5 max-w-xs text-xs leading-relaxed text-gray-500 line-clamp-2" title="{{ $t->representation_description }}">
+                                                    {{ $t->representation_description }}
+                                                </div>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-3 sm:px-4">
                                             @if ($linkedDocs->isEmpty())
@@ -802,11 +766,7 @@
                     </div>
                 @else
                     <div class="flex flex-col items-center py-10 text-center">
-                        <svg class="mb-3 h-12 w-12 text-gray-200" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
+                        <x-app.icon name="funnel" class="mb-3 h-12 w-12 text-gray-200" />
                         <div class="text-sm font-medium text-gray-500">Belum ada hasil training</div>
                         <div class="mt-1 text-xs text-gray-400">Jalankan Preprocessing → Start Training untuk
                             memulai.</div>
@@ -958,19 +918,13 @@
                 <div class="text-xs text-gray-400">Simpan sebagai default di database (BERTopic + LDA per akun).</div>
                 <div class="flex items-center gap-2">
                     <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
                         <span wire:loading.remove wire:target="resetTrainingParamsToNotebookBest">Reset ke Best Eksperimen</span>
                         <span wire:loading wire:target="resetTrainingParamsToNotebookBest">Reset…</span>
                     </x-ui.button>
 
                     <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M17 16v2a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h8m2 0l4 4m-4-4v4h4" />
-                        </svg>
+                        <x-app.icon name="bookmark-square" class="h-4 w-4" />
                         <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
                         <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
                     </x-ui.button>
@@ -1077,27 +1031,17 @@
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center">
                         <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
-                            <svg class="w-5 h-5 text-unsoed-blue-600 animate-spin" fill="none"
-                                viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
+                            <x-app.icon variant="o" name="arrow-path" class="w-5 h-5 text-unsoed-blue-600 animate-spin" />
                         </div>
                         <div>
                             <h2 class="text-sm font-semibold text-gray-900">Preprocessing Sedang Berjalan</h2>
                             <p class="text-xs text-gray-400">Job ID: {{ $preprocessingJobId !== '' ? $preprocessingJobId : 'Menunggu sinkronisasi...' }}</p>
                         </div>
                     </div>
-                    <button type="button" wire:click="cancelPreprocessing"
-                        wire:confirm="Yakin ingin membatalkan preprocessing?"
+                    <button type="button" wire:click="openCancelPreprocessingConfirm"
                         class="w-full justify-center px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center sm:w-auto"
                         title="Batalkan Preprocessing">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <x-app.icon name="stop-circle" class="w-4 h-4 mr-1" />
                         Batalkan
                     </button>
                 </div>
@@ -1118,10 +1062,7 @@
                     </div>
                 </div>
                 <p class="mt-3 text-xs text-gray-500 flex items-center">
-                    <svg class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" fill="currentColor"
-                        viewBox="0 0 8 8">
-                        <circle cx="4" cy="4" r="3" />
-                    </svg>
+                    <x-app.icon variant="o" name="arrow-path" class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" />
                     {{ $preprocessingMessage ?: 'Memproses…' }}
                 </p>
             </div>
@@ -1133,13 +1074,7 @@
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center">
                         <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
-                            <svg class="w-5 h-5 text-unsoed-blue-600 animate-spin" fill="none"
-                                viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
+                            <x-app.icon variant="o" name="arrow-path" class="w-5 h-5 text-unsoed-blue-600 animate-spin" />
                         </div>
                         <div>
                             <h2 class="text-sm font-semibold text-gray-900">Training Sedang Berjalan</h2>
@@ -1166,10 +1101,7 @@
                     </div>
                 </div>
                 <p class="mt-3 text-xs text-gray-500 flex items-center">
-                    <svg class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" fill="currentColor"
-                        viewBox="0 0 8 8">
-                        <circle cx="4" cy="4" r="3" />
-                    </svg>
+                    <x-app.icon variant="o" name="arrow-path" class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" />
                     {{ $trainingMessage ?: 'Memproses…' }}
                 </p>
             </div>
@@ -1214,10 +1146,7 @@
                     <div>
                         <div class="flex items-center gap-2.5">
                             <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
-                                <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 11H5m14-4H5m14 8H9m-7 4h20" />
-                                </svg>
+                                <x-app.icon variant="s" name="book-open" class="h-4 w-4 text-white" />
                             </div>
                             <h3 class="text-base font-bold text-white">Mapping Skripsi Topik {{ $selectedTopicModalTopicId }}</h3>
                         </div>
@@ -1233,11 +1162,7 @@
                         class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25"
                         aria-label="Tutup modal"
                     >
-                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="x-mark" class="h-4 w-4" />
                     </button>
                 </div>
             </div>
@@ -1274,6 +1199,34 @@
         </div>
     </div>
 </div>
+
+{{-- ════════════════════════════════════════════════════
+     Confirm: Jalankan Preprocessing
+═════════════════════════════════════════════════════ --}}
+<x-confirm-modal wireModel="showRunPreprocessingConfirm" type="warning" title="Jalankan Preprocessing?"
+    message="Preprocessing akan menyiapkan dataset untuk training dan dapat memakan waktu serta resource server. Lanjutkan?"
+    confirmLabel="Ya, Jalankan" confirmWire="runPreprocessing" closeWire="closeRunPreprocessingConfirm" />
+
+{{-- ════════════════════════════════════════════════════
+     Confirm: Mulai Training
+═════════════════════════════════════════════════════ --}}
+<x-confirm-modal wireModel="showStartTrainingConfirm" type="warning" title="Mulai Training {{ strtoupper($modelType) }}?"
+    message="Training model dapat berjalan beberapa menit dan membutuhkan komputasi yang cukup besar. Lanjutkan proses training?"
+    confirmLabel="Ya, Mulai Training" confirmWire="startTraining" closeWire="closeStartTrainingConfirm" />
+
+{{-- ════════════════════════════════════════════════════
+     Confirm: Test Model Dataset
+═════════════════════════════════════════════════════ --}}
+<x-confirm-modal wireModel="showTestModelWithDatasetConfirm" type="warning" title="Jalankan Test Model Dataset?"
+    message="Pengujian model terhadap dataset akan menambah beban komputasi sementara. Lanjutkan pengujian sekarang?"
+    confirmLabel="Ya, Jalankan Test" confirmWire="testModelWithDataset" closeWire="closeTestModelWithDatasetConfirm" />
+
+{{-- ════════════════════════════════════════════════════
+     Confirm: Batalkan Preprocessing
+═════════════════════════════════════════════════════ --}}
+<x-confirm-modal wireModel="showCancelPreprocessingConfirm" type="warning" title="Batalkan Preprocessing?"
+    message="Proses preprocessing yang sedang berjalan akan dihentikan. Data yang sudah diproses sebelum pembatalan tetap tersimpan."
+    confirmLabel="Ya, Batalkan" confirmWire="cancelPreprocessing" closeWire="closeCancelPreprocessingConfirm" />
 
 </div>
 </div>

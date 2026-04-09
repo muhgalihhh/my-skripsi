@@ -19,11 +19,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div class="sm:col-span-2 relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                    <x-app.icon name="magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input wire:model.live.debounce.300ms="search" type="text"
                         placeholder="Cari judul, penulis, kata kunci..."
                         class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
@@ -49,20 +45,14 @@
                 <div class="flex flex-wrap gap-2">
                     <button wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv"
                         class="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-60">
-                        <svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 16V4m0 12l-4-4m4 4l4-4M5 20h14" />
-                        </svg>
+                        <x-app.icon name="arrow-down-tray" class="mr-1.5 h-3.5 w-3.5" />
                         <span wire:loading.remove wire:target="exportCsv">Export CSV</span>
                         <span wire:loading wire:target="exportCsv">Menyiapkan...</span>
                     </button>
 
                     <button wire:click="exportExcel" wire:loading.attr="disabled" wire:target="exportExcel"
                         class="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition disabled:opacity-60">
-                        <svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 16V4m0 12l-4-4m4 4l4-4M5 20h14" />
-                        </svg>
+                        <x-app.icon name="arrow-down-tray" class="mr-1.5 h-3.5 w-3.5" />
                         <span wire:loading.remove wire:target="exportExcel">Export Excel</span>
                         <span wire:loading wire:target="exportExcel">Menyiapkan...</span>
                     </button>
@@ -77,10 +67,7 @@
                 class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
                 <div class="flex items-center space-x-3">
                     <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
+                        <x-app.icon variant="o" name="x-circle" class="w-4 h-4 text-red-600" />
                     </div>
                     <span class="text-sm font-semibold text-red-700">{{ count($selectedIds) }} data dipilih</span>
                 </div>
@@ -91,10 +78,7 @@
                     </button>
                     <button wire:click="openBulkDeleteConfirm"
                         class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center shadow-sm">
-                        <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        <x-app.icon name="trash" class="w-3.5 h-3.5 mr-1.5" />
                         Hapus {{ count($selectedIds) }} Data
                     </button>
                 </div>
@@ -119,16 +103,7 @@
                                     wire:click="sortBy('title')">
                                     <div class="flex items-center gap-1">Judul
                                         @if ($sortField === 'title')
-                                            <svg class="w-3 h-3 text-unsoed-blue-500" fill="currentColor"
-                                                viewBox="0 0 20 20">
-                                                @if ($sortDirection === 'asc')
-                                                    <path
-                                                        d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 6.414l-3.293 3.293a1 1 0 01-1.414 0z" />
-                                                @else
-                                                    <path
-                                                        d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L10 13.586l3.293-3.293a1 1 0 011.414 0z" />
-                                                @endif
-                                            </svg>
+                                            <x-app.icon variant="o" name="arrows-up-down" class="w-3 h-3 text-unsoed-blue-500" />
                                         @endif
                                     </div>
                                 </th>
@@ -136,16 +111,7 @@
                                     wire:click="sortBy('author')">
                                     <div class="flex items-center gap-1">Penulis
                                         @if ($sortField === 'author')
-                                            <svg class="w-3 h-3 text-unsoed-blue-500" fill="currentColor"
-                                                viewBox="0 0 20 20">
-                                                @if ($sortDirection === 'asc')
-                                                    <path
-                                                        d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 6.414l-3.293 3.293a1 1 0 01-1.414 0z" />
-                                                @else
-                                                    <path
-                                                        d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L10 13.586l3.293-3.293a1 1 0 011.414 0z" />
-                                                @endif
-                                            </svg>
+                                            <x-app.icon variant="o" name="arrows-up-down" class="w-3 h-3 text-unsoed-blue-500" />
                                         @endif
                                     </div>
                                 </th>
@@ -153,16 +119,7 @@
                                     wire:click="sortBy('year')">
                                     <div class="flex items-center justify-center gap-1">Tahun
                                         @if ($sortField === 'year')
-                                            <svg class="w-3 h-3 text-unsoed-blue-500" fill="currentColor"
-                                                viewBox="0 0 20 20">
-                                                @if ($sortDirection === 'asc')
-                                                    <path
-                                                        d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 6.414l-3.293 3.293a1 1 0 01-1.414 0z" />
-                                                @else
-                                                    <path
-                                                        d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L10 13.586l3.293-3.293a1 1 0 011.414 0z" />
-                                                @endif
-                                            </svg>
+                                            <x-app.icon variant="o" name="arrows-up-down" class="w-3 h-3 text-unsoed-blue-500" />
                                         @endif
                                     </div>
                                 </th>
@@ -213,45 +170,23 @@
                                             <button wire:click="showDetail({{ $skripsi->id }})"
                                                 class="p-1.5 text-unsoed-blue-600 hover:bg-unsoed-blue-100 rounded-lg transition"
                                                 title="Lihat Detail">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
+                                                <x-app.icon name="eye" class="w-4 h-4" />
                                             </button>
                                             <button wire:click="openEdit({{ $skripsi->id }})"
                                                 class="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition"
                                                 title="Edit">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
+                                                <x-app.icon name="pencil-square" class="w-4 h-4" />
                                             </button>
                                             <button wire:click="confirmDelete({{ $skripsi->id }})"
                                                 class="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition"
                                                 title="Hapus">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
+                                                <x-app.icon name="trash" class="w-4 h-4" />
                                             </button>
                                             @if ($skripsi->url)
                                                 <a href="{{ $skripsi->url }}" target="_blank"
                                                     class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
                                                     title="Buka Repository">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                        viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            stroke-width="2"
-                                                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                    </svg>
+                                                    <x-app.icon name="arrow-top-right-on-square" class="w-4 h-4" />
                                                 </a>
                                             @endif
                                         </div>
@@ -266,11 +201,7 @@
                 </div>
             @else
                 <div class="flex flex-col items-center justify-center py-20 text-gray-400">
-                    <svg class="w-16 h-16 mb-4 text-gray-200" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
+                    <x-app.icon name="document-text" class="w-16 h-16 mb-4 text-gray-200" />
                     @if ($search || $yearFilter)
                         <p class="text-sm font-semibold text-gray-500">Tidak ada skripsi yang ditemukan</p>
                         <p class="text-xs mt-1">Coba ubah filter atau kata kunci pencarian</p>
@@ -322,21 +253,13 @@
                     class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-6 py-4 flex items-center justify-between flex-shrink-0">
                     <div class="flex items-center gap-2.5">
                         <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                            </svg>
+                            <x-app.icon variant="s" name="document-text" class="w-4 h-4 text-white" />
                         </div>
                         <h3 class="text-base font-bold text-white">Detail Skripsi</h3>
                     </div>
                     <button wire:click="closeDetail"
                         class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="x-mark" class="w-4 h-4" />
                     </button>
                 </div>
 
@@ -415,11 +338,7 @@
                                 @foreach ($selectedSkripsi['pdf_documents'] as $docName => $docUrl)
                                     <a href="{{ $docUrl }}" target="_blank"
                                         class="flex items-center px-3 py-2 bg-red-50 hover:bg-red-100 rounded-xl text-xs font-medium text-red-700 transition border border-red-100 gap-1.5">
-                                        <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd"
-                                                d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
-                                                clip-rule="evenodd" />
-                                        </svg>
+                                        <x-app.icon name="document-text" class="w-4 h-4 flex-shrink-0" />
                                         {{ $docName }}
                                     </a>
                                 @endforeach
@@ -434,11 +353,7 @@
                             <a href="{{ $selectedSkripsi['url'] }}" target="_blank"
                                 class="text-sm text-unsoed-blue-600 hover:underline break-all inline-flex items-center gap-1">
                                 {{ $selectedSkripsi['url'] }}
-                                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
+                                <x-app.icon name="arrow-top-right-on-square" class="w-3 h-3 flex-shrink-0" />
                             </a>
                         </div>
                     @endif
@@ -450,19 +365,13 @@
                     @if ($selectedSkripsiId)
                         <button wire:click="confirmDelete({{ $selectedSkripsiId }})"
                             class="px-3 py-2 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold rounded-xl border border-red-200 transition flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <x-app.icon name="trash" class="w-4 h-4" />
                             Hapus
                         </button>
                         <div class="flex items-center gap-2">
                             <button wire:click="openEdit({{ $selectedSkripsiId }})"
                                 class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
+                                <x-app.icon name="pencil-square" class="w-4 h-4" />
                                 Edit
                             </button>
                             <button wire:click="closeDetail"
@@ -503,21 +412,13 @@
                     class="bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-4 flex items-center justify-between flex-shrink-0">
                     <div class="flex items-center gap-2.5">
                         <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            <x-app.icon variant="s" name="pencil-square" class="w-4 h-4 text-white" />
                         </div>
                         <h3 class="text-base font-bold text-white">Edit Skripsi</h3>
                     </div>
                     <button wire:click="closeEdit"
                         class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="x-mark" class="w-4 h-4" />
                     </button>
                 </div>
 
@@ -608,18 +509,8 @@
                         <button type="submit"
                             class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-sm"
                             wire:loading.attr="disabled" wire:target="saveEdit">
-                            <svg wire:loading wire:target="saveEdit" class="animate-spin w-4 h-4" fill="none"
-                                viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
-                            <svg wire:loading.remove wire:target="saveEdit" class="w-4 h-4" fill="none"
-                                stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M5 13l4 4L19 7" />
-                            </svg>
+                            <x-app.icon name="arrow-path" wire:loading wire:target="saveEdit" class="animate-spin w-4 h-4" />
+                            <x-app.icon name="check" wire:loading.remove wire:target="saveEdit" class="w-4 h-4" />
                             Simpan Perubahan
                         </button>
                     </div>

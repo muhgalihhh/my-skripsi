@@ -434,4 +434,61 @@ class FastApiService
       return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
     }
   }
+
+  /**
+   * Run Dynamic Topic Analysis (DTA) using an existing BERTopic model.
+   */
+  public function runDynamicTopicAnalysis(
+    string $jobId,
+    ?int $yearStart = null,
+    ?int $yearEnd = null,
+    bool $evolutionTuning = true,
+    bool $globalTuning = true,
+  ): array {
+    try {
+      $payload = [
+        'job_id' => $jobId,
+        'evolution_tuning' => $evolutionTuning,
+        'global_tuning' => $globalTuning,
+      ];
+
+      if ($yearStart !== null) {
+        $payload['year_start'] = $yearStart;
+      }
+
+      if ($yearEnd !== null) {
+        $payload['year_end'] = $yearEnd;
+      }
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(120)
+        ->post("{$this->baseUrl}/api/v1/evaluation/dta", $payload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Model/hasil {$jobId} tidak ditemukan"]; 
+      }
+
+      if ($response->status() === 422) {
+        return [
+          'status' => 'error',
+          'message' => 'Request DTA tidak valid.',
+          'detail' => $response->json() ?? $response->body(),
+        ];
+      }
+
+      Log::warning('FastAPI DTA failed', [
+        'status' => $response->status(),
+        'body' => $response->body(),
+      ]);
+
+      return ['status' => 'error', 'message' => 'Gagal menghitung DTA. Status: ' . $response->status()];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI DTA request failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
 }

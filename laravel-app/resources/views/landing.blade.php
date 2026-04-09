@@ -28,11 +28,7 @@
                 <div class="flex items-center space-x-3">
                     {{-- Logo Icon --}}
                     <div class="w-9 h-9 bg-unsoed-gold-400 rounded-lg flex items-center justify-center">
-                        <svg class="w-5 h-5 text-unsoed-blue-800" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
+                        <x-app.icon variant="o" name="chart-bar-square" class="w-5 h-5 text-unsoed-blue-800" />
                     </div>
                     <span class="text-lg font-bold">TopicModeling</span>
                 </div>
@@ -61,10 +57,7 @@
                 <div>
                     <div
                         class="inline-flex items-center bg-unsoed-gold-400/20 text-unsoed-gold-300 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+                        <x-app.icon name="academic-cap" class="w-4 h-4 mr-2" />
                         S1 Teknik Informatika — UNSOED
                     </div>
                     <h1 class="text-4xl lg:text-5xl font-extrabold leading-tight mb-6">
@@ -81,19 +74,13 @@
                         @auth
                             <a href="{{ route('jurusan.dashboard') }}"
                                 class="bg-unsoed-gold-400 hover:bg-unsoed-gold-300 text-unsoed-blue-800 font-bold px-8 py-3 rounded-xl text-sm transition inline-flex items-center justify-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                </svg>
+                                <x-app.icon name="home" class="w-5 h-5 mr-2" />
                                 Buka Dashboard
                             </a>
                         @else
                             <a href="{{ route('login') }}"
                                 class="bg-unsoed-gold-400 hover:bg-unsoed-gold-300 text-unsoed-blue-800 font-bold px-8 py-3 rounded-xl text-sm transition inline-flex items-center justify-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                                </svg>
+                                <x-app.icon name="arrow-right-on-rectangle" class="w-5 h-5 mr-2" />
                                 Masuk ke Sistem
                             </a>
                         @endauth
@@ -132,11 +119,7 @@
                 {{-- Feature 1: Scraping --}}
                 <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-unsoed-blue-100 rounded-xl flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-unsoed-blue-600" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        <x-app.icon variant="o" name="cloud-arrow-down" class="w-6 h-6 text-unsoed-blue-600" />
                     </div>
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Web Scraping</h3>
                     <p class="text-sm text-gray-500">
@@ -147,11 +130,7 @@
                 {{-- Feature 2: Topic Modeling --}}
                 <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-unsoed-gold-100 rounded-xl flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-unsoed-gold-600" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
+                        <x-app.icon name="light-bulb" class="w-6 h-6 text-unsoed-gold-600" />
                     </div>
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Topic Modeling</h3>
                     <p class="text-sm text-gray-500">
@@ -163,11 +142,7 @@
                 <div
                     class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                     <div class="w-12 h-12 bg-unsoed-blue-100 rounded-xl flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-unsoed-blue-600" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
+                        <x-app.icon variant="o" name="chart-bar-square" class="w-6 h-6 text-unsoed-blue-600" />
                     </div>
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Visualisasi Data</h3>
                     <p class="text-sm text-gray-500">
@@ -224,11 +199,7 @@
             <div class="flex flex-col md:flex-row items-center justify-between">
                 <div class="flex items-center space-x-3 mb-4 md:mb-0">
                     <div class="w-8 h-8 bg-unsoed-gold-400 rounded-lg flex items-center justify-center">
-                        <svg class="w-4 h-4 text-unsoed-blue-800" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
+                        <x-app.icon variant="o" name="chart-bar-square" class="w-4 h-4 text-unsoed-blue-800" />
                     </div>
                     <span class="text-sm font-semibold">TopicModeling</span>
                 </div>

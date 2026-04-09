@@ -15,6 +15,8 @@ class TopicModelTopic extends Model
     'count',
     'top_words',
     'word_scores',
+    'custom_name',
+    'representation_description',
   ];
 
   protected $casts = [

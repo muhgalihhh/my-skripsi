@@ -149,6 +149,13 @@ class AccountManager extends Component
     if (!$user)
       return;
 
+    // Prevent self lockout: a jurusan user must not demote their own account.
+    if ((int) $user->id === (int) auth()->id() && $this->editRole !== 'jurusan') {
+      $this->addError('editRole', 'Akun Anda harus tetap memiliki role Jurusan.');
+      $this->dispatch('toast', type: 'error', message: 'Role akun sendiri tidak boleh diubah dari Jurusan.');
+      return;
+    }
+
     $data = [
       'name' => $this->editName,
       'email' => $this->editEmail,

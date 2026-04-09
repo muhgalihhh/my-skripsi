@@ -27,6 +27,7 @@ services:
   laravel:
     volumes:
       - ./laravel-app:/var/www/html
+      - ./analysis:/var/www/analysis:ro
       - laravel-storage:/var/www/html/storage
       - ./laravel-app/docker/opcache-dev.ini:/usr/local/etc/php/conf.d/opcache.ini:ro
     environment:

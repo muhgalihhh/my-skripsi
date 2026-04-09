@@ -33,10 +33,7 @@
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-6 py-4 flex items-center gap-2.5">
                 <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                    <x-app.icon variant="s" name="user-circle" class="w-4 h-4 text-white" />
                 </div>
                 <h2 class="text-base font-bold text-white">Informasi Profil</h2>
             </div>
@@ -63,17 +60,8 @@
                     <button type="submit"
                         class="px-5 py-2.5 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-sm"
                         wire:loading.attr="disabled" wire:target="saveProfile">
-                        <svg wire:loading wire:target="saveProfile" class="animate-spin w-4 h-4" fill="none"
-                            viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                        <svg wire:loading.remove wire:target="saveProfile" class="w-4 h-4" fill="none"
-                            stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
+                        <x-app.icon name="arrow-path" wire:loading wire:target="saveProfile" class="animate-spin w-4 h-4" />
+                        <x-app.icon name="check" wire:loading.remove wire:target="saveProfile" class="w-4 h-4" />
                         Simpan Profil
                     </button>
                 </div>
@@ -84,10 +72,7 @@
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-4 flex items-center gap-2.5">
                 <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                    <x-app.icon variant="s" name="pencil-square" class="w-4 h-4 text-white" />
                 </div>
                 <h2 class="text-base font-bold text-white">Ubah Password</h2>
             </div>
@@ -120,18 +105,8 @@
                     <button type="submit"
                         class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-sm"
                         wire:loading.attr="disabled" wire:target="changePassword">
-                        <svg wire:loading wire:target="changePassword" class="animate-spin w-4 h-4" fill="none"
-                            viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                        <svg wire:loading.remove wire:target="changePassword" class="w-4 h-4" fill="none"
-                            stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
+                        <x-app.icon name="arrow-path" wire:loading wire:target="changePassword" class="animate-spin w-4 h-4" />
+                        <x-app.icon name="key" wire:loading.remove wire:target="changePassword" class="w-4 h-4" />
                         Ubah Password
                     </button>
                 </div>

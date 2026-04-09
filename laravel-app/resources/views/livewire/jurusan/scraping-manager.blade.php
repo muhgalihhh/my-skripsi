@@ -46,11 +46,7 @@
                 <button wire:click="checkApiStatus"
                     class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
                     wire:loading.class="opacity-50" wire:target="checkApiStatus">
-                    <svg class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus"
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
+                    <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus" />
                     Refresh Status
                 </button>
             </div>
@@ -62,12 +58,7 @@
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center">
                         <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
-                            <svg class="w-5 h-5 text-unsoed-blue-600 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                    stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
+                            <x-app.icon variant="o" name="arrow-path" class="w-5 h-5 text-unsoed-blue-600 animate-spin" />
                         </div>
                         <div>
                             <h2 class="text-lg font-semibold text-gray-900">Scraping Sedang Berjalan</h2>
@@ -77,20 +68,12 @@
                     <div class="flex items-center space-x-2">
                         <button wire:click="openMonitoring"
                             class="px-3 py-1.5 bg-unsoed-blue-50 hover:bg-unsoed-blue-100 text-unsoed-blue-600 text-xs font-medium rounded-lg border border-unsoed-blue-200 transition flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
+                            <x-app.icon name="eye" class="w-4 h-4 mr-1" />
                             Pantau Detail
                         </button>
                         <button wire:click="openCancelConfirm"
                             class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <x-app.icon name="stop-circle" class="w-4 h-4 mr-1" />
                             Batalkan
                         </button>
                     </div>
@@ -142,10 +125,7 @@
 
                 @if ($jobStep)
                     <p class="mt-3 text-xs text-gray-500 flex items-center">
-                        <svg class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" fill="currentColor"
-                            viewBox="0 0 8 8">
-                            <circle cx="4" cy="4" r="3" />
-                        </svg>
+                        <x-app.icon variant="o" name="clock" class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" />
                         {{ $jobStep }}
                     </p>
                 @endif
@@ -161,33 +141,16 @@
                     {{ $statusType === 'info' ? 'bg-blue-50 border-blue-200 text-blue-700' : '' }}">
                 <div class="flex items-center">
                     @if ($statusType === 'success')
-                        <svg class="w-5 h-5 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon variant="o" name="check-circle" class="w-5 h-5 mr-2 text-green-500" />
                     @elseif($statusType === 'error')
-                        <svg class="w-5 h-5 mr-2 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon variant="o" name="x-circle" class="w-5 h-5 mr-2 text-red-500" />
                     @else
-                        <svg class="w-5 h-5 mr-2 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
+                        <x-app.icon variant="o" name="arrow-path" class="w-5 h-5 mr-2 text-blue-500 animate-spin" />
                     @endif
                     <span class="text-sm font-medium">{{ $statusMessage }}</span>
                 </div>
                 <button @click="show = false" class="ml-3 opacity-60 hover:opacity-100">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd"
-                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                            clip-rule="evenodd" />
-                    </svg>
+                    <x-app.icon name="x-mark" class="w-4 h-4" />
                 </button>
             </div>
         @endif
@@ -198,13 +161,7 @@
             <div class="flex items-start justify-between mb-4 gap-3">
                 <div class="flex items-center">
                     <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
-                        <svg class="w-5 h-5 text-unsoed-blue-600" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-unsoed-blue-600" />
                     </div>
                     <div>
                         <h2 class="text-lg font-semibold text-gray-900">Jalankan Scraping Manual</h2>
@@ -215,15 +172,12 @@
                 <button type="button" wire:click="openResetSkripsiConfirm"
                     class="inline-flex items-center px-3 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     @disabled($isProcessing || $totalSkripsi === 0)>
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <x-app.icon name="trash" class="w-4 h-4 mr-1.5" />
                     Reset Database Skripsi
                 </button>
             </div>
 
-            <form wire:submit="startScraping">
+            <form wire:submit="openStartScrapingConfirm">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Mulai</label>
@@ -245,10 +199,7 @@
                         <button type="submit"
                             class="w-full py-2.5 px-4 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white font-medium rounded-lg text-sm transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                             wire:loading.attr="disabled" @if ($isProcessing || ($apiStatus['status'] ?? '') !== 'ok') disabled @endif>
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            </svg>
+                            <x-app.icon name="cloud-arrow-down" class="w-4 h-4 mr-2" />
                             Mulai Scraping
                         </button>
                     </div>
@@ -257,11 +208,7 @@
                 @if (($apiStatus['status'] ?? '') !== 'ok' && !$isProcessing)
                     <div
                         class="flex items-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="exclamation-triangle" class="w-4 h-4 mr-1.5 flex-shrink-0" />
                         FastAPI service tidak aktif. Pastikan container <code
                             class="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono">skripsi-fastapi</code>
                         berjalan.
@@ -276,11 +223,7 @@
             <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <div class="flex items-center gap-3">
                     <div class="bg-amber-100 rounded-lg p-2">
-                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
+                        <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-amber-600" />
                     </div>
                     <h2 class="text-lg font-semibold text-gray-900">Riwayat Scraping</h2>
                 </div>
@@ -303,11 +246,7 @@
                         </button>
                         <button wire:click="openBulkDeleteLogsConfirm"
                             class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center shadow-sm">
-                            <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <x-app.icon name="trash" class="w-3.5 h-3.5 mr-1.5" />
                             Hapus {{ count($selectedLogIds) }} Riwayat
                         </button>
                     </div>
@@ -380,14 +319,7 @@
                                             {{ $log->status === 'running' ? 'bg-yellow-100 text-yellow-700' : '' }}
                                             {{ $log->status === 'pending' ? 'bg-gray-100 text-gray-700' : '' }}">
                                             @if ($log->status === 'running')
-                                                <svg class="animate-spin -ml-0.5 mr-1 h-3 w-3" fill="none"
-                                                    viewBox="0 0 24 24">
-                                                    <circle class="opacity-25" cx="12" cy="12" r="10"
-                                                        stroke="currentColor" stroke-width="4">
-                                                    </circle>
-                                                    <path class="opacity-75" fill="currentColor"
-                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                                </svg>
+                                                <x-app.icon name="arrow-path" class="animate-spin -ml-0.5 mr-1 h-3 w-3" />
                                             @endif
                                             {{ ucfirst($log->status) }}
                                         </span>
@@ -413,11 +345,7 @@
                 </div>
             @else
                 <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-                    <svg class="w-14 h-14 mb-3 text-gray-200" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
+                    <x-app.icon name="cloud-arrow-down" class="w-14 h-14 mb-3 text-gray-200" />
                     <p class="text-sm font-semibold text-gray-500">Belum ada riwayat scraping</p>
                     <p class="text-xs mt-1">Mulai scraping pertama Anda di form di atas</p>
                 </div>
@@ -448,6 +376,13 @@
         confirmLabel="Ya, Reset Database" confirmWire="resetSkripsiData" closeWire="closeResetSkripsiConfirm" />
 
     {{-- ════════════════════════════════════════════════════
+         Confirm: Mulai Scraping
+    ═════════════════════════════════════════════════════ --}}
+    <x-confirm-modal wireModel="showStartScrapingConfirm" type="warning" title="Mulai Scraping Sekarang?"
+        message="Proses scraping dapat memakan waktu dan resource server yang cukup besar. Lanjutkan menjalankan scraping dengan rentang tahun yang dipilih?"
+        confirmLabel="Ya, Mulai Scraping" confirmWire="startScraping" closeWire="closeStartScrapingConfirm" />
+
+    {{-- ════════════════════════════════════════════════════
          MODAL: Pantau Detail Scraping (Monitoring)
     ═════════════════════════════════════════════════════ --}}
     <div x-data="{ open: @entangle('showMonitoringModal').live }" x-show="open" x-cloak class="fixed inset-0 z-50 overflow-y-auto" role="dialog"
@@ -471,13 +406,7 @@
                     class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-6 py-4 flex items-center justify-between flex-shrink-0">
                     <div class="flex items-center gap-2.5">
                         <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
+                            <x-app.icon variant="s" name="eye" class="w-4 h-4 text-white" />
                         </div>
                         <div>
                             <h3 class="text-base font-bold text-white">Pantau Detail Scraping</h3>
@@ -486,11 +415,7 @@
                     </div>
                     <button wire:click="closeMonitoring"
                         class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="x-mark" class="w-4 h-4" />
                     </button>
                 </div>
 
@@ -534,10 +459,7 @@
                                 'border-unsoed-blue-500 text-unsoed-blue-600' :
                                 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="py-2 px-4 text-sm font-medium border-b-2 transition flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                            <x-app.icon name="document-text" class="w-4 h-4" />
                             Data Di-scrape
                             ({{ $monitoringScrapedTotal ?: count($monitoringScrapedItems) }})
                         </button>
@@ -546,10 +468,7 @@
                                 'border-unsoed-blue-500 text-unsoed-blue-600' :
                                 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="py-2 px-4 text-sm font-medium border-b-2 transition flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
+                            <x-app.icon name="link" class="w-4 h-4" />
                             URL Ditemukan ({{ $monitoringFoundTotal ?: count($monitoringData) }})
                         </button>
                     </div>
@@ -609,11 +528,7 @@
                             @endif
                         @else
                             <div class="text-center py-10 text-gray-400">
-                                <svg class="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none"
-                                    stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                </svg>
+                                <x-app.icon name="cloud-arrow-down" class="w-10 h-10 mx-auto mb-2 text-gray-200" />
                                 <p class="text-sm font-medium text-gray-500">Belum ada data yang di-scrape</p>
                                 <p class="text-xs mt-1">Data akan muncul saat proses scraping detail berjalan</p>
                             </div>
@@ -660,11 +575,7 @@
                             @endif
                         @else
                             <div class="text-center py-10 text-gray-400">
-                                <svg class="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none"
-                                    stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
+                                <x-app.icon name="link" class="w-10 h-10 mx-auto mb-2 text-gray-200" />
                                 <p class="text-sm font-medium text-gray-500">Belum ada URL yang ditemukan</p>
                                 <p class="text-xs mt-1">URL akan muncul saat proses listing halaman berjalan</p>
                             </div>
@@ -678,10 +589,7 @@
                     <p class="text-xs text-gray-400">
                         @if ($jobStep)
                             <span class="inline-flex items-center">
-                                <svg class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" fill="currentColor"
-                                    viewBox="0 0 8 8">
-                                    <circle cx="4" cy="4" r="3" />
-                                </svg>
+                                <x-app.icon variant="o" name="clock" class="w-3 h-3 mr-1 text-unsoed-blue-500 animate-pulse" />
                                 {{ $jobStep }}
                             </span>
                         @endif

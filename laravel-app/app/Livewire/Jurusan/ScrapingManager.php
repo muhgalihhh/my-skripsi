@@ -44,6 +44,9 @@ class ScrapingManager extends Component
     // Cancel confirm modal
     public bool $showCancelConfirm = false;
 
+    // Start scraping confirm modal
+    public bool $showStartScrapingConfirm = false;
+
     // Reset skripsi confirm modal
     public bool $showResetSkripsiConfirm = false;
 
@@ -117,6 +120,8 @@ class ScrapingManager extends Component
 
     public function startScraping(): void
     {
+        $this->showStartScrapingConfirm = false;
+
         $this->validate([
             'startYear' => 'required|integer|min:2000|max:2030',
             'endYear' => 'required|integer|min:2000|max:2030|gte:startYear',
@@ -381,6 +386,32 @@ class ScrapingManager extends Component
     public function openCancelConfirm(): void
     {
         $this->showCancelConfirm = true;
+    }
+
+    /**
+     * Open start scraping confirm modal.
+     */
+    public function openStartScrapingConfirm(): void
+    {
+        $this->validate([
+            'startYear' => 'required|integer|min:2000|max:2030',
+            'endYear' => 'required|integer|min:2000|max:2030|gte:startYear',
+        ]);
+
+        if (($this->apiStatus['status'] ?? '') !== 'ok') {
+            $this->dispatch('toast', type: 'warning', message: 'FastAPI belum aktif. Tidak dapat memulai scraping.');
+            return;
+        }
+
+        $this->showStartScrapingConfirm = true;
+    }
+
+    /**
+     * Close start scraping confirm modal.
+     */
+    public function closeStartScrapingConfirm(): void
+    {
+        $this->showStartScrapingConfirm = false;
     }
 
     /**

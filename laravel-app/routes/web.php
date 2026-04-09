@@ -8,9 +8,11 @@ use App\Livewire\Jurusan\Dashboard;
 use App\Livewire\Jurusan\ProfileEditor;
 use App\Livewire\Jurusan\ScrapingManager;
 use App\Livewire\Jurusan\SkripsiManager;
-use Illuminate\Support\Facades\Route;
+use App\Livewire\Jurusan\TopicCurationManager;
 use App\Livewire\Jurusan\TopicModelingManager;
+use App\Livewire\Jurusan\VisualizationManager;
 use App\Http\Controllers\Jurusan\TopicModelingModelController;
+use Illuminate\Support\Facades\Route;
 
 // ============================================
 // Public Routes
@@ -57,6 +59,12 @@ Route::middleware(['auth', EnsureUserIsJurusan::class])
 
         // Topic Modeling (Livewire)
         Route::get('/topic-modeling', TopicModelingManager::class)->name('topic-modeling');
+
+        // Topic Curation (Livewire)
+        Route::get('/topic-curation', TopicCurationManager::class)->name('topic-curation');
+
+        // Visualisasi Topik (Livewire)
+        Route::get('/visualisasi', VisualizationManager::class)->name('visualisasi');
 
         // Topic Modeling - model artifacts
         Route::get('/topic-modeling/model/{jobId}/download', [TopicModelingModelController::class, 'download'])

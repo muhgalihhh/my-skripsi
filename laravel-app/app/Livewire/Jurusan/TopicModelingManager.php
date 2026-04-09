@@ -57,6 +57,12 @@ class TopicModelingManager extends Component
     public bool $modelTestLoading = false;
     public array $modelTestDatasetResult = [];
 
+    // Confirm modal states for resource-intensive actions
+    public bool $showRunPreprocessingConfirm = false;
+    public bool $showStartTrainingConfirm = false;
+    public bool $showTestModelWithDatasetConfirm = false;
+    public bool $showCancelPreprocessingConfirm = false;
+
     // Show preprocessed texts stored in DB (skripsi.cleaned_text / skripsi.processed_text)
     public array $dbPreprocessedRows = [];
     public int $dbPreprocessedLimit = 20;
@@ -195,7 +201,7 @@ class TopicModelingManager extends Component
             $this->activeRun->refresh();
         }
 
-        $this->dispatch('toast', type: 'success', message: 'Parameter di-reset ke best params eksperimen clean.');
+        $this->dispatch('toast', type: 'success', message: 'Parameter di-reset ke best params eksperimen terbaru.');
     }
 
     public function loadDbPreprocessedRows(): void
@@ -442,7 +448,12 @@ class TopicModelingManager extends Component
         $this->bertopicParams = $defaults;
         $this->ldaParams = $this->getDefaultLdaParams();
 
-        // Prioritas utama: output clean notebook terbaru.
+        // Prioritas utama: payload tuning terbaru dari notebook baru.
+        if ($this->loadBestParamsFromNotebookPayloads()) {
+            return;
+        }
+
+        // Fallback lama: output clean notebook.
         $bestParamsCsv = base_path('../analysis/output_clean/csv/step6_best_params.csv');
         if (File::exists($bestParamsCsv)) {
             try {
@@ -550,7 +561,74 @@ class TopicModelingManager extends Component
     }
 
     /**
-     * Parse value from step6_best_params.csv into scalar/array/null.
+     * Load best params from latest notebook tuning artifacts.
+     */
+    protected function loadBestParamsFromNotebookPayloads(): bool
+    {
+        $artifactDir = base_path('../analysis/output/bertopic_tuning');
+        if (!File::isDirectory($artifactDir)) {
+            return false;
+        }
+
+        $bertopicPayload = null;
+        $summaryPayload = $this->loadLatestJsonArtifact($artifactDir . '/bertopic_tuning_summary_*.json');
+        if (is_array($summaryPayload['best_laravel_payload'] ?? null)) {
+            $bertopicPayload = $summaryPayload['best_laravel_payload'];
+        }
+
+        if (!is_array($bertopicPayload) || empty($bertopicPayload)) {
+            $bertopicPayload = $this->loadLatestJsonArtifact($artifactDir . '/bertopic_laravel_payload_*.json');
+        }
+
+        $ldaPayload = $this->loadLatestJsonArtifact($artifactDir . '/lda_laravel_payload_*.json');
+
+        $hasLoaded = false;
+
+        if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
+            $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
+            $hasLoaded = true;
+        }
+
+        if (is_array($ldaPayload) && !empty($ldaPayload)) {
+            $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
+            $hasLoaded = true;
+        }
+
+        return $hasLoaded;
+    }
+
+    /**
+     * Load latest JSON artifact by glob pattern (descending filename order).
+     */
+    protected function loadLatestJsonArtifact(string $pattern): ?array
+    {
+        $files = File::glob($pattern);
+        if (!is_array($files) || empty($files)) {
+            return null;
+        }
+
+        usort($files, static fn(string $a, string $b): int => strcmp(basename($b), basename($a)));
+
+        foreach ($files as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            try {
+                $decoded = json_decode(File::get($path), true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    return $decoded;
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse value from legacy step6_best_params.csv into scalar/array/null.
      */
     protected function parseBestParamValue(mixed $value): mixed
     {
@@ -978,8 +1056,26 @@ class TopicModelingManager extends Component
     /**
      * Step 1: Jalankan preprocessing di FastAPI (menghasilkan processed_data.csv).
      */
+    public function openRunPreprocessingConfirm(): void
+    {
+        if (($this->apiStatus['status'] ?? '') !== 'ok') {
+            $this->statusType = 'warning';
+            $this->statusMessage = 'FastAPI belum aktif. Tidak dapat memulai preprocessing.';
+            return;
+        }
+
+        $this->showRunPreprocessingConfirm = true;
+    }
+
+    public function closeRunPreprocessingConfirm(): void
+    {
+        $this->showRunPreprocessingConfirm = false;
+    }
+
     public function runPreprocessing(): void
     {
+        $this->showRunPreprocessingConfirm = false;
+
         $this->isProcessing = true;
         $this->statusType = 'info';
         $this->statusMessage = 'Menjalankan preprocessing data...';
@@ -1105,6 +1201,8 @@ class TopicModelingManager extends Component
      */
     public function cancelPreprocessing(): void
     {
+        $this->showCancelPreprocessingConfirm = false;
+
         if (!$this->preprocessingJobId || !$this->activeRun) {
             return;
         }
@@ -1138,11 +1236,33 @@ class TopicModelingManager extends Component
         }
     }
 
+    public function openCancelPreprocessingConfirm(): void
+    {
+        $this->showCancelPreprocessingConfirm = true;
+    }
+
+    public function closeCancelPreprocessingConfirm(): void
+    {
+        $this->showCancelPreprocessingConfirm = false;
+    }
+
     /**
      * Step 2: Mulai BERTopic training di FastAPI.
      */
+    public function openStartTrainingConfirm(): void
+    {
+        $this->showStartTrainingConfirm = true;
+    }
+
+    public function closeStartTrainingConfirm(): void
+    {
+        $this->showStartTrainingConfirm = false;
+    }
+
     public function startTraining(): void
     {
+        $this->showStartTrainingConfirm = false;
+
         if (!$this->activeRun) {
             $this->statusType = 'error';
             $this->statusMessage = 'Jalankan preprocessing terlebih dahulu.';
@@ -1238,8 +1358,20 @@ class TopicModelingManager extends Component
      * Re-test the trained model against the existing dataset in DB.
      * Compares metrics/keywords with the stored training results.
      */
+    public function openTestModelWithDatasetConfirm(): void
+    {
+        $this->showTestModelWithDatasetConfirm = true;
+    }
+
+    public function closeTestModelWithDatasetConfirm(): void
+    {
+        $this->showTestModelWithDatasetConfirm = false;
+    }
+
     public function testModelWithDataset(): void
     {
+        $this->showTestModelWithDatasetConfirm = false;
+
         if (!$this->activeRun || $this->activeRun->status !== 'completed') {
             $this->statusType = 'warning';
             $this->statusMessage = 'Belum ada hasil training yang bisa di-test.';

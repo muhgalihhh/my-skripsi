@@ -11,9 +11,7 @@
             </div>
             <button wire:click="openAdd"
                 class="inline-flex items-center gap-2 px-4 py-2.5 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
+                <x-app.icon name="user-plus" class="w-4 h-4" />
                 Tambah Akun
             </button>
         </div>
@@ -22,11 +20,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="sm:col-span-2 relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                    <x-app.icon name="magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input wire:model.live.debounce.300ms="search" type="text" placeholder="Cari nama atau email..."
                         class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
                 </div>
@@ -58,10 +52,7 @@
                         </button>
                         <button wire:click="openBulkDeleteConfirm"
                             class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center shadow-sm">
-                            <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <x-app.icon name="trash" class="w-3.5 h-3.5 mr-1.5" />
                             Hapus {{ count($selectedIds) }} Akun
                         </button>
                     </div>
@@ -147,23 +138,13 @@
                                             <button wire:click="openEdit({{ $user->id }})"
                                                 class="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition"
                                                 title="Edit">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
+                                                <x-app.icon name="pencil-square" class="w-4 h-4" />
                                             </button>
                                             <button wire:click="confirmDelete({{ $user->id }})"
                                                 @disabled($isSelf)
                                                 class="p-1.5 rounded-lg transition {{ $isSelf ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:bg-red-100' }}"
                                                 title="{{ $isSelf ? 'Tidak bisa menghapus akun sendiri' : 'Hapus' }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
+                                                <x-app.icon name="trash" class="w-4 h-4" />
                                             </button>
                                         </div>
                                     </td>
@@ -178,11 +159,7 @@
                 </div>
             @else
                 <div class="flex flex-col items-center justify-center py-20 text-gray-400">
-                    <svg class="w-14 h-14 mb-3 text-gray-200" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                    <x-app.icon name="user-group" class="w-14 h-14 mb-3 text-gray-200" />
                     <p class="text-sm font-semibold text-gray-500">Tidak ada akun ditemukan</p>
                     <p class="text-xs mt-1">Coba ubah filter atau tambah akun baru</p>
                 </div>
@@ -210,21 +187,13 @@
                     class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-6 py-4 flex items-center justify-between">
                     <div class="flex items-center gap-2.5">
                         <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                            </svg>
+                            <x-app.icon variant="s" name="user-plus" class="w-4 h-4 text-white" />
                         </div>
                         <h3 class="text-base font-bold text-white">Tambah Akun Baru</h3>
                     </div>
                     <button wire:click="closeAdd"
                         class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="x-mark" class="w-4 h-4" />
                     </button>
                 </div>
 
@@ -285,13 +254,7 @@
                         <button type="submit"
                             class="flex-1 px-4 py-2.5 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                             wire:loading.attr="disabled" wire:target="saveAdd">
-                            <svg wire:loading wire:target="saveAdd" class="animate-spin w-4 h-4" fill="none"
-                                viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
+                            <x-app.icon name="arrow-path" wire:loading wire:target="saveAdd" class="animate-spin w-4 h-4" />
                             Tambah Akun
                         </button>
                     </div>
@@ -319,21 +282,13 @@
                 <div class="bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-4 flex items-center justify-between">
                     <div class="flex items-center gap-2.5">
                         <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            <x-app.icon variant="s" name="pencil-square" class="w-4 h-4 text-white" />
                         </div>
                         <h3 class="text-base font-bold text-white">Edit Akun</h3>
                     </div>
                     <button wire:click="closeEdit"
                         class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <x-app.icon name="x-mark" class="w-4 h-4" />
                     </button>
                 </div>
 
@@ -396,13 +351,7 @@
                         <button type="submit"
                             class="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                             wire:loading.attr="disabled" wire:target="saveEdit">
-                            <svg wire:loading wire:target="saveEdit" class="animate-spin w-4 h-4" fill="none"
-                                viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
+                            <x-app.icon name="arrow-path" wire:loading wire:target="saveEdit" class="animate-spin w-4 h-4" />
                             Simpan Perubahan
                         </button>
                     </div>
