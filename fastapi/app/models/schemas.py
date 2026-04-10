@@ -234,6 +234,47 @@ class DTAResponse(BaseModel):
     )
 
 
+class TopicInferenceRequest(BaseModel):
+    """Request to infer the most relevant BERTopic topic from free text."""
+    text: str = Field(
+        ...,
+        min_length=3,
+        max_length=5000,
+        description="Query text to map into BERTopic topic space",
+    )
+    top_n_topics: int = Field(
+        5,
+        ge=1,
+        le=10,
+        description="Number of similar topics to return",
+    )
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("text must contain at least 3 non-space characters")
+        return normalized
+
+
+class TopicInferenceItem(BaseModel):
+    """One inferred topic candidate for the given query."""
+    topic_id: int
+    similarity: float = Field(..., ge=0.0, le=1.0)
+    top_words: List[str] = Field(default_factory=list)
+
+
+class TopicInferenceResponse(BaseModel):
+    """Inference response containing primary and candidate BERTopic matches."""
+    job_id: str
+    query: str
+    topic_id: int
+    topic_similarity: float = Field(..., ge=0.0, le=1.0)
+    top_words: List[str] = Field(default_factory=list)
+    topic_distribution: List[TopicInferenceItem] = Field(default_factory=list)
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
     status: str = "ok"

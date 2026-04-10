@@ -15,9 +15,13 @@ from app.ml.evaluator import TopicEvaluator
 from app.ml.hyperparameters import BERTOPIC_PRESETS, LDA_PRESETS
 from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 ModelType, TrainingRequest,
-                                TrainingStatus, TrainingStatusResponse)
+                                TopicInferenceItem,
+                                TopicInferenceRequest,
+                                TopicInferenceResponse, TrainingStatus,
+                                TrainingStatusResponse)
 from app.services.pipeline import pipeline_service
 from app.services.training import TrainingService
+from loguru import logger
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
@@ -33,6 +37,71 @@ def _validate_job_id(job_id: str) -> str:
     if not _JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=400, detail="Invalid job_id")
     return job_id
+
+
+def _tokenize_query_for_keyword_fallback(text: str) -> List[str]:
+    tokens = re.findall(r"[a-zA-Z0-9_]+", text.lower())
+    stopwords = {
+        "dan", "yang", "untuk", "dengan", "pada", "dari", "atau", "the", "of", "in", "to",
+        "di", "ke", "sebagai", "dalam", "analisis", "studi", "berbasis", "menggunakan",
+    }
+    return [token for token in tokens if len(token) >= 3 and token not in stopwords]
+
+
+def _build_keyword_fallback_distribution(trainer, query: str, top_n_topics: int) -> List[TopicInferenceItem]:
+    query_tokens = _tokenize_query_for_keyword_fallback(query)
+    query_token_set = set(query_tokens)
+
+    scored_topics: List[tuple[int, float, List[str]]] = []
+
+    for raw_topic_id in (trainer.model.get_topics() or {}).keys():
+        topic_id = int(raw_topic_id)
+        if topic_id == -1:
+            continue
+
+        words_scores = trainer.model.get_topic(topic_id) or []
+        top_words = [str(word) for word, _ in words_scores[:10]]
+        topic_words_lower = [word.lower() for word in top_words]
+
+        if query_token_set:
+            exact_hits = len(query_token_set.intersection(topic_words_lower))
+            partial_hits = 0
+            for token in query_token_set:
+                if any(token in word or word in token for word in topic_words_lower):
+                    partial_hits += 1
+
+            score = ((exact_hits * 1.0) + (partial_hits * 0.4)) / float(len(query_token_set))
+            score = max(0.0, min(1.0, score))
+            if score > 0:
+                scored_topics.append((topic_id, score, top_words))
+
+    # If no lexical overlap, fallback to most frequent topics.
+    if not scored_topics:
+        try:
+            info = trainer.model.get_topic_info()
+            for _, row in info.iterrows():
+                topic_id = int(row.get("Topic", -1))
+                if topic_id == -1:
+                    continue
+
+                words_scores = trainer.model.get_topic(topic_id) or []
+                top_words = [str(word) for word, _ in words_scores[:10]]
+                doc_count = int(row.get("Count", 0) or 0)
+                score = min(1.0, max(0.05, math.log1p(max(doc_count, 1)) / 10.0))
+                scored_topics.append((topic_id, score, top_words))
+        except Exception as e:
+            logger.warning("Keyword fallback topic_info extraction failed: {}", str(e))
+
+    scored_topics.sort(key=lambda item: item[1], reverse=True)
+
+    return [
+        TopicInferenceItem(
+            topic_id=topic_id,
+            similarity=round(float(similarity), 6),
+            top_words=top_words,
+        )
+        for topic_id, similarity, top_words in scored_topics[:top_n_topics]
+    ]
 
 
 def _run_training_job(
@@ -298,6 +367,137 @@ async def test_trained_model(job_id: str):
         return summary
 
     raise HTTPException(status_code=404, detail=f"BERTopic model artifacts not found for job {job_id}")
+@router.post("/model/{job_id}/infer", response_model=TopicInferenceResponse)
+async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
+    """Infer the most relevant BERTopic topic from a free-text query."""
+
+    _validate_job_id(job_id)
+
+    from app.ml.bertopic_trainer import BERTopicTrainer
+
+    trainer = BERTopicTrainer()
+    try:
+        trainer.load_model(job_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"BERTopic model not found for job {job_id}",
+        )
+
+    query = request.text.strip()
+    if query == "":
+        raise HTTPException(status_code=422, detail="text cannot be empty")
+
+    distribution: List[TopicInferenceItem] = []
+
+    similar_topic_ids: List[int] = []
+    similarities: List[float] = []
+
+    can_run_semantic_search = True
+    if getattr(trainer.model, "embedding_model", None) is None:
+        try:
+            trainer.embedding_model = trainer._build_embedding_model()
+            trainer.model.embedding_model = trainer.embedding_model
+        except Exception as e:
+            can_run_semantic_search = False
+            logger.warning(
+                "Embedding model unavailable for semantic topic search (job_id={}): {}",
+                job_id,
+                str(e),
+            )
+
+    if can_run_semantic_search:
+        try:
+            similar_topic_ids, similarities = trainer.model.find_topics(
+                query,
+                top_n=request.top_n_topics,
+            )
+        except Exception as e:
+            logger.warning(
+                "Semantic topic search failed (job_id={}): {}",
+                job_id,
+                str(e),
+            )
+            similar_topic_ids, similarities = [], []
+
+    for raw_topic_id, raw_similarity in zip(similar_topic_ids or [], similarities or []):
+        topic_id = int(raw_topic_id)
+        if topic_id == -1:
+            continue
+
+        similarity = max(0.0, min(1.0, float(raw_similarity)))
+        words_scores = trainer.model.get_topic(topic_id) or []
+        top_words = [str(word) for word, _ in words_scores[:10]]
+
+        distribution.append(
+            TopicInferenceItem(
+                topic_id=topic_id,
+                similarity=round(similarity, 6),
+                top_words=top_words,
+            )
+        )
+
+    primary_topic_id = -1
+    primary_similarity = 0.0
+
+    if distribution:
+        primary_topic_id = int(distribution[0].topic_id)
+        primary_similarity = float(distribution[0].similarity)
+
+    # Fallback to transform when semantic find_topics cannot return candidates.
+    if primary_topic_id == -1:
+        try:
+            inferred_topics, inferred_probabilities = trainer.model.transform([query])
+            if inferred_topics and int(inferred_topics[0]) != -1:
+                primary_topic_id = int(inferred_topics[0])
+
+                if inferred_probabilities is not None:
+                    try:
+                        first_probs = inferred_probabilities[0]
+                        if hasattr(first_probs, "__iter__"):
+                            primary_similarity = float(max(first_probs))
+                        else:
+                            primary_similarity = float(first_probs)
+                    except Exception:
+                        primary_similarity = 0.0
+        except Exception:
+            primary_topic_id = -1
+            primary_similarity = 0.0
+
+    # Last fallback: lexical match against topic keywords (no embedding model required).
+    if primary_topic_id == -1:
+        distribution = _build_keyword_fallback_distribution(
+            trainer=trainer,
+            query=query,
+            top_n_topics=request.top_n_topics,
+        )
+        if distribution:
+            primary_topic_id = int(distribution[0].topic_id)
+            primary_similarity = float(distribution[0].similarity)
+
+    primary_words: List[str] = []
+    if primary_topic_id != -1:
+        primary_words_scores = trainer.model.get_topic(primary_topic_id) or []
+        primary_words = [str(word) for word, _ in primary_words_scores[:10]]
+
+        if all(item.topic_id != primary_topic_id for item in distribution):
+            distribution.insert(
+                0,
+                TopicInferenceItem(
+                    topic_id=primary_topic_id,
+                    similarity=round(max(0.0, min(1.0, primary_similarity)), 6),
+                    top_words=primary_words,
+                ),
+            )
+
+    return TopicInferenceResponse(
+        job_id=job_id,
+        query=query,
+        topic_id=primary_topic_id,
+        topic_similarity=round(max(0.0, min(1.0, primary_similarity)), 6),
+        top_words=primary_words,
+        topic_distribution=distribution[: request.top_n_topics],
+    )
 
 
 @router.get("/model/{job_id}/test-dataset")
