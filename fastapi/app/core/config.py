@@ -111,6 +111,19 @@ class ScrapingSettings(BaseSettings):
     SCRAPING_MAX_RETRIES: int = 3
 
 
+class GeminiSettings(BaseSettings):
+    """Gemini API configuration for AI-assisted topic curation."""
+
+    model_config = SettingsConfigDict(
+        env_file=str(BASE_DIR / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
+
 class BERTopicSettings(BaseSettings):
     """
     BERTopic core configuration.
@@ -203,6 +216,7 @@ class LDASettings(BaseSettings):
 app_settings = AppSettings()
 path_settings = PathSettings()
 scraping_settings = ScrapingSettings()
+gemini_settings = GeminiSettings()
 bertopic_settings = BERTopicSettings()
 umap_settings = UMAPSettings()
 hdbscan_settings = HDBSCANSettings()

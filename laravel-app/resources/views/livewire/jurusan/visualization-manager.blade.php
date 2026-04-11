@@ -409,7 +409,7 @@
                                     <span class="text-xs font-semibold text-gray-700">{{ number_format($topic->count) }} dok</span>
                                 </div>
                                 <div class="mb-2 flex flex-wrap gap-1.5">
-                                    @foreach (array_slice($topic->top_words ?? [], 0, 8) as $word)
+                                    @foreach (array_slice($topic->top_words ?? [], 0, 10) as $word)
                                         <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700">{{ $word }}</span>
                                     @endforeach
                                 </div>

@@ -472,7 +472,13 @@ class BERTopicTrainer:
         self.topic_info = self.model.get_topic_info()
 
         duration = time.time() - start_time
-        num_topics = len(self.topic_info) - 1  # exclude outlier topic -1
+
+        # Count only valid topics (>= 0). Topic id -1 is BERTopic outlier bucket.
+        if self.topic_info is not None and "Topic" in self.topic_info.columns:
+            topic_ids = [int(topic_id) for topic_id in self.topic_info["Topic"].tolist()]
+            num_topics = sum(1 for topic_id in topic_ids if topic_id >= 0)
+        else:
+            num_topics = len([topic_id for topic_id in self.model.get_topics().keys() if int(topic_id) >= 0])
 
         logger.info(
             f"BERTopic training complete in {duration:.2f}s. "

@@ -118,7 +118,7 @@
 
                                     <td class="px-4 py-3 align-top">
                                         <div class="flex max-w-xs flex-wrap gap-1">
-                                            @foreach (array_slice($topic->top_words ?? [], 0, 8) as $word)
+                                            @foreach (array_slice($topic->top_words ?? [], 0, 10) as $word)
                                                 <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                             @endforeach
                                         </div>
@@ -240,6 +240,23 @@
                             @empty
                                 <span class="text-xs text-gray-400">Tidak ada kata kunci.</span>
                             @endforelse
+                        </div>
+                        <div class="mt-3 flex items-center gap-2">
+                            <button
+                                type="button"
+                                wire:click="generateAiSuggestion"
+                                wire:loading.attr="disabled"
+                                wire:target="generateAiSuggestion"
+                                class="inline-flex items-center rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10 2a1 1 0 0 1 .95.684l1.1 3.383a1 1 0 0 0 .63.63l3.383 1.1a1 1 0 0 1 0 1.903l-3.383 1.1a1 1 0 0 0-.63.63l-1.1 3.383a1 1 0 0 1-1.903 0l-1.1-3.383a1 1 0 0 0-.63-.63l-3.383-1.1a1 1 0 0 1 0-1.903l3.383-1.1a1 1 0 0 0 .63-.63l1.1-3.383A1 1 0 0 1 10 2Z" />
+                                </svg>
+                                Generate AI (Gemini)
+                            </button>
+                            <span wire:loading wire:target="generateAiSuggestion" class="text-xs text-gray-500">
+                                Memproses saran AI...
+                            </span>
                         </div>
                     </div>
 

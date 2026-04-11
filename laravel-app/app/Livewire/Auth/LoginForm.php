@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Auth;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Rule;
 use Livewire\Attributes\Title;
@@ -24,13 +26,23 @@ class LoginForm extends Component
   {
     $this->validate();
 
-    if (Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
+    $normalizedEmail = Str::lower(trim($this->email));
+    $user = User::where('email', $normalizedEmail)->first();
+
+    if ($user && blank($user->password)) {
+      $this->addError('password', 'Akun ini belum memiliki password login form. Gunakan Google OAuth atau atur password terlebih dahulu.');
+      return;
+    }
+
+    if (Auth::attempt(['email' => $normalizedEmail, 'password' => $this->password], $this->remember)) {
       session()->regenerate();
 
       $user = Auth::user();
 
       if ($user->isJurusan()) {
         $this->redirect(route('jurusan.dashboard'), navigate: true);
+      } elseif ($user->isMahasiswa()) {
+        $this->redirect(route('mahasiswa.dashboard'), navigate: true);
       } else {
         $this->redirect('/', navigate: true);
       }

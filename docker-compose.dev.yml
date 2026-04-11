@@ -11,6 +11,8 @@ services:
       - ./fastapi:/app
       - fastapi-venv:/app/venv
       - ./analysis/data:/app/analysis_data:ro
+    env_file:
+      - ./fastapi/.env
     environment:
       - APP_ENV=development
       - APP_DEBUG=true

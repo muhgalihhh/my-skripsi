@@ -7,7 +7,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Manajemen Akun</h1>
-                <p class="mt-1 text-sm text-gray-500">Kelola akun pengguna yang terdaftar di sistem</p>
+                <p class="mt-1 text-sm text-gray-500">Kelola akun jurusan dan akun mahasiswa (Google OAuth)</p>
             </div>
             <button wire:click="openAdd"
                 class="inline-flex items-center gap-2 px-4 py-2.5 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition">
@@ -31,6 +31,18 @@
                     <option value="mahasiswa">Mahasiswa</option>
                 </select>
             </div>
+        </div>
+
+        @php
+            $googleAllowedDomains = config('services.google.allowed_domains', []);
+            if (!is_array($googleAllowedDomains) || empty($googleAllowedDomains)) {
+                $googleAllowedDomains = [config('services.google.allowed_domain', 'mhs.unsoed.ac.id')];
+            }
+            $googleAllowedDomainsText = implode(' atau ', array_map(fn($domain) => '@' . trim((string) $domain), $googleAllowedDomains));
+        @endphp
+        <div class="rounded-xl border border-unsoed-blue-200 bg-unsoed-blue-50 px-4 py-3 text-xs text-unsoed-blue-800">
+            <p class="font-semibold">Kebijakan Auth Mahasiswa</p>
+            <p class="mt-1">Akun mahasiswa wajib email domain {{ $googleAllowedDomainsText }}. Login utama via Google OAuth, dan login form aktif jika password lokal diisi.</p>
         </div>
 
         {{-- ── Users Table ──────────────────────────────────── --}}
@@ -81,6 +93,9 @@
                                     class="text-center py-3 px-4 font-semibold text-gray-500 text-xs uppercase tracking-wide w-28">
                                     Role</th>
                                 <th
+                                    class="text-center py-3 px-4 font-semibold text-gray-500 text-xs uppercase tracking-wide w-40">
+                                    Metode Auth</th>
+                                <th
                                     class="text-left py-3 px-4 font-semibold text-gray-500 text-xs uppercase tracking-wide w-36">
                                     Terdaftar</th>
                                 <th
@@ -128,6 +143,26 @@
                                         @else
                                             <span
                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">{{ $user->role }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 px-4 text-center">
+                                        @if ($user->role === 'mahasiswa')
+                                            @if (filled($user->google_id) && filled($user->password))
+                                                <span
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Google + Form</span>
+                                            @elseif (filled($user->google_id))
+                                                <span
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Google OAuth</span>
+                                            @elseif (filled($user->password))
+                                                <span
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Form Saja</span>
+                                            @else
+                                                <span
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">Belum Aktif</span>
+                                            @endif
+                                        @else
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">Email + Password</span>
                                         @endif
                                     </td>
                                     <td class="py-3 px-4 text-gray-500 text-xs">
@@ -228,24 +263,50 @@
                         @error('addRole')
                             <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                         @enderror
+                        @if ($addRole === 'mahasiswa')
+                            <p class="mt-1 text-xs text-unsoed-blue-600">Password lokal opsional. Jika dikosongkan, login form dinonaktifkan sampai password diatur.</p>
+                        @endif
                     </div>
-                    <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password
-                            <span class="text-red-500">*</span></label>
-                        <input wire:model="addPassword" type="password" placeholder="Min. 8 karakter"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
-                        @error('addPassword')
-                            <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Konfirmasi
-                            Password <span class="text-red-500">*</span></label>
-                        <input wire:model="addPasswordConfirmation" type="password" placeholder="Ulangi password"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
-                    </div>
+                    @if ($addRole === 'jurusan')
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password
+                                <span class="text-red-500">*</span></label>
+                            <input wire:model="addPassword" type="password" placeholder="Min. 8 karakter"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
+                            @error('addPassword')
+                                <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Konfirmasi
+                                Password <span class="text-red-500">*</span></label>
+                            <input wire:model="addPasswordConfirmation" type="password" placeholder="Ulangi password"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
+                        </div>
+                    @else
+                        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                            Password lokal opsional untuk akun mahasiswa.
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password Lokal <span class="text-gray-300 normal-case font-normal">(opsional)</span></label>
+                            <input wire:model="addPassword" type="password" placeholder="Kosongkan jika ingin nonaktifkan login form"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
+                            @error('addPassword')
+                                <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        @if ($addPassword)
+                            <div>
+                                <label
+                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Konfirmasi Password Lokal</label>
+                                <input wire:model="addPasswordConfirmation" type="password" placeholder="Ulangi password"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 transition">
+                            </div>
+                        @endif
+                    @endif
                     <div class="flex gap-3 pt-2">
                         <button type="button" wire:click="closeAdd"
                             class="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition">
@@ -322,26 +383,62 @@
                         @error('editRole')
                             <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                         @enderror
+                        @if ($editRole === 'mahasiswa')
+                            <p class="mt-1 text-xs text-unsoed-blue-600">Akun mahasiswa login utama lewat Google OAuth.
+                                @if ($editGoogleLinked)
+                                    Akun Google sudah terhubung.
+                                @else
+                                    Akun Google belum pernah login.
+                                @endif
+                            </p>
+                        @endif
                     </div>
-                    <div>
-                        <label
-                            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password
-                            Baru <span class="text-gray-300 normal-case font-normal">(kosongkan jika tidak
-                                diubah)</span></label>
-                        <input wire:model="editPassword" type="password" placeholder="Min. 8 karakter"
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                        @error('editPassword')
-                            <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    @if ($editPassword)
+                    @if ($editRole === 'jurusan')
                         <div>
                             <label
-                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Konfirmasi
-                                Password Baru</label>
-                            <input wire:model="editPasswordConfirmation" type="password"
+                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password
+                                Baru <span class="text-gray-300 normal-case font-normal">(kosongkan jika tidak
+                                    diubah)</span></label>
+                            <input wire:model="editPassword" type="password" placeholder="Min. 8 karakter"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                            @error('editPassword')
+                                <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                            @enderror
                         </div>
+                        @if ($editPassword)
+                            <div>
+                                <label
+                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Konfirmasi
+                                    Password Baru</label>
+                                <input wire:model="editPasswordConfirmation" type="password"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                            </div>
+                        @endif
+                    @else
+                        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                            Password lokal mahasiswa dapat diatur atau dikosongkan dari panel ini.
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Password Lokal Baru <span class="text-gray-300 normal-case font-normal">(opsional)</span></label>
+                            <input wire:model="editPassword" type="password" placeholder="Kosongkan jika tidak diubah"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                            @error('editPassword')
+                                <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        @if ($editPassword)
+                            <div>
+                                <label
+                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Konfirmasi Password Lokal Baru</label>
+                                <input wire:model="editPasswordConfirmation" type="password"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                            </div>
+                        @endif
+                        <label class="flex items-start gap-2 text-xs text-gray-600">
+                            <input wire:model="editClearPassword" type="checkbox" class="mt-0.5 rounded border-gray-300 text-amber-500 focus:ring-amber-400">
+                            <span>Kosongkan password lokal mahasiswa (setelah disimpan, login form akan nonaktif).</span>
+                        </label>
                     @endif
                     <div class="flex gap-3 pt-2">
                         <button type="button" wire:click="closeEdit"

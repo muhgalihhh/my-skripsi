@@ -62,6 +62,7 @@ class TopicModelingManager extends Component
     public bool $showStartTrainingConfirm = false;
     public bool $showTestModelWithDatasetConfirm = false;
     public bool $showCancelPreprocessingConfirm = false;
+    public bool $showCancelTrainingConfirm = false;
 
     // Show preprocessed texts stored in DB (skripsi.cleaned_text / skripsi.processed_text)
     public array $dbPreprocessedRows = [];
@@ -89,7 +90,7 @@ class TopicModelingManager extends Component
 
     /**
      * Load BERTopic training params with precedence:
-     * 1) active run snapshot (topic_model_runs.bertopic_params)
+     * 1) active draft run snapshot (pending/preprocessing/training/failed)
      * 2) user default setting (topic_model_settings.bertopic_params / lda_params)
      * 3) metadata.json from analysis output / fallback default
      */
@@ -98,13 +99,16 @@ class TopicModelingManager extends Component
         $hasBerTopicParams = false;
         $hasLdaParams = false;
 
-        // 1) Active run snapshot
-        if ($this->activeRun && is_array($this->activeRun->bertopic_params) && !empty($this->activeRun->bertopic_params)) {
+        $shouldUseActiveRunSnapshot = $this->activeRun
+            && in_array((string) $this->activeRun->status, ['pending', 'preprocessing', 'training', 'failed'], true);
+
+        // 1) Active run snapshot (only while run is still considered draft/in-progress)
+        if ($shouldUseActiveRunSnapshot && is_array($this->activeRun->bertopic_params) && !empty($this->activeRun->bertopic_params)) {
             $this->bertopicParams = $this->activeRun->bertopic_params;
             $hasBerTopicParams = true;
         }
 
-        if ($this->activeRun && is_array($this->activeRun->lda_params) && !empty($this->activeRun->lda_params)) {
+        if ($shouldUseActiveRunSnapshot && is_array($this->activeRun->lda_params) && !empty($this->activeRun->lda_params)) {
             $this->ldaParams = $this->activeRun->lda_params;
             $hasLdaParams = true;
         }
@@ -187,7 +191,7 @@ class TopicModelingManager extends Component
 
     public function resetTrainingParamsToNotebookBest(): void
     {
-        $this->loadBestParamsFromMetadata();
+        $loadedFromArtifact = $this->loadBestParamsFromMetadata();
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
@@ -201,7 +205,44 @@ class TopicModelingManager extends Component
             $this->activeRun->refresh();
         }
 
-        $this->dispatch('toast', type: 'success', message: 'Parameter di-reset ke best params eksperimen terbaru.');
+        if ($loadedFromArtifact) {
+            $this->dispatch('toast', type: 'success', message: 'Parameter di-reset ke best params eksperimen terbaru.');
+            return;
+        }
+
+        $this->dispatch(
+            'toast',
+            type: 'warning',
+            message: 'Artifact best params notebook tidak ditemukan. Parameter menggunakan fallback default/riwayat run.',
+        );
+    }
+
+    public function resetTrainingParamsToBestCompletedTraining(): void
+    {
+        $this->bertopicParams = $this->getDefaultBertopicParams();
+        $this->ldaParams = $this->getDefaultLdaParams();
+
+        if (!$this->loadBestParamsFromCompletedRuns()) {
+            $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
+            $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
+            $this->dispatch('toast', type: 'warning', message: 'Belum ada run completed yang bisa dijadikan best config training.');
+            return;
+        }
+
+        $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
+        $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
+        $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
+        $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
+
+        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'failed'])) {
+            $this->activeRun->update([
+                'bertopic_params' => $bertopicParamsForStorage ?: null,
+                'lda_params' => $ldaParamsForStorage ?: null,
+            ]);
+            $this->activeRun->refresh();
+        }
+
+        $this->dispatch('toast', type: 'success', message: 'Parameter di-reset dari best run training (completed).');
     }
 
     public function loadDbPreprocessedRows(): void
@@ -390,17 +431,43 @@ class TopicModelingManager extends Component
 
                 Log::info('Training job completed while page was away', ['job_id' => $jobId]);
             } elseif ($state === 'failed') {
+                $errorMessage = (string) ($status['error'] ?? $status['message'] ?? 'Training gagal');
+                $isCancelled = str_contains(strtolower($errorMessage), 'cancel')
+                    || str_contains(strtolower($errorMessage), 'batal');
+
                 $this->activeRun->update([
                     'status' => 'failed',
-                    'error_message' => $status['error'] ?? $status['message'] ?? 'Training gagal',
+                    'error_message' => $isCancelled ? 'Dibatalkan oleh user' : $errorMessage,
                     'completed_at' => now(),
                 ]);
                 $this->activeRun->refresh();
-                $this->statusMessage = 'Training gagal: ' . ($status['error'] ?? 'Unknown error');
-                $this->statusType = 'error';
+
+                if ($isCancelled) {
+                    $this->statusMessage = 'Training berhasil dibatalkan.';
+                    $this->statusType = 'warning';
+                } else {
+                    $this->statusMessage = 'Training gagal: ' . $errorMessage;
+                    $this->statusType = 'error';
+                }
 
                 Log::warning('Training job failed while page was away', ['job_id' => $jobId]);
-            } elseif (in_array($state, ['unreachable', 'error', 'not_found', 'unknown'], true)) {
+            } elseif ($state === 'not_found') {
+                $this->activeRun->update([
+                    'status' => 'failed',
+                    'error_message' => (string) ($status['message'] ?? 'Training job tidak ditemukan di FastAPI'),
+                    'completed_at' => now(),
+                ]);
+                $this->activeRun->refresh();
+
+                $this->trainingJobId = '';
+                $this->trainingProgress = 0;
+                $this->trainingMessage = '';
+                $this->isProcessing = false;
+                $this->statusMessage = 'Training dihentikan: job tidak ditemukan di FastAPI.';
+                $this->statusType = 'warning';
+
+                Log::warning('Training job not found while resuming', ['job_id' => $jobId]);
+            } elseif (in_array($state, ['unreachable', 'error', 'unknown'], true)) {
                 $this->trainingJobId = $jobId;
                 $this->isProcessing = true;
                 $this->trainingMessage = $status['message'] ?? ($this->trainingMessage ?: 'Menunggu sinkronisasi status training...');
@@ -442,7 +509,7 @@ class TopicModelingManager extends Component
         ];
     }
 
-    protected function loadBestParamsFromMetadata(): void
+    protected function loadBestParamsFromMetadata(): bool
     {
         $defaults = $this->getDefaultBertopicParams();
         $this->bertopicParams = $defaults;
@@ -450,7 +517,7 @@ class TopicModelingManager extends Component
 
         // Prioritas utama: payload tuning terbaru dari notebook baru.
         if ($this->loadBestParamsFromNotebookPayloads()) {
-            return;
+            return true;
         }
 
         // Fallback lama: output clean notebook.
@@ -523,7 +590,7 @@ class TopicModelingManager extends Component
                     }
                 }
 
-                return;
+                return true;
             } catch (\Throwable $e) {
                 Log::warning('Failed to parse step6_best_params.csv, fallback to defaults', ['error' => $e->getMessage()]);
             }
@@ -532,7 +599,7 @@ class TopicModelingManager extends Component
         // Fallback lama: metadata file jika masih dipakai.
         $legacyPath = base_path('../analysis/output/models/bertopic_best_model/metadata.json');
         if (!File::exists($legacyPath)) {
-            return;
+            return false;
         }
 
         try {
@@ -554,9 +621,13 @@ class TopicModelingManager extends Component
             $this->bertopicParams['n_gram_range'] = $bestVectorizer['ngram_range'] ?? $defaults['n_gram_range'];
             $this->bertopicParams['vectorizer_min_df'] = $bestVectorizer['min_df'] ?? $defaults['vectorizer_min_df'];
             $this->bertopicParams['vectorizer_max_df'] = $bestVectorizer['max_df'] ?? $defaults['vectorizer_max_df'];
+
+            return true;
         } catch (\Throwable $e) {
             $this->bertopicParams = $this->getDefaultBertopicParams();
             $this->ldaParams = $this->getDefaultLdaParams();
+
+            return false;
         }
     }
 
@@ -565,24 +636,82 @@ class TopicModelingManager extends Component
      */
     protected function loadBestParamsFromNotebookPayloads(): bool
     {
-        $artifactDir = base_path('../analysis/output/bertopic_tuning');
-        if (!File::isDirectory($artifactDir)) {
+        $hasLoaded = false;
+
+        // Source utama lintas-container: minta artifact best-config dari FastAPI API.
+        try {
+            $fastApi = app(FastApiService::class);
+            $apiPayload = $fastApi->getLatestTrainingBestConfig();
+
+            if (($apiPayload['status'] ?? '') === 'ok') {
+                $bertopicPayload = $apiPayload['best_bertopic']['params'] ?? null;
+                $ldaPayload = $apiPayload['best_lda']['params'] ?? null;
+
+                if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
+                    $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
+                    $hasLoaded = true;
+                }
+
+                if (is_array($ldaPayload) && !empty($ldaPayload)) {
+                    $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
+                    $hasLoaded = true;
+                }
+
+                if ($hasLoaded) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to load best config from FastAPI API', ['error' => $e->getMessage()]);
+        }
+
+        // Source utama: hasil notebook tuning terbaru (Cell simpan artifacts).
+        $notebookArtifactDir = base_path('../fastapi/data/results/artifacts_tuning');
+        if (File::isDirectory($notebookArtifactDir)) {
+            $bestConfigPayload = $this->loadLatestJsonArtifact($notebookArtifactDir . '/best_config_*.json');
+
+            if (is_array($bestConfigPayload)) {
+                $bertopicPayload = $bestConfigPayload['best_bertopic']['params'] ?? null;
+                $ldaPayload = $bestConfigPayload['best_lda']['params'] ?? null;
+
+                if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
+                    $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
+                    $hasLoaded = true;
+                }
+
+                if (is_array($ldaPayload) && !empty($ldaPayload)) {
+                    $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
+                    $hasLoaded = true;
+                }
+            }
+        }
+
+        if ($hasLoaded) {
+            return true;
+        }
+
+        // Fallback menengah: run training completed terbaik per model (dari DB Laravel).
+        if ($this->loadBestParamsFromCompletedRuns()) {
+            return true;
+        }
+
+        // Fallback legacy: artifact tuning lama dari pipeline analysis/output.
+        $legacyArtifactDir = base_path('../analysis/output/bertopic_tuning');
+        if (!File::isDirectory($legacyArtifactDir)) {
             return false;
         }
 
         $bertopicPayload = null;
-        $summaryPayload = $this->loadLatestJsonArtifact($artifactDir . '/bertopic_tuning_summary_*.json');
+        $summaryPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/bertopic_tuning_summary_*.json');
         if (is_array($summaryPayload['best_laravel_payload'] ?? null)) {
             $bertopicPayload = $summaryPayload['best_laravel_payload'];
         }
 
         if (!is_array($bertopicPayload) || empty($bertopicPayload)) {
-            $bertopicPayload = $this->loadLatestJsonArtifact($artifactDir . '/bertopic_laravel_payload_*.json');
+            $bertopicPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/bertopic_laravel_payload_*.json');
         }
 
-        $ldaPayload = $this->loadLatestJsonArtifact($artifactDir . '/lda_laravel_payload_*.json');
-
-        $hasLoaded = false;
+        $ldaPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/lda_laravel_payload_*.json');
 
         if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
             $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
@@ -591,6 +720,87 @@ class TopicModelingManager extends Component
 
         if (is_array($ldaPayload) && !empty($ldaPayload)) {
             $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
+            $hasLoaded = true;
+        }
+
+        return $hasLoaded;
+    }
+
+    /**
+     * Load best params from completed training runs in DB (per model type).
+     *
+     * Score sederhana: 0.7 * coherence_cv + 0.3 * topic_diversity,
+     * lalu tie-break by run id terbaru.
+     */
+    protected function loadBestParamsFromCompletedRuns(): bool
+    {
+        /** @var int|null $userId */
+        $userId = Auth::id();
+        if ($userId === null) {
+            return false;
+        }
+
+        $runs = TopicModelRun::query()
+            ->where('user_id', $userId)
+            ->where('status', 'completed')
+            ->whereIn('model_type', ['bertopic', 'lda'])
+            ->where(function ($q): void {
+                $q->whereNotNull('bertopic_params')->orWhereNotNull('lda_params');
+            })
+            ->orderByDesc('id')
+            ->get([
+                'id',
+                'model_type',
+                'bertopic_params',
+                'lda_params',
+                'coherence_cv',
+                'topic_diversity',
+            ]);
+
+        if ($runs->isEmpty()) {
+            return false;
+        }
+
+        $bestBertopic = null;
+        $bestBertopicScore = null;
+        $bestLda = null;
+        $bestLdaScore = null;
+
+        foreach ($runs as $run) {
+            $coherence = is_numeric($run->coherence_cv) ? (float) $run->coherence_cv : 0.0;
+            $diversity = is_numeric($run->topic_diversity) ? (float) $run->topic_diversity : 0.0;
+            $score = (0.7 * $coherence) + (0.3 * $diversity);
+
+            if (
+                $run->model_type === 'bertopic'
+                && is_array($run->bertopic_params)
+                && !empty($run->bertopic_params)
+                && ($bestBertopicScore === null || $score > $bestBertopicScore)
+            ) {
+                $bestBertopic = $run->bertopic_params;
+                $bestBertopicScore = $score;
+            }
+
+            if (
+                $run->model_type === 'lda'
+                && is_array($run->lda_params)
+                && !empty($run->lda_params)
+                && ($bestLdaScore === null || $score > $bestLdaScore)
+            ) {
+                $bestLda = $run->lda_params;
+                $bestLdaScore = $score;
+            }
+        }
+
+        $hasLoaded = false;
+
+        if (is_array($bestBertopic) && !empty($bestBertopic)) {
+            $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bestBertopic);
+            $hasLoaded = true;
+        }
+
+        if (is_array($bestLda) && !empty($bestLda)) {
+            $this->ldaParams = array_replace($this->ldaParams, $bestLda);
             $hasLoaded = true;
         }
 
@@ -724,25 +934,100 @@ class TopicModelingManager extends Component
         $defaults = $this->getDefaultBertopicParams();
         $params = array_replace_recursive($defaults, $params);
 
-        // Keep advanced/internal params stable and tune only official BERTopic params.
-        $params['embedding_model'] = $defaults['embedding_model'];
-        $params['vectorizer_min_df'] = $defaults['vectorizer_min_df'];
-        $params['vectorizer_max_df'] = $defaults['vectorizer_max_df'];
-        $params['vectorizer_token_pattern'] = $defaults['vectorizer_token_pattern'];
-        $params['vectorizer_fallback_min_df'] = $defaults['vectorizer_fallback_min_df'];
-        $params['vectorizer_fallback_max_df'] = $defaults['vectorizer_fallback_max_df'];
-        $params['coherence_type'] = $defaults['coherence_type'];
-        $params['coherence_tokenization'] = $defaults['coherence_tokenization'];
-        $params['coherence_dict_no_below'] = $defaults['coherence_dict_no_below'];
-        $params['coherence_dict_no_above'] = $defaults['coherence_dict_no_above'];
-        $params['reduce_outliers'] = $defaults['reduce_outliers'];
-        $params['reduce_outliers_threshold_ctfidf'] = $defaults['reduce_outliers_threshold_ctfidf'];
-        $params['reduce_outliers_use_distributions'] = $defaults['reduce_outliers_use_distributions'];
-        $params['reduce_outliers_threshold_distributions'] = $defaults['reduce_outliers_threshold_distributions'];
-        $params['use_mmr_representation'] = $defaults['use_mmr_representation'];
-        $params['mmr_diversity'] = $defaults['mmr_diversity'];
-        $params['embedding_batch_size'] = $defaults['embedding_batch_size'];
-        $params['seed'] = $defaults['seed'];
+        $embeddingModel = trim((string) ($params['embedding_model'] ?? $defaults['embedding_model']));
+        $params['embedding_model'] = $embeddingModel !== ''
+            ? $embeddingModel
+            : (string) $defaults['embedding_model'];
+
+        $params['vectorizer_min_df'] = $this->toNumeric(
+            $params['vectorizer_min_df'] ?? $defaults['vectorizer_min_df'],
+            $defaults['vectorizer_min_df'],
+        );
+        $params['vectorizer_max_df'] = $this->toNumeric(
+            $params['vectorizer_max_df'] ?? $defaults['vectorizer_max_df'],
+            $defaults['vectorizer_max_df'],
+        );
+
+        $tokenPattern = trim((string) ($params['vectorizer_token_pattern'] ?? $defaults['vectorizer_token_pattern']));
+        $params['vectorizer_token_pattern'] = $tokenPattern !== ''
+            ? $tokenPattern
+            : (string) $defaults['vectorizer_token_pattern'];
+
+        $params['vectorizer_fallback_min_df'] = $this->toInt(
+            $params['vectorizer_fallback_min_df'] ?? null,
+            1,
+            null,
+            (int) $defaults['vectorizer_fallback_min_df'],
+        );
+        $params['vectorizer_fallback_max_df'] = $this->toFloat(
+            $params['vectorizer_fallback_max_df'] ?? null,
+            0.0001,
+            1.0,
+            (float) $defaults['vectorizer_fallback_max_df'],
+        );
+
+        $coherenceType = trim((string) ($params['coherence_type'] ?? $defaults['coherence_type']));
+        $params['coherence_type'] = $coherenceType !== ''
+            ? $coherenceType
+            : (string) $defaults['coherence_type'];
+
+        $coherenceTokenization = trim((string) ($params['coherence_tokenization'] ?? $defaults['coherence_tokenization']));
+        $params['coherence_tokenization'] = $coherenceTokenization !== ''
+            ? $coherenceTokenization
+            : (string) $defaults['coherence_tokenization'];
+
+        $params['coherence_dict_no_below'] = $this->toInt(
+            $params['coherence_dict_no_below'] ?? null,
+            1,
+            null,
+            (int) $defaults['coherence_dict_no_below'],
+        );
+        $params['coherence_dict_no_above'] = $this->toFloat(
+            $params['coherence_dict_no_above'] ?? null,
+            0.0001,
+            1.0,
+            (float) $defaults['coherence_dict_no_above'],
+        );
+
+        $params['reduce_outliers'] = $this->toBool(
+            $params['reduce_outliers'] ?? null,
+            (bool) $defaults['reduce_outliers'],
+        );
+        $params['reduce_outliers_threshold_ctfidf'] = $this->toFloat(
+            $params['reduce_outliers_threshold_ctfidf'] ?? null,
+            0.0,
+            1.0,
+            (float) $defaults['reduce_outliers_threshold_ctfidf'],
+        );
+        $params['reduce_outliers_use_distributions'] = $this->toBool(
+            $params['reduce_outliers_use_distributions'] ?? null,
+            (bool) $defaults['reduce_outliers_use_distributions'],
+        );
+        $params['reduce_outliers_threshold_distributions'] = $this->toFloat(
+            $params['reduce_outliers_threshold_distributions'] ?? null,
+            0.0,
+            1.0,
+            (float) $defaults['reduce_outliers_threshold_distributions'],
+        );
+
+        $params['use_mmr_representation'] = $this->toBool(
+            $params['use_mmr_representation'] ?? null,
+            (bool) $defaults['use_mmr_representation'],
+        );
+        $params['mmr_diversity'] = $this->toFloat(
+            $params['mmr_diversity'] ?? null,
+            0.0,
+            1.0,
+            (float) $defaults['mmr_diversity'],
+        );
+
+        $params['embedding_batch_size'] = $this->toInt(
+            $params['embedding_batch_size'] ?? null,
+            1,
+            null,
+            (int) $defaults['embedding_batch_size'],
+        );
+        $params['seed'] = $this->toInt($params['seed'] ?? null, 0, null, (int) $defaults['seed']);
 
         // Official BERTopic parameters to tune: top_n_words, n_gram_range, min_topic_size, nr_topics.
         $params['min_topic_size'] = $this->toInt($params['min_topic_size'] ?? null, 2, null, $defaults['min_topic_size']);
@@ -763,9 +1048,14 @@ class TopicModelingManager extends Component
         $params['umap_params'] = [
             'n_neighbors' => $this->toInt($umap['n_neighbors'] ?? null, 2, null, $umapDefaults['n_neighbors']),
             'n_components' => $this->toInt($umap['n_components'] ?? null, 2, null, $umapDefaults['n_components']),
-            'min_dist' => (float) $umapDefaults['min_dist'],
+            'min_dist' => $this->toFloat($umap['min_dist'] ?? null, 0.0, 1.0, (float) $umapDefaults['min_dist']),
             'metric' => $umapMetric,
-            'random_state' => (int) $umapDefaults['random_state'],
+            'random_state' => $this->toInt(
+                $umap['random_state'] ?? null,
+                0,
+                null,
+                (int) $umapDefaults['random_state'],
+            ),
         ];
 
         $hdbscanDefaults = $defaults['hdbscan_params'];
@@ -774,6 +1064,14 @@ class TopicModelingManager extends Component
         if ($hdbscanMetric === '') {
             $hdbscanMetric = (string) $hdbscanDefaults['metric'];
         }
+
+        $clusterSelectionMethod = strtolower(
+            trim((string) ($hdbscan['cluster_selection_method'] ?? $hdbscanDefaults['cluster_selection_method']))
+        );
+        if (!in_array($clusterSelectionMethod, ['eom', 'leaf'], true)) {
+            $clusterSelectionMethod = (string) $hdbscanDefaults['cluster_selection_method'];
+        }
+
         $params['hdbscan_params'] = [
             'min_cluster_size' => $this->toInt(
                 $hdbscan['min_cluster_size'] ?? null,
@@ -783,7 +1081,7 @@ class TopicModelingManager extends Component
             ),
             'min_samples' => $this->toOptionalInt($hdbscan['min_samples'] ?? null, 1, (int) $hdbscanDefaults['min_samples']),
             'metric' => $hdbscanMetric,
-            'cluster_selection_method' => (string) $hdbscanDefaults['cluster_selection_method'],
+            'cluster_selection_method' => $clusterSelectionMethod,
         ];
 
         return $params;
@@ -812,6 +1110,7 @@ class TopicModelingManager extends Component
         $normalized = $this->normalizeBertopicParams($params);
 
         return [
+            'embedding_model' => (string) ($normalized['embedding_model'] ?? 'denaya/indoSBERT-large'),
             'min_topic_size' => (int) $normalized['min_topic_size'],
             'nr_topics' => $normalized['nr_topics'],
             'top_n_words' => (int) $normalized['top_n_words'],
@@ -819,10 +1118,29 @@ class TopicModelingManager extends Component
                 (int) ($normalized['n_gram_range'][0] ?? 1),
                 (int) ($normalized['n_gram_range'][1] ?? 2),
             ],
+            'vectorizer_min_df' => $normalized['vectorizer_min_df'] ?? 2,
+            'vectorizer_max_df' => $normalized['vectorizer_max_df'] ?? 0.95,
+            'vectorizer_token_pattern' => (string) ($normalized['vectorizer_token_pattern'] ?? '(?u)\\b\\w{3,}\\b'),
+            'vectorizer_fallback_min_df' => (int) ($normalized['vectorizer_fallback_min_df'] ?? 1),
+            'vectorizer_fallback_max_df' => (float) ($normalized['vectorizer_fallback_max_df'] ?? 1.0),
+            'coherence_type' => (string) ($normalized['coherence_type'] ?? 'c_v'),
+            'coherence_tokenization' => (string) ($normalized['coherence_tokenization'] ?? 'vectorizer'),
+            'coherence_dict_no_below' => (int) ($normalized['coherence_dict_no_below'] ?? 3),
+            'coherence_dict_no_above' => (float) ($normalized['coherence_dict_no_above'] ?? 0.95),
+            'reduce_outliers' => (bool) ($normalized['reduce_outliers'] ?? true),
+            'reduce_outliers_threshold_ctfidf' => (float) ($normalized['reduce_outliers_threshold_ctfidf'] ?? 0.1),
+            'reduce_outliers_use_distributions' => (bool) ($normalized['reduce_outliers_use_distributions'] ?? true),
+            'reduce_outliers_threshold_distributions' => (float) ($normalized['reduce_outliers_threshold_distributions'] ?? 0.05),
+            'use_mmr_representation' => (bool) ($normalized['use_mmr_representation'] ?? true),
+            'mmr_diversity' => (float) ($normalized['mmr_diversity'] ?? 0.3),
+            'embedding_batch_size' => (int) ($normalized['embedding_batch_size'] ?? 16),
+            'seed' => (int) ($normalized['seed'] ?? 42),
             'umap_params' => [
                 'n_neighbors' => (int) ($normalized['umap_params']['n_neighbors'] ?? 40),
                 'n_components' => (int) ($normalized['umap_params']['n_components'] ?? 5),
+                'min_dist' => (float) ($normalized['umap_params']['min_dist'] ?? 0.0),
                 'metric' => (string) ($normalized['umap_params']['metric'] ?? 'cosine'),
+                'random_state' => (int) ($normalized['umap_params']['random_state'] ?? 42),
             ],
             'hdbscan_params' => [
                 'min_cluster_size' => (int) ($normalized['hdbscan_params']['min_cluster_size'] ?? 16),
@@ -830,6 +1148,7 @@ class TopicModelingManager extends Component
                     ? ($normalized['hdbscan_params']['min_samples'] === null ? null : (int) $normalized['hdbscan_params']['min_samples'])
                     : 1,
                 'metric' => (string) ($normalized['hdbscan_params']['metric'] ?? 'euclidean'),
+                'cluster_selection_method' => (string) ($normalized['hdbscan_params']['cluster_selection_method'] ?? 'eom'),
             ],
         ];
     }
@@ -958,6 +1277,12 @@ class TopicModelingManager extends Component
         }
 
         $num = (float) $value;
+
+        // Preserve proportion-style thresholds (0 < x <= 1) as float.
+        // This avoids turning values like 1.0 into absolute document counts (1).
+        if ($num > 0.0 && $num <= 1.0) {
+            return $num;
+        }
 
         if (abs($num - round($num)) < 0.0000001) {
             return (int) round($num);
@@ -1247,6 +1572,90 @@ class TopicModelingManager extends Component
     }
 
     /**
+     * Cancel the active training job.
+     */
+    public function cancelTraining(): void
+    {
+        $this->showCancelTrainingConfirm = false;
+
+        if (!$this->activeRun) {
+            return;
+        }
+
+        $jobId = (string) ($this->trainingJobId !== ''
+            ? $this->trainingJobId
+            : ($this->activeRun->fastapi_training_job_id ?? ''));
+
+        if ($jobId === '') {
+            $this->statusMessage = 'Job ID training tidak tersedia untuk dibatalkan.';
+            $this->statusType = 'warning';
+            return;
+        }
+
+        try {
+            $fastApi = app(FastApiService::class);
+            $result = $fastApi->cancelTrainingJob($jobId);
+
+            $resultStatus = (string) ($result['status'] ?? '');
+            if (in_array($resultStatus, ['cancelled', 'cancel_requested'], true)) {
+                $this->activeRun->update([
+                    'status' => 'failed',
+                    'error_message' => 'Dibatalkan oleh user',
+                    'completed_at' => now(),
+                ]);
+                $this->activeRun->refresh();
+
+                $this->statusMessage = 'Training berhasil dibatalkan.';
+                $this->statusType = 'warning';
+                $this->dispatch('toast', type: 'warning', message: 'Training berhasil dibatalkan.');
+
+                $this->trainingJobId = '';
+                $this->trainingProgress = 0;
+                $this->trainingMessage = '';
+                $this->isProcessing = false;
+                return;
+            }
+
+            if ($resultStatus === 'not_found') {
+                $this->activeRun->update([
+                    'status' => 'failed',
+                    'error_message' => 'Job training tidak ditemukan di FastAPI',
+                    'completed_at' => now(),
+                ]);
+                $this->activeRun->refresh();
+
+                $this->statusMessage = $result['message'] ?? 'Training job tidak ditemukan.';
+                $this->statusType = 'warning';
+                $this->trainingJobId = '';
+                $this->trainingProgress = 0;
+                $this->trainingMessage = '';
+                $this->isProcessing = false;
+                $this->dispatch('toast', type: 'warning', message: 'Training dihentikan: job tidak ditemukan di FastAPI.');
+                return;
+            }
+
+            $this->statusMessage = 'Gagal membatalkan training: ' . ($result['message'] ?? 'Unknown error');
+            $this->statusType = 'error';
+            $this->dispatch('toast', type: 'error', message: 'Gagal membatalkan training.');
+
+            $this->isProcessing = true;
+        } catch (\Exception $e) {
+            $this->statusMessage = 'Error: ' . $e->getMessage();
+            $this->statusType = 'error';
+        }
+    }
+
+    public function openCancelTrainingConfirm(): void
+    {
+        $this->showCancelTrainingConfirm = true;
+    }
+
+    public function closeCancelTrainingConfirm(): void
+    {
+        $this->showCancelTrainingConfirm = false;
+    }
+
+    /**
      * Step 2: Mulai BERTopic training di FastAPI.
      */
     public function openStartTrainingConfirm(): void
@@ -1441,6 +1850,24 @@ class TopicModelingManager extends Component
             return;
         }
 
+        if (($status['status'] ?? '') === 'not_found') {
+            $this->activeRun->update([
+                'status' => 'failed',
+                'error_message' => (string) ($status['message'] ?? 'Training job tidak ditemukan di FastAPI'),
+                'completed_at' => now(),
+            ]);
+            $this->activeRun->refresh();
+
+            $this->statusType = 'warning';
+            $this->statusMessage = 'Training dihentikan: job tidak ditemukan di FastAPI.';
+            $this->trainingJobId = '';
+            $this->trainingProgress = 0;
+            $this->trainingMessage = '';
+            $this->isProcessing = false;
+            $this->dispatch('toast', type: 'warning', message: 'Training dihentikan: job tidak ditemukan di FastAPI.');
+            return;
+        }
+
         $this->trainingProgress = (int) round($status['progress'] ?? 0);
         $this->trainingMessage = (string) ($status['message'] ?? '');
 
@@ -1450,15 +1877,26 @@ class TopicModelingManager extends Component
             $this->storeTrainingResults();
             $this->isProcessing = false;
         } elseif ($state === 'failed') {
+            $errorMessage = (string) ($status['error'] ?? $this->trainingMessage ?? 'Training gagal');
+            $isCancelled = str_contains(strtolower($errorMessage), 'cancel')
+                || str_contains(strtolower($errorMessage), 'batal');
+
             $this->activeRun->update([
                 'status' => 'failed',
-                'error_message' => (string) ($status['error'] ?? $this->trainingMessage ?? 'Training gagal'),
+                'error_message' => $isCancelled ? 'Dibatalkan oleh user' : $errorMessage,
                 'completed_at' => now(),
             ]);
             $this->activeRun->refresh();
 
-            $this->statusType = 'error';
-            $this->statusMessage = 'Training gagal: ' . ($status['error'] ?? $this->trainingMessage);
+            if ($isCancelled) {
+                $this->statusType = 'warning';
+                $this->statusMessage = 'Training berhasil dibatalkan.';
+                $this->dispatch('toast', type: 'warning', message: 'Training berhasil dibatalkan.');
+            } else {
+                $this->statusType = 'error';
+                $this->statusMessage = 'Training gagal: ' . $errorMessage;
+            }
+
             $this->isProcessing = false;
             $this->trainingJobId = '';
         } else {
@@ -1510,6 +1948,21 @@ class TopicModelingManager extends Component
             $totalDocuments = (int) $this->activeRun->total_documents;
         }
 
+        $topics = $results['topic_info'] ?? [];
+        if (is_array($topics) && !empty($topics)) {
+            $numTopicsFromTopicInfo = 0;
+            foreach ($topics as $topicItem) {
+                $topicId = (int) ($topicItem['topic_id'] ?? -1);
+                if ($topicId >= 0) {
+                    $numTopicsFromTopicInfo++;
+                }
+            }
+
+            if ($numTopicsFromTopicInfo > 0) {
+                $numTopics = $numTopicsFromTopicInfo;
+            }
+        }
+
         $this->activeRun->update([
             'status' => 'completed',
             'total_documents' => $totalDocuments,
@@ -1531,7 +1984,6 @@ class TopicModelingManager extends Component
             ->where('topic_model_run_id', $this->activeRun->id)
             ->delete();
 
-        $topics = $results['topic_info'] ?? [];
         $topicIdToRowId = [];
         foreach ($topics as $t) {
             $topicRow = TopicModelTopic::updateOrCreate(

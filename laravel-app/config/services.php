@@ -35,6 +35,17 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'allowed_domain' => env('GOOGLE_ALLOWED_DOMAIN', 'mhs.unsoed.ac.id'),
+        'allowed_domains' => array_values(array_filter(array_map(
+            static fn(string $domain): string => strtolower(trim($domain)),
+            explode(',', (string) env('GOOGLE_ALLOWED_DOMAINS', env('GOOGLE_ALLOWED_DOMAIN', 'mhs.unsoed.ac.id,unsoed.ac.id')))
+        ))),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | FastAPI Microservice

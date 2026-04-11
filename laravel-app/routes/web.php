@@ -1,10 +1,16 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Middleware\EnsureUserIsJurusan;
+use App\Http\Middleware\EnsureUserIsMahasiswa;
 use App\Livewire\Auth\LoginForm;
 use App\Livewire\Jurusan\AccountManager;
 use App\Livewire\Jurusan\Dashboard;
+use App\Livewire\Mahasiswa\ProfileEditor as MahasiswaProfileEditor;
+use App\Livewire\Mahasiswa\TitleRecommendationDetail;
+use App\Livewire\Mahasiswa\TitleRecommendationIndex;
+use App\Livewire\Mahasiswa\TopicExplorer;
 use App\Livewire\Jurusan\ProfileEditor;
 use App\Livewire\Jurusan\ScrapingManager;
 use App\Livewire\Jurusan\SkripsiManager;
@@ -28,6 +34,11 @@ Route::get('/', function () {
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', LoginForm::class)->name('login');
+
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])
+        ->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
+        ->name('auth.google.callback');
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])
@@ -69,4 +80,20 @@ Route::middleware(['auth', EnsureUserIsJurusan::class])
         // Topic Modeling - model artifacts
         Route::get('/topic-modeling/model/{jobId}/download', [TopicModelingModelController::class, 'download'])
             ->name('topic-modeling.model.download');
+    });
+
+// ============================================
+// Mahasiswa Routes
+// ============================================
+
+Route::middleware(['auth', EnsureUserIsMahasiswa::class])
+    ->prefix('mahasiswa')
+    ->name('mahasiswa.')
+    ->group(function () {
+        Route::get('/dashboard', TopicExplorer::class)->name('dashboard');
+        Route::get('/rekomendasi-judul', TitleRecommendationIndex::class)->name('rekomendasi-judul.index');
+        Route::get('/rekomendasi-judul/{topicRowId}', TitleRecommendationDetail::class)
+            ->whereNumber('topicRowId')
+            ->name('rekomendasi-judul.detail');
+        Route::get('/profil', MahasiswaProfileEditor::class)->name('profil');
     });

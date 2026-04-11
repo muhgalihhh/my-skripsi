@@ -283,6 +283,39 @@ class FastApiService
   }
 
   /**
+   * Get latest notebook best-config artifact from FastAPI results.
+   */
+  public function getLatestTrainingBestConfig(): array
+  {
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(15)
+        ->get("{$this->baseUrl}/api/v1/training/tuning/best-config");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        $detail = $response->json('detail');
+        if (is_array($detail)) {
+          return [
+            'status' => 'not_found',
+            'message' => (string) ($detail['message'] ?? 'Best config artifact tidak ditemukan'),
+          ];
+        }
+
+        return ['status' => 'not_found', 'message' => 'Best config artifact tidak ditemukan'];
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal mengambil best config training dari FastAPI'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI latest best-config fetch failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
    * Start BERTopic training job.
    *
    * Payload shape follows TrainingRequest schema in FastAPI.
@@ -376,6 +409,39 @@ class FastApiService
     } catch (\Exception $e) {
       Log::warning('FastAPI training status check failed: ' . $e->getMessage());
       return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
+   * Cancel a running/pending training job.
+   */
+  public function cancelTrainingJob(string $jobId): array
+  {
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(10)
+        ->post("{$this->baseUrl}/api/v1/training/jobs/{$jobId}/cancel");
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Training job {$jobId} tidak ditemukan"];
+      }
+
+      $detail = $response->json('detail');
+      if (is_array($detail) && isset($detail['message'])) {
+        return [
+          'status' => 'error',
+          'message' => (string) $detail['message'],
+        ];
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal membatalkan training'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI cancel training request failed: ' . $e->getMessage());
+      return ['status' => 'error', 'message' => 'Tidak dapat terhubung ke FastAPI'];
     }
   }
 
@@ -488,6 +554,244 @@ class FastApiService
       return ['status' => 'error', 'message' => 'Gagal menghitung DTA. Status: ' . $response->status()];
     } catch (\Exception $e) {
       Log::warning('FastAPI DTA request failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
+   * Generate topic curation suggestion through FastAPI (Python Gemini SDK).
+   *
+   * @param array<string, mixed> $payload
+   */
+  public function generateTopicCurationSuggestion(array $payload): array
+  {
+    $keywords = is_array($payload['keywords'] ?? null) ? $payload['keywords'] : [];
+
+    $cleanKeywords = array_values(array_filter(array_map(
+      static fn($keyword): string => trim((string) $keyword),
+      $keywords
+    ), static fn(string $keyword): bool => $keyword !== ''));
+
+    if (empty($cleanKeywords)) {
+      return [
+        'status' => 'error',
+        'message' => 'Kata kunci topik kosong, AI tidak bisa diproses.',
+      ];
+    }
+
+    $cleanStringList = static function (mixed $raw, int $maxItems, int $maxChars = 320): array {
+      if (!is_array($raw)) {
+        return [];
+      }
+
+      $items = array_values(array_filter(array_map(
+        static function ($item) use ($maxChars): string {
+          $text = trim((string) $item);
+          if ($text === '') {
+            return '';
+          }
+
+          return mb_substr($text, 0, $maxChars);
+        },
+        $raw
+      ), static fn(string $text): bool => $text !== ''));
+
+      return array_slice(array_values(array_unique($items)), 0, $maxItems);
+    };
+
+    $requestPayload = [
+      'keywords' => $cleanKeywords,
+    ];
+
+    if (isset($payload['topic_id']) && is_numeric($payload['topic_id'])) {
+      $requestPayload['topic_id'] = (int) $payload['topic_id'];
+    }
+
+    if (isset($payload['topic_doc_count']) && is_numeric($payload['topic_doc_count'])) {
+      $requestPayload['topic_doc_count'] = max(0, (int) $payload['topic_doc_count']);
+    }
+
+    $modelType = trim((string) ($payload['model_type'] ?? ''));
+    if ($modelType !== '') {
+      $requestPayload['model_type'] = mb_substr($modelType, 0, 32);
+    }
+
+    $representativeTitles = $cleanStringList($payload['representative_titles'] ?? null, 2000, 180);
+    if (!empty($representativeTitles)) {
+      $requestPayload['representative_titles'] = $representativeTitles;
+    }
+
+    $representativeAbstracts = $cleanStringList($payload['representative_abstracts'] ?? null, 4, 320);
+    if (!empty($representativeAbstracts)) {
+      $requestPayload['representative_abstracts'] = $representativeAbstracts;
+    }
+
+    $broaderTerms = $cleanStringList($payload['broader_terms'] ?? null, 20, 80);
+    if (!empty($broaderTerms)) {
+      $requestPayload['broader_terms'] = $broaderTerms;
+    }
+
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(45)
+        ->post("{$this->baseUrl}/api/v1/training/topic-curation/generate", $requestPayload);
+
+      if ($response->successful()) {
+        $body = $response->json();
+
+        return [
+          'status' => 'ok',
+          'custom_name' => (string) ($body['custom_name'] ?? ''),
+          'representation_description' => (string) ($body['representation_description'] ?? ''),
+        ];
+      }
+
+      $detail = $response->json('detail');
+      if (is_string($detail) && trim($detail) !== '') {
+        return ['status' => 'error', 'message' => trim($detail)];
+      }
+
+      if (is_array($detail) && isset($detail['message']) && trim((string) $detail['message']) !== '') {
+        return ['status' => 'error', 'message' => trim((string) $detail['message'])];
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal membuat saran AI di FastAPI.'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI topic curation suggestion request failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
+   * Generate skripsi title recommendations via FastAPI Gemini endpoint.
+   *
+   * @param array<string, mixed> $payload
+   */
+  public function generateSkripsiTitleRecommendations(array $payload): array
+  {
+    $cleanStringList = static function (mixed $raw, int $maxItems, int $maxChars): array {
+      if (!is_array($raw)) {
+        return [];
+      }
+
+      $items = array_values(array_filter(array_map(
+        static function ($item) use ($maxChars): string {
+          $text = trim((string) $item);
+          if ($text === '') {
+            return '';
+          }
+
+          return mb_substr($text, 0, $maxChars);
+        },
+        $raw
+      ), static fn(string $text): bool => $text !== ''));
+
+      return array_slice(array_values(array_unique($items)), 0, $maxItems);
+    };
+
+    $topicKeywords = $cleanStringList($payload['topic_keywords'] ?? null, 20, 80);
+    if (empty($topicKeywords)) {
+      return [
+        'status' => 'error',
+        'message' => 'Kata kunci topik kosong, AI tidak bisa diproses.',
+      ];
+    }
+
+    $userPrompt = trim((string) ($payload['user_prompt'] ?? ''));
+    if ($userPrompt === '') {
+      return [
+        'status' => 'error',
+        'message' => 'Prompt rekomendasi tidak boleh kosong.',
+      ];
+    }
+
+    $requestPayload = [
+      'topic_keywords' => $topicKeywords,
+      'mapped_titles' => $cleanStringList($payload['mapped_titles'] ?? null, 80, 220),
+      'user_prompt' => mb_substr($userPrompt, 0, 1200),
+      'recommendations_count' => max(3, min(10, (int) ($payload['recommendations_count'] ?? 5))),
+      'strict_context' => (bool) ($payload['strict_context'] ?? true),
+    ];
+
+    if (isset($payload['topic_id']) && is_numeric($payload['topic_id'])) {
+      $requestPayload['topic_id'] = (int) $payload['topic_id'];
+    }
+
+    $topicLabel = trim((string) ($payload['topic_label'] ?? ''));
+    if ($topicLabel !== '') {
+      $requestPayload['topic_label'] = mb_substr($topicLabel, 0, 180);
+    }
+
+    try {
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(60)
+        ->post("{$this->baseUrl}/api/v1/training/title-recommendation/generate", $requestPayload);
+
+      if ($response->successful()) {
+        $body = $response->json();
+        return [
+          'status' => 'ok',
+          'context_ok' => (bool) ($body['context_ok'] ?? true),
+          'context_message' => isset($body['context_message']) ? (string) $body['context_message'] : null,
+          'recommendations' => is_array($body['recommendations'] ?? null) ? $body['recommendations'] : [],
+        ];
+      }
+
+      $detail = $response->json('detail');
+      if (is_string($detail) && trim($detail) !== '') {
+        return ['status' => 'error', 'message' => trim($detail)];
+      }
+
+      if (is_array($detail) && isset($detail['message']) && trim((string) $detail['message']) !== '') {
+        return ['status' => 'error', 'message' => trim((string) $detail['message'])];
+      }
+
+      return ['status' => 'error', 'message' => 'Gagal membuat rekomendasi judul di FastAPI.'];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI title recommendation request failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
+   * Infer the most relevant BERTopic topic from a free-text query.
+   */
+  public function inferTopicForQuery(string $jobId, string $query, int $topNTopics = 5): array
+  {
+    try {
+      $payload = [
+        'text' => $query,
+        'top_n_topics' => max(1, min(10, $topNTopics)),
+      ];
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(60)
+        ->post("{$this->baseUrl}/api/v1/training/model/{$jobId}/infer", $payload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => "Model/hasil {$jobId} tidak ditemukan"];
+      }
+
+      if ($response->status() === 422) {
+        return [
+          'status' => 'error',
+          'message' => 'Query smart search tidak valid.',
+          'detail' => $response->json() ?? $response->body(),
+        ];
+      }
+
+      Log::warning('FastAPI topic inference failed', [
+        'status' => $response->status(),
+        'body' => $response->body(),
+      ]);
+
+      return ['status' => 'error', 'message' => 'Gagal melakukan inferensi topik. Status: ' . $response->status()];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI topic inference request failed: ' . $e->getMessage());
       return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
     }
   }

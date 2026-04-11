@@ -4,12 +4,15 @@ namespace App\Livewire\Jurusan;
 
 use App\Models\TopicModelRun;
 use App\Models\TopicModelTopic;
+use App\Models\TopicModelTopicDocument;
+use App\Services\FastApiService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Throwable;
 
 #[Layout('layouts.jurusan')]
 #[Title('Manajemen Topik')]
@@ -159,6 +162,124 @@ class TopicCurationManager extends Component
 
         $this->dispatch('toast', type: 'success', message: 'Kurasi topik berhasil disimpan.');
         $this->closeEditModal();
+    }
+
+    public function generateAiSuggestion(): void
+    {
+        if (!$this->editTopicRowId) {
+            $this->dispatch('toast', type: 'error', message: 'Topik belum dipilih.');
+            return;
+        }
+
+        /** @var int|null $userId */
+        $userId = Auth::id();
+
+        if ($userId === null) {
+            $this->dispatch('toast', type: 'error', message: 'Silakan login terlebih dahulu.');
+            return;
+        }
+
+        $topic = TopicModelTopic::query()
+            ->where('id', $this->editTopicRowId)
+            ->whereHas('run', function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->where('status', 'completed');
+            })
+            ->first();
+
+        if (!$topic) {
+            $this->dispatch('toast', type: 'error', message: 'Topik tidak ditemukan atau tidak dapat diproses.');
+            return;
+        }
+
+        $payload = $this->buildTopicCurationContextPayload($topic);
+        if (empty($payload['keywords'])) {
+            $this->dispatch('toast', type: 'error', message: 'Kata kunci topik kosong, AI tidak bisa diproses.');
+            return;
+        }
+
+        try {
+            $fastApi = app(FastApiService::class);
+            $suggestion = $fastApi->generateTopicCurationSuggestion($payload);
+
+            if (($suggestion['status'] ?? '') !== 'ok') {
+                $message = trim((string) ($suggestion['message'] ?? 'Gagal membuat saran AI. Silakan coba lagi.'));
+                if ($message === '') {
+                    $message = 'Gagal membuat saran AI. Silakan coba lagi.';
+                }
+
+                throw new \RuntimeException($message);
+            }
+
+            $customName = trim((string) ($suggestion['custom_name'] ?? ''));
+            $description = trim((string) ($suggestion['representation_description'] ?? ''));
+
+            if ($customName === '' || $description === '') {
+                throw new \RuntimeException('Respons AI kosong atau tidak lengkap.');
+            }
+
+            $this->editCustomName = $customName;
+            $this->editRepresentationDescription = $description;
+
+            $this->dispatch('toast', type: 'success', message: 'Saran AI berhasil dibuat. Silakan review lalu simpan.');
+        } catch (Throwable $e) {
+            report($e);
+
+            $message = trim($e->getMessage());
+            if ($message === '') {
+                $message = 'Gagal membuat saran AI. Silakan coba lagi.';
+            }
+
+            $this->dispatch('toast', type: 'error', message: $message);
+        }
+    }
+
+    /**
+     * Build topic context for AI using keywords and mapped reference titles.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildTopicCurationContextPayload(TopicModelTopic $topic): array
+    {
+        $keywords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 10) : [];
+        $keywords = array_values(array_filter(array_map(
+            static fn($keyword): string => trim((string) $keyword),
+            $keywords
+        ), static fn(string $keyword): bool => $keyword !== ''));
+
+        $titleCandidates = TopicModelTopicDocument::query()
+            ->join('skripsi', 'skripsi.id', '=', 'topic_model_topic_documents.skripsi_id')
+            ->where('topic_model_topic_documents.topic_model_topic_id', (int) $topic->id)
+            ->where('topic_model_topic_documents.topic_model_run_id', (int) $topic->topic_model_run_id)
+            ->orderByDesc('topic_model_topic_documents.id')
+            ->pluck('skripsi.title')
+            ->all();
+
+        $representativeTitles = [];
+
+        foreach ($titleCandidates as $titleCandidate) {
+            $title = $this->normalizeText((string) $titleCandidate);
+            if ($title !== '') {
+                $representativeTitles[] = mb_substr($title, 0, 180);
+            }
+        }
+
+        $representativeTitles = array_values(array_unique($representativeTitles));
+
+        $payload = [
+            'keywords' => $keywords,
+        ];
+
+        if (!empty($representativeTitles)) {
+            $payload['representative_titles'] = $representativeTitles;
+        }
+
+        return $payload;
+    }
+
+    private function normalizeText(string $value): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', $value));
     }
 
     public function render()

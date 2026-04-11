@@ -21,7 +21,7 @@ class VisualizationManager extends Component
     #[Url]
     public string $runFilter = '';
 
-    protected int $wordCloudWordsPerTopic = 12;
+    protected int $wordCloudWordsPerTopic = 10;
     protected int $dtmSeriesLimit = 10;
     protected int $trendLimit = 8;
     protected int $mappingRowsLimit = 600;

@@ -34,7 +34,12 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     @auth
-                        <a href="{{ route('jurusan.dashboard') }}"
+                        @php
+                            $dashboardRoute = auth()->user()->isMahasiswa()
+                                ? route('mahasiswa.dashboard')
+                                : route('jurusan.dashboard');
+                        @endphp
+                        <a href="{{ $dashboardRoute }}"
                             class="bg-unsoed-gold-400 hover:bg-unsoed-gold-300 text-unsoed-blue-800 font-semibold px-4 py-2 rounded-lg text-sm transition">
                             Dashboard
                         </a>
@@ -50,10 +55,15 @@
     </nav>
 
     {{-- Hero Section --}}
-    <section
-        class="bg-gradient-to-br from-unsoed-blue-700 via-unsoed-blue-600 to-unsoed-blue-800 text-white py-20 lg:py-28">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    <section class="relative overflow-hidden py-20 text-white lg:py-28">
+        <div class="absolute inset-0">
+            <div class="h-full w-full bg-cover bg-center"
+                style="background-image: url('{{ asset('hero image.jpeg') }}');"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-unsoed-blue-900/85 via-unsoed-blue-800/80 to-unsoed-blue-700/65"></div>
+        </div>
+
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl">
                 <div>
                     <div
                         class="inline-flex items-center bg-unsoed-gold-400/20 text-unsoed-gold-300 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
@@ -72,7 +82,12 @@
                     </p>
                     <div class="flex flex-col sm:flex-row gap-4">
                         @auth
-                            <a href="{{ route('jurusan.dashboard') }}"
+                            @php
+                                $dashboardRoute = auth()->user()->isMahasiswa()
+                                    ? route('mahasiswa.dashboard')
+                                    : route('jurusan.dashboard');
+                            @endphp
+                            <a href="{{ $dashboardRoute }}"
                                 class="bg-unsoed-gold-400 hover:bg-unsoed-gold-300 text-unsoed-blue-800 font-bold px-8 py-3 rounded-xl text-sm transition inline-flex items-center justify-center">
                                 <x-app.icon name="home" class="w-5 h-5 mr-2" />
                                 Buka Dashboard
@@ -84,23 +99,6 @@
                                 Masuk ke Sistem
                             </a>
                         @endauth
-                    </div>
-                </div>
-                <div class="hidden lg:block">
-                    <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
-                        {{-- Illustration: Abstract chart --}}
-                        <div class="space-y-4">
-                            <div class="flex items-end space-x-3 h-40">
-                                <div class="flex-1 bg-unsoed-gold-400/30 rounded-t-lg" style="height: 40%"></div>
-                                <div class="flex-1 bg-unsoed-gold-400/50 rounded-t-lg" style="height: 55%"></div>
-                                <div class="flex-1 bg-unsoed-gold-400/60 rounded-t-lg" style="height: 70%"></div>
-                                <div class="flex-1 bg-unsoed-gold-400/80 rounded-t-lg" style="height: 85%"></div>
-                                <div class="flex-1 bg-unsoed-gold-400 rounded-t-lg" style="height: 100%"></div>
-                                <div class="flex-1 bg-unsoed-gold-400/70 rounded-t-lg" style="height: 75%"></div>
-                                <div class="flex-1 bg-unsoed-gold-400/50 rounded-t-lg" style="height: 60%"></div>
-                            </div>
-                            <div class="text-center text-sm text-white/60">Visualisasi Tren Topik Riset</div>
-                        </div>
                     </div>
                 </div>
             </div>

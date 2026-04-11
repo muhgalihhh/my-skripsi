@@ -4,6 +4,7 @@ namespace App\Livewire\Jurusan;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -33,6 +34,8 @@ class AccountManager extends Component
   public string $editName = '';
   public string $editEmail = '';
   public string $editRole = '';
+  public bool $editGoogleLinked = false;
+  public bool $editClearPassword = false;
   public string $editPassword = '';
   public string $editPasswordConfirmation = '';
 
@@ -54,6 +57,21 @@ class AccountManager extends Component
   public function updatingRoleFilter(): void
   {
     $this->resetPage();
+  }
+
+  public function updatedAddRole(): void
+  {
+    $this->addPassword = '';
+    $this->addPasswordConfirmation = '';
+    $this->resetValidation();
+  }
+
+  public function updatedEditRole(): void
+  {
+    $this->editPassword = '';
+    $this->editPasswordConfirmation = '';
+    $this->editClearPassword = false;
+    $this->resetValidation();
   }
 
   // ── Add ─────────────────────────────────────────────────
@@ -84,24 +102,59 @@ class AccountManager extends Component
     $this->validate([
       'addName' => 'required|string|min:3|max:100',
       'addEmail' => 'required|email|unique:users,email',
-      'addPassword' => 'required|min:8|same:addPasswordConfirmation',
       'addRole' => 'required|in:jurusan,mahasiswa',
     ], [
       'addName.required' => 'Nama wajib diisi.',
       'addEmail.unique' => 'Email sudah terdaftar.',
-      'addPassword.min' => 'Password minimal 8 karakter.',
-      'addPassword.same' => 'Konfirmasi password tidak cocok.',
     ]);
+
+    if ($this->addRole === 'jurusan') {
+      $this->validate([
+        'addPassword' => 'required|min:8|same:addPasswordConfirmation',
+      ], [
+        'addPassword.min' => 'Password minimal 8 karakter.',
+        'addPassword.same' => 'Konfirmasi password tidak cocok.',
+      ]);
+    } elseif (trim($this->addPassword) !== '') {
+      $this->validate([
+        'addPassword' => 'min:8|same:addPasswordConfirmation',
+      ], [
+        'addPassword.min' => 'Password minimal 8 karakter.',
+        'addPassword.same' => 'Konfirmasi password tidak cocok.',
+      ]);
+    }
+
+    if ($this->addRole === 'mahasiswa' && !$this->isAllowedMahasiswaEmail($this->addEmail)) {
+      $this->addError('addEmail', 'Email mahasiswa wajib menggunakan domain ' . $this->mahasiswaDomainLabel() . '.');
+      return;
+    }
+
+    $newUserRole = $this->addRole;
+
+    $password = null;
+    if ($newUserRole === 'jurusan') {
+      $password = Hash::make($this->addPassword);
+    } elseif (trim($this->addPassword) !== '') {
+      $password = Hash::make($this->addPassword);
+    }
 
     User::create([
       'name' => $this->addName,
-      'email' => $this->addEmail,
-      'password' => Hash::make($this->addPassword),
-      'role' => $this->addRole,
+      'email' => Str::lower(trim($this->addEmail)),
+      'password' => $password,
+      'role' => $newUserRole,
     ]);
 
     $this->closeAdd();
-    $this->dispatch('toast', type: 'success', message: 'Akun berhasil ditambahkan.');
+    $this->dispatch(
+      'toast',
+      type: 'success',
+      message: $newUserRole === 'mahasiswa'
+        ? (trim($this->addPassword) !== ''
+          ? 'Akun mahasiswa ditambahkan. Login via Google OAuth atau form password tersedia.'
+          : 'Akun mahasiswa ditambahkan. Login form nonaktif sampai password diatur.')
+        : 'Akun jurusan berhasil ditambahkan.'
+    );
   }
 
   // ── Edit ─────────────────────────────────────────────────
@@ -115,7 +168,10 @@ class AccountManager extends Component
     $this->editName = $user->name;
     $this->editEmail = $user->email;
     $this->editRole = $user->role;
+    $this->editGoogleLinked = filled($user->google_id);
+    $this->editClearPassword = false;
     $this->editPassword = '';
+    $this->editPasswordConfirmation = '';
     $this->resetValidation();
     $this->showEditModal = true;
   }
@@ -127,6 +183,8 @@ class AccountManager extends Component
     $this->editName = '';
     $this->editEmail = '';
     $this->editRole = '';
+    $this->editGoogleLinked = false;
+    $this->editClearPassword = false;
     $this->editPassword = '';
     $this->editPasswordConfirmation = '';
     $this->resetValidation();
@@ -138,12 +196,25 @@ class AccountManager extends Component
       'editName' => 'required|string|min:3|max:100',
       'editEmail' => "required|email|unique:users,email,{$this->editUserId}",
       'editRole' => 'required|in:jurusan,mahasiswa',
-      'editPassword' => 'nullable|min:8',
     ], [
       'editName.required' => 'Nama wajib diisi.',
       'editEmail.unique' => 'Email sudah dipakai akun lain.',
-      'editPassword.min' => 'Password baru minimal 8 karakter.',
     ]);
+
+    if ($this->editRole === 'jurusan') {
+      $this->validate([
+        'editPassword' => 'nullable|min:8',
+      ], [
+        'editPassword.min' => 'Password baru minimal 8 karakter.',
+      ]);
+    } elseif (trim($this->editPassword) !== '') {
+      $this->validate([
+        'editPassword' => 'min:8|same:editPasswordConfirmation',
+      ], [
+        'editPassword.min' => 'Password baru minimal 8 karakter.',
+        'editPassword.same' => 'Konfirmasi password baru tidak cocok.',
+      ]);
+    }
 
     $user = User::find($this->editUserId);
     if (!$user)
@@ -156,20 +227,87 @@ class AccountManager extends Component
       return;
     }
 
+    if ($this->editRole === 'mahasiswa' && !$this->isAllowedMahasiswaEmail($this->editEmail)) {
+      $this->addError('editEmail', 'Email mahasiswa wajib menggunakan domain ' . $this->mahasiswaDomainLabel() . '.');
+      return;
+    }
+
+    if ($this->editRole === 'mahasiswa' && $this->editClearPassword && trim($this->editPassword) !== '') {
+      $this->addError('editPassword', 'Pilih salah satu: isi password baru atau centang kosongkan password.');
+      return;
+    }
+
     $data = [
       'name' => $this->editName,
-      'email' => $this->editEmail,
+      'email' => Str::lower(trim($this->editEmail)),
       'role' => $this->editRole,
     ];
 
-    if ($this->editPassword) {
+    if ($this->editRole === 'jurusan' && $this->editPassword) {
       $data['password'] = Hash::make($this->editPassword);
+    }
+
+    if ($this->editRole === 'mahasiswa') {
+      if ($this->editClearPassword) {
+        $data['password'] = null;
+      } elseif (trim($this->editPassword) !== '') {
+        $data['password'] = Hash::make($this->editPassword);
+      }
     }
 
     $user->update($data);
 
     $this->closeEdit();
     $this->dispatch('toast', type: 'success', message: 'Akun berhasil diperbarui.');
+  }
+
+  /**
+   * @return list<string>
+   */
+  private function mahasiswaDomains(): array
+  {
+    $configured = config('services.google.allowed_domains', []);
+    if (!is_array($configured)) {
+      $configured = [];
+    }
+
+    $domains = [];
+    foreach ($configured as $domain) {
+      $normalized = Str::lower(trim((string) $domain));
+      if ($normalized !== '') {
+        $domains[] = $normalized;
+      }
+    }
+
+    if (empty($domains)) {
+      $fallback = Str::lower((string) config('services.google.allowed_domain', 'mhs.unsoed.ac.id'));
+      if ($fallback !== '') {
+        $domains[] = $fallback;
+      }
+    }
+
+    return array_values(array_unique($domains));
+  }
+
+  private function mahasiswaDomainLabel(): string
+  {
+    return implode(' atau ', array_map(
+      static fn(string $domain): string => '@' . $domain,
+      $this->mahasiswaDomains(),
+    ));
+  }
+
+  private function isAllowedMahasiswaEmail(string $email): bool
+  {
+    $normalizedEmail = Str::lower(trim($email));
+
+    foreach ($this->mahasiswaDomains() as $domain) {
+      if (Str::endsWith($normalizedEmail, '@' . $domain)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ── Delete ───────────────────────────────────────────────

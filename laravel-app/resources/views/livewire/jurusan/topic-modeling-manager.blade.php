@@ -703,7 +703,7 @@
                                         <td class="px-3 py-3 text-gray-600 sm:px-4">{{ $t->count }}</td>
                                         <td class="px-3 py-3 sm:px-4">
                                             <div class="flex flex-wrap gap-1">
-                                                @foreach (array_slice($t->top_words ?? [], 0, 8) as $word)
+                                                @foreach (array_slice($t->top_words ?? [], 0, 10) as $word)
                                                     <span
                                                         class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                                 @endforeach
@@ -1017,7 +1017,8 @@
 {{-- ========================== STICKY JOB STATUS (only when running) ========================== --}}
 @php
     $showPreprocessingCard = (bool) $preprocessingJobId || (($activeRun?->status ?? '') === 'preprocessing');
-    $showTrainingCard = (bool) $trainingJobId || (($activeRun?->status ?? '') === 'training');
+    $showTrainingCard = (((bool) $trainingJobId || (($activeRun?->status ?? '') === 'training'))
+        && (($activeRun?->status ?? '') !== 'failed'));
     $stickyCardCount = ($showPreprocessingCard ? 1 : 0) + ($showTrainingCard ? 1 : 0);
 @endphp
 @if ($stickyCardCount > 0)
@@ -1071,7 +1072,7 @@
         @if ($showTrainingCard)
             <div class="bg-white rounded-xl shadow-sm border-2 border-unsoed-blue-200 p-6"
                 wire:poll.5s="pollTrainingProgress">
-                <div class="flex items-center justify-between mb-4">
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center">
                         <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
                             <x-app.icon variant="o" name="arrow-path" class="w-5 h-5 text-unsoed-blue-600 animate-spin" />
@@ -1081,6 +1082,12 @@
                             <p class="text-xs text-gray-400">Job ID: {{ $trainingJobId !== '' ? $trainingJobId : 'Menunggu sinkronisasi...' }}</p>
                         </div>
                     </div>
+                    <button type="button" wire:click="openCancelTrainingConfirm"
+                        class="w-full justify-center px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center sm:w-auto"
+                        title="Batalkan Training">
+                        <x-app.icon name="stop-circle" class="w-4 h-4 mr-1" />
+                        Batalkan
+                    </button>
                 </div>
 
                 <div class="mb-3">
@@ -1227,6 +1234,13 @@
 <x-confirm-modal wireModel="showCancelPreprocessingConfirm" type="warning" title="Batalkan Preprocessing?"
     message="Proses preprocessing yang sedang berjalan akan dihentikan. Data yang sudah diproses sebelum pembatalan tetap tersimpan."
     confirmLabel="Ya, Batalkan" confirmWire="cancelPreprocessing" closeWire="closeCancelPreprocessingConfirm" />
+
+{{-- ════════════════════════════════════════════════════
+     Confirm: Batalkan Training
+═════════════════════════════════════════════════════ --}}
+<x-confirm-modal wireModel="showCancelTrainingConfirm" type="warning" title="Batalkan Training?"
+    message="Proses training yang sedang berjalan akan dihentikan. Hasil training yang belum selesai tidak akan disimpan sebagai run selesai."
+    confirmLabel="Ya, Batalkan" confirmWire="cancelTraining" closeWire="closeCancelTrainingConfirm" />
 
 </div>
 </div>

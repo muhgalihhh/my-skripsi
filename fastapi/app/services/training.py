@@ -19,6 +19,10 @@ from loguru import logger
 _training_jobs: Dict[str, Dict[str, Any]] = {}
 
 
+class JobCancelled(Exception):
+    """Raised when a training job is cancelled by user request."""
+
+
 class TrainingService:
     """Run BERTopic/LDA training and persist outputs."""
 
@@ -39,6 +43,7 @@ class TrainingService:
             "completed_at": None,
             "error": None,
             "result": None,
+            "cancel_requested": False,
         }
         logger.info(f"Created training job {job_id} for {model_type.value}")
         return job_id
@@ -55,6 +60,40 @@ class TrainingService:
         """Update training job fields."""
         if job_id in _training_jobs:
             _training_jobs[job_id].update(kwargs)
+
+    def _is_cancel_requested(self, job_id: str) -> bool:
+        job = self.get_job(job_id)
+        return bool(job and job.get("cancel_requested"))
+
+    def _raise_if_cancel_requested(self, job_id: str):
+        if self._is_cancel_requested(job_id):
+            raise JobCancelled("Training cancelled by user")
+
+    def cancel_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Request cancellation for a pending/running training job."""
+        job = self.get_job(job_id)
+        if job is None:
+            return None
+
+        current_status = str(job.get("status") or "")
+        if current_status in {
+            TrainingStatus.COMPLETED.value,
+            TrainingStatus.FAILED.value,
+        }:
+            return job
+
+        # Mark as failed immediately for UX responsiveness while keeping
+        # cancel_requested so in-flight training exits at next safe checkpoint.
+        self._update_job(
+            job_id,
+            cancel_requested=True,
+            status=TrainingStatus.FAILED.value,
+            completed_at=datetime.now().isoformat(),
+            message="Training cancelled by user",
+            error="Cancelled by user",
+        )
+
+        return self.get_job(job_id)
 
     @staticmethod
     def _build_run_fingerprint(
@@ -83,6 +122,8 @@ class TrainingService:
         params: Optional[BERTopicHyperparameters] = None,
     ) -> Dict[str, Any]:
         """Run BERTopic training, evaluation, and persistence for one job."""
+        self._raise_if_cancel_requested(job_id)
+
         self._update_job(
             job_id,
             status=TrainingStatus.RUNNING.value,
@@ -95,11 +136,15 @@ class TrainingService:
             trainer = BERTopicTrainer(params=params)
 
             self._update_job(job_id, message="Training BERTopic model...", progress=30.0)
+            self._raise_if_cancel_requested(job_id)
+
             result = trainer.train(
                 documents,
                 timestamps=timestamps,
                 document_ids=document_ids,
             )
+
+            self._raise_if_cancel_requested(job_id)
 
             result["reproducibility"] = {
                 "run_fingerprint": self._build_run_fingerprint(
@@ -128,6 +173,8 @@ class TrainingService:
                 ]
 
             self._update_job(job_id, message="Evaluating model...", progress=70.0)
+            self._raise_if_cancel_requested(job_id)
+
             metrics = self.evaluator.evaluate_bertopic(
                 model=trainer.model,
                 documents=documents,
@@ -142,10 +189,16 @@ class TrainingService:
             result["metrics"] = metrics
 
             self._update_job(job_id, message="Saving model...", progress=90.0)
+            self._raise_if_cancel_requested(job_id)
+
             model_path = trainer.save_model(job_id)
             result["model_path"] = model_path
 
+            self._raise_if_cancel_requested(job_id)
+
             self._save_results(job_id, result)
+
+            self._raise_if_cancel_requested(job_id)
 
             self._update_job(
                 job_id,
@@ -158,6 +211,17 @@ class TrainingService:
             )
 
             return result
+
+        except JobCancelled:
+            logger.info("BERTopic training cancelled by user")
+            self._update_job(
+                job_id,
+                status=TrainingStatus.FAILED.value,
+                completed_at=datetime.now().isoformat(),
+                message="Training cancelled by user",
+                error="Cancelled by user",
+            )
+            return {"job_id": job_id, "status": "cancelled"}
 
         except Exception as e:
             logger.exception("BERTopic training failed")
@@ -178,6 +242,8 @@ class TrainingService:
         params: Optional[LDAHyperparameters] = None,
     ) -> Dict[str, Any]:
         """Run LDA training, evaluation, and persistence for one job."""
+        self._raise_if_cancel_requested(job_id)
+
         self._update_job(
             job_id,
             status=TrainingStatus.RUNNING.value,
@@ -190,7 +256,11 @@ class TrainingService:
             trainer = LDATrainer(params=params)
 
             self._update_job(job_id, message="Training LDA model...", progress=30.0)
+            self._raise_if_cancel_requested(job_id)
+
             result = trainer.train(documents, timestamps=timestamps)
+
+            self._raise_if_cancel_requested(job_id)
 
             result["reproducibility"] = {
                 "run_fingerprint": self._build_run_fingerprint(
@@ -203,6 +273,8 @@ class TrainingService:
             }
 
             self._update_job(job_id, message="Evaluating model...", progress=70.0)
+            self._raise_if_cancel_requested(job_id)
+
             metrics = self.evaluator.evaluate_lda(
                 model=trainer.model,
                 tokenized_docs=trainer.tokenized_docs,
@@ -211,10 +283,16 @@ class TrainingService:
             result["metrics"] = metrics
 
             self._update_job(job_id, message="Saving model...", progress=90.0)
+            self._raise_if_cancel_requested(job_id)
+
             model_path = trainer.save_model(job_id)
             result["model_path"] = model_path
 
+            self._raise_if_cancel_requested(job_id)
+
             self._save_results(job_id, result)
+
+            self._raise_if_cancel_requested(job_id)
 
             self._update_job(
                 job_id,
@@ -227,6 +305,17 @@ class TrainingService:
             )
 
             return result
+
+        except JobCancelled:
+            logger.info("LDA training cancelled by user")
+            self._update_job(
+                job_id,
+                status=TrainingStatus.FAILED.value,
+                completed_at=datetime.now().isoformat(),
+                message="Training cancelled by user",
+                error="Cancelled by user",
+            )
+            return {"job_id": job_id, "status": "cancelled"}
 
         except Exception as e:
             logger.error(f"LDA training failed: {e}")

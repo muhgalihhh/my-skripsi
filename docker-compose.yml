@@ -68,8 +68,11 @@ services:
       - '${FASTAPI_PORT:-8000}:8000'
     volumes:
       - fastapi-data:/app/data
+      - ./fastapi/data/results/artifacts_tuning:/app/data/results/artifacts_tuning
       - fastapi-models:/app/app/ml/trained_models
       - fastapi-logs:/app/logs
+    env_file:
+      - ./fastapi/.env
     environment:
       - APP_ENV=production
       - APP_DEBUG=false

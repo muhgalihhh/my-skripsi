@@ -5,6 +5,7 @@ Endpoints for model training (BERTopic & LDA).
 
 import re
 import math
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -15,11 +16,23 @@ from app.ml.evaluator import TopicEvaluator
 from app.ml.hyperparameters import BERTOPIC_PRESETS, LDA_PRESETS
 from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 ModelType, TrainingRequest,
+                                TitleRecommendationRequest,
+                                TitleRecommendationResponse,
+                                TopicCurationSuggestionRequest,
+                                TopicCurationSuggestionResponse,
                                 TopicInferenceItem,
                                 TopicInferenceRequest,
                                 TopicInferenceResponse, TrainingStatus,
                                 TrainingStatusResponse)
+from app.services.gemini_title_recommendation import (
+    GeminiTitleRecommendationError,
+    gemini_title_recommendation_service,
+)
 from app.services.pipeline import pipeline_service
+from app.services.gemini_topic_curation import (
+    GeminiTopicCurationError,
+    gemini_topic_curation_service,
+)
 from app.services.training import TrainingService
 from loguru import logger
 
@@ -39,6 +52,27 @@ def _validate_job_id(job_id: str) -> str:
     return job_id
 
 
+def _load_latest_best_config_payload() -> Optional[dict]:
+    """Load newest best_config_*.json from results/artifacts_tuning."""
+    artifacts_dir = path_settings.get_results_dir() / "artifacts_tuning"
+    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
+        return None
+
+    candidates = sorted(artifacts_dir.glob("best_config_*.json"), reverse=True)
+    if not candidates:
+        return None
+
+    best_file = candidates[0]
+    try:
+        payload = json.loads(best_file.read_text(encoding="utf-8"))
+        return {
+            "file": best_file.name,
+            "payload": payload,
+        }
+    except Exception:
+        return None
+
+
 def _tokenize_query_for_keyword_fallback(text: str) -> List[str]:
     tokens = re.findall(r"[a-zA-Z0-9_]+", text.lower())
     stopwords = {
@@ -46,6 +80,47 @@ def _tokenize_query_for_keyword_fallback(text: str) -> List[str]:
         "di", "ke", "sebagai", "dalam", "analisis", "studi", "berbasis", "menggunakan",
     }
     return [token for token in tokens if len(token) >= 3 and token not in stopwords]
+
+
+def _is_recommendation_prompt_in_context(
+    prompt: str,
+    topic_keywords: List[str],
+    mapped_titles: Optional[List[str]] = None,
+) -> bool:
+    prompt_tokens = set(_tokenize_query_for_keyword_fallback(prompt))
+    if not prompt_tokens:
+        return False
+
+    context_anchor_tokens = {
+        "skripsi",
+        "judul",
+        "penelitian",
+        "riset",
+        "topik",
+        "metode",
+        "analisis",
+        "model",
+        "sistem",
+        "dataset",
+        "algoritma",
+        "klasifikasi",
+        "prediksi",
+        "deteksi",
+        "optimasi",
+    }
+
+    has_anchor = bool(prompt_tokens.intersection(context_anchor_tokens))
+
+    topic_context_tokens = set()
+    for keyword in topic_keywords or []:
+        topic_context_tokens.update(_tokenize_query_for_keyword_fallback(keyword))
+
+    for title in (mapped_titles or [])[:20]:
+        topic_context_tokens.update(_tokenize_query_for_keyword_fallback(title))
+
+    overlap_count = len(prompt_tokens.intersection(topic_context_tokens))
+
+    return overlap_count >= 1 or has_anchor
 
 
 def _build_keyword_fallback_distribution(trainer, query: str, top_n_topics: int) -> List[TopicInferenceItem]:
@@ -117,6 +192,11 @@ def _run_training_job(
       - BERTopic → 'cleaned_text' (teks bersih tanpa stemming, untuk IndoSBERT)
       - LDA      → 'processed_text' (tokenized + stemmed + stopword removed)
     """
+    job = service.get_job(job_id)
+    if job and bool(job.get("cancel_requested")):
+        logger.info("Skip training job {} because cancellation was already requested", job_id)
+        return
+
     try:
         # Load and validate pipeline dataset from DB snapshot produced by preprocessing.
         df = pipeline_service.load_training_dataset()
@@ -139,6 +219,11 @@ def _run_training_job(
             )
 
     except Exception as e:
+        current_job = service.get_job(job_id)
+        if current_job and bool(current_job.get("cancel_requested")):
+            logger.info("Ignore exception for cancelled job {}: {}", job_id, str(e))
+            return
+
         service._update_job(
             job_id,
             status=TrainingStatus.FAILED.value,
@@ -200,6 +285,45 @@ async def get_training_status(job_id: str):
         completed_at=job.get("completed_at"),
         error=job.get("error"),
     )
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_training_job(job_id: str):
+    """Cancel a running/pending training job (best effort soft-cancel)."""
+    _validate_job_id(job_id)
+
+    job = service.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    current_status = str(job.get("status") or "")
+    if current_status in {
+        TrainingStatus.COMPLETED.value,
+        TrainingStatus.FAILED.value,
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "error",
+                "message": f"Job {job_id} tidak dapat dibatalkan (sudah selesai)",
+            },
+        )
+
+    updated_job = service.cancel_job(job_id)
+    updated_status = str((updated_job or {}).get("status") or "")
+
+    if updated_status == TrainingStatus.FAILED.value:
+        return {
+            "status": "cancelled",
+            "message": f"Job {job_id} berhasil dibatalkan",
+            "job_id": job_id,
+        }
+
+    return {
+        "status": "cancel_requested",
+        "message": f"Permintaan pembatalan job {job_id} diterima. Menunggu proses berhenti aman.",
+        "job_id": job_id,
+    }
 
 
 @router.get("/jobs", response_model=List[TrainingStatusResponse])
@@ -714,6 +838,98 @@ async def get_training_dataset_summary():
     - year range
     """
     return pipeline_service.summarize_training_dataset()
+
+
+@router.get("/tuning/best-config")
+async def get_latest_tuning_best_config():
+    """Return latest notebook tuning best config from artifacts_tuning."""
+    loaded = _load_latest_best_config_payload()
+    if loaded is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "status": "not_found",
+                "message": "Best config artifact tidak ditemukan di FastAPI results/artifacts_tuning",
+            },
+        )
+
+    payload = loaded["payload"]
+    return {
+        "status": "ok",
+        "source": "fastapi_artifacts_tuning",
+        "file": loaded["file"],
+        "best_bertopic": payload.get("best_bertopic"),
+        "best_lda": payload.get("best_lda"),
+    }
+
+
+@router.post("/topic-curation/generate", response_model=TopicCurationSuggestionResponse)
+async def generate_topic_curation_suggestion(request: TopicCurationSuggestionRequest):
+    """Generate curated topic name and representation using Gemini via Python SDK."""
+    try:
+        suggestion = gemini_topic_curation_service.generate_suggestion(
+            keywords=request.keywords,
+            topic_id=request.topic_id,
+            topic_doc_count=request.topic_doc_count,
+            model_type=request.model_type,
+            representative_titles=request.representative_titles,
+            representative_abstracts=request.representative_abstracts,
+            broader_terms=request.broader_terms,
+        )
+        return TopicCurationSuggestionResponse(
+            custom_name=suggestion["custom_name"],
+            representation_description=suggestion["representation_description"],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except GeminiTopicCurationError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/title-recommendation/generate", response_model=TitleRecommendationResponse)
+async def generate_title_recommendation(request: TitleRecommendationRequest):
+    """Generate skripsi title recommendations using Gemini via Python SDK."""
+    if request.strict_context and not _is_recommendation_prompt_in_context(
+        prompt=request.user_prompt,
+        topic_keywords=request.topic_keywords,
+        mapped_titles=request.mapped_titles,
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Prompt di luar konteks topik skripsi. Gunakan prompt yang relevan dengan topik/keyword.",
+        )
+
+    try:
+        payload = gemini_title_recommendation_service.generate_recommendations(
+            topic_label=request.topic_label,
+            topic_keywords=request.topic_keywords,
+            mapped_titles=request.mapped_titles,
+            user_prompt=request.user_prompt,
+            recommendations_count=request.recommendations_count,
+        )
+
+        context_ok = bool(payload.get("context_ok", True))
+        context_message = payload.get("context_message")
+        recommendations = payload.get("recommendations") or []
+
+        if request.strict_context and not context_ok:
+            raise HTTPException(
+                status_code=422,
+                detail=str(context_message or "Prompt di luar konteks topik skripsi."),
+            )
+
+        return TitleRecommendationResponse(
+            topic_id=request.topic_id,
+            topic_label=request.topic_label,
+            context_ok=context_ok,
+            context_message=str(context_message) if context_message else None,
+            recommendations=recommendations,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except GeminiTitleRecommendationError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/presets/bertopic")
 async def get_bertopic_presets():

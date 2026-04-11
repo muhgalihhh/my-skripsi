@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class LoginController extends Controller
 {
@@ -26,6 +28,15 @@ class LoginController extends Controller
       'password' => ['required'],
     ]);
 
+    $credentials['email'] = Str::lower(trim((string) $credentials['email']));
+
+    $user = User::where('email', $credentials['email'])->first();
+    if ($user && blank($user->password)) {
+      return back()->withErrors([
+        'password' => 'Akun ini belum memiliki password login form. Gunakan Google OAuth atau atur password terlebih dahulu.',
+      ])->onlyInput('email');
+    }
+
     if (Auth::attempt($credentials, $request->boolean('remember'))) {
       $request->session()->regenerate();
 
@@ -36,7 +47,10 @@ class LoginController extends Controller
         return redirect()->intended(route('jurusan.dashboard'));
       }
 
-      // For future: redirect mahasiswa to their dashboard
+      if ($user->isMahasiswa()) {
+        return redirect()->intended(route('mahasiswa.dashboard'));
+      }
+
       return redirect()->intended('/');
     }
 
