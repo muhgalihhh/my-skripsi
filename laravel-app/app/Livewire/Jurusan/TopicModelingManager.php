@@ -1198,7 +1198,7 @@ class TopicModelingManager extends Component
         }
 
         if ($lower === 'auto') {
-            return $fallback;
+            return 'auto';
         }
 
         if (is_numeric($text)) {

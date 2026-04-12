@@ -88,7 +88,7 @@ class GeminiTitleRecommendationService:
                 "8. Keluarkan JSON valid saja tanpa markdown/code block.",
                 "",
                 "Format JSON wajib:",
-                '{"context_ok":true,"context_message":"...","recommendations":[{"title":"...","rationale":"..."}]}',
+                '{"context_ok":true,"concontext_oktext_message":"...","recommendations":[{"title":"...","rationale":"..."}]}',
             ]
         )
 

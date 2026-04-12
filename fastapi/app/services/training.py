@@ -1,4 +1,4 @@
-"""Training service with in-memory job tracking."""
+"""Training service with file-backed job tracking."""
 
 import hashlib
 import json
@@ -6,6 +6,7 @@ import tarfile
 import uuid
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from app.core.config import path_settings
@@ -17,6 +18,71 @@ from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
 from loguru import logger
 
 _training_jobs: Dict[str, Dict[str, Any]] = {}
+_JOB_STATE_FILE = "training_jobs_state.json"
+_JOB_STORE_LOCK = Lock()
+
+
+def _job_state_path() -> Path:
+    """Return persisted job-state path under FastAPI results directory."""
+    path_settings.ensure_dirs()
+    results_dir = path_settings.get_results_dir()
+    results_dir.mkdir(parents=True, exist_ok=True)
+    return results_dir / _JOB_STATE_FILE
+
+
+def _read_jobs_from_store() -> Dict[str, Dict[str, Any]]:
+    """Load training job state from disk with basic shape validation."""
+    path = _job_state_path()
+    if not path.exists():
+        return {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception as exc:
+        logger.warning(f"Failed to read persisted training jobs from {path}: {exc}")
+        return {}
+
+    if not isinstance(raw, dict):
+        logger.warning(f"Invalid training job store format in {path}, expected object")
+        return {}
+
+    jobs: Dict[str, Dict[str, Any]] = {}
+    for key, value in raw.items():
+        if isinstance(value, dict):
+            value.setdefault("job_id", str(key))
+            jobs[str(key)] = value
+
+    return jobs
+
+
+def _write_jobs_to_store(jobs: Dict[str, Dict[str, Any]]) -> None:
+    """Write training job state atomically to reduce corruption risk."""
+    path = _job_state_path()
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+
+    serializable = json.loads(json.dumps(jobs, default=str))
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(serializable, f, indent=2, ensure_ascii=False)
+
+    tmp_path.replace(path)
+
+
+def _load_jobs_snapshot() -> Dict[str, Dict[str, Any]]:
+    """Refresh in-memory cache from disk and return a snapshot copy."""
+    with _JOB_STORE_LOCK:
+        jobs = _read_jobs_from_store()
+        _training_jobs.clear()
+        _training_jobs.update(jobs)
+        return dict(_training_jobs)
+
+
+def _save_jobs_snapshot(jobs: Dict[str, Dict[str, Any]]) -> None:
+    """Persist provided snapshot and update in-memory cache."""
+    with _JOB_STORE_LOCK:
+        _training_jobs.clear()
+        _training_jobs.update(jobs)
+        _write_jobs_to_store(_training_jobs)
 
 
 class JobCancelled(Exception):
@@ -28,38 +94,51 @@ class TrainingService:
 
     def __init__(self):
         self.evaluator = TopicEvaluator()
+        _load_jobs_snapshot()
 
     def create_job(self, model_type: ModelType, description: str = "") -> str:
         """Create a new training job and return its ID."""
         job_id = str(uuid.uuid4())[:8]
-        _training_jobs[job_id] = {
-            "job_id": job_id,
-            "model_type": model_type.value,
-            "status": TrainingStatus.PENDING.value,
-            "progress": 0.0,
-            "message": "Job created, waiting to start",
-            "description": description,
-            "started_at": None,
-            "completed_at": None,
-            "error": None,
-            "result": None,
-            "cancel_requested": False,
-        }
+        with _JOB_STORE_LOCK:
+            jobs = _read_jobs_from_store()
+            jobs[job_id] = {
+                "job_id": job_id,
+                "model_type": model_type.value,
+                "status": TrainingStatus.PENDING.value,
+                "progress": 0.0,
+                "message": "Job created, waiting to start",
+                "description": description,
+                "started_at": None,
+                "completed_at": None,
+                "error": None,
+                "result": None,
+                "cancel_requested": False,
+            }
+            _training_jobs.clear()
+            _training_jobs.update(jobs)
+            _write_jobs_to_store(_training_jobs)
         logger.info(f"Created training job {job_id} for {model_type.value}")
         return job_id
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get training job status."""
-        return _training_jobs.get(job_id)
+        jobs = _load_jobs_snapshot()
+        return jobs.get(job_id)
 
     def list_jobs(self) -> List[Dict[str, Any]]:
         """List all training jobs."""
-        return list(_training_jobs.values())
+        jobs = _load_jobs_snapshot()
+        return list(jobs.values())
 
     def _update_job(self, job_id: str, **kwargs):
         """Update training job fields."""
-        if job_id in _training_jobs:
-            _training_jobs[job_id].update(kwargs)
+        with _JOB_STORE_LOCK:
+            jobs = _read_jobs_from_store()
+            if job_id in jobs:
+                jobs[job_id].update(kwargs)
+                _training_jobs.clear()
+                _training_jobs.update(jobs)
+                _write_jobs_to_store(_training_jobs)
 
     def _is_cancel_requested(self, job_id: str) -> bool:
         job = self.get_job(job_id)

@@ -246,14 +246,14 @@ class LDATrainer:
     def load_model(self, job_id: str):
         """Load a previously trained model."""
         from gensim.corpora import Dictionary
-        from gensim.models import LdaMulticore
+        from gensim.models import LdaModel
 
         model_dir = path_settings.get_models_dir() / f"lda_{job_id}"
 
         if not model_dir.exists():
             raise FileNotFoundError(f"Model not found: {model_dir}")
 
-        self.model = LdaMulticore.load(str(model_dir / "lda_model"))
+        self.model = LdaModel.load(str(model_dir / "lda_model"))
         self.dictionary = Dictionary.load(str(model_dir / "dictionary.dict"))
 
         logger.info(f"LDA model loaded from {model_dir}")
