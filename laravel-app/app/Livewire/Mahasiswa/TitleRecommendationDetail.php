@@ -55,7 +55,7 @@ class TitleRecommendationDetail extends Component
             'run_id' => (int) $topic->topic_model_run_id,
             'topic_label' => $topicLabel,
             'doc_count' => (int) ($topic->count ?? 0),
-            'top_words' => array_slice((array) ($topic->top_words ?? []), 0, 10),
+            'top_words' => array_slice((array) ($topic->top_words ?? []), 0, 15),
         ];
 
         $this->mappedSkripsi = $this->loadMappedSkripsi(

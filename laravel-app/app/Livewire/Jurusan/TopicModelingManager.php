@@ -877,9 +877,9 @@ class TopicModelingManager extends Component
     {
         return [
             'embedding_model' => 'denaya/indoSBERT-large',
-            'min_topic_size' => 12,
-            'nr_topics' => 'auto',
-            'top_n_words' => 10,
+            'min_topic_size' => 10,
+            'nr_topics' => 8,
+            'top_n_words' => 15,
             'n_gram_range' => [1, 2],
             'vectorizer_min_df' => 2,
             'vectorizer_max_df' => 0.95,
@@ -906,7 +906,7 @@ class TopicModelingManager extends Component
                 'random_state' => 42,
             ],
             'hdbscan_params' => [
-                'min_cluster_size' => 16,
+                'min_cluster_size' => 8,
                 'min_samples' => 1,
                 'metric' => 'euclidean',
                 'cluster_selection_method' => 'eom',
@@ -1032,7 +1032,7 @@ class TopicModelingManager extends Component
         // Official BERTopic parameters to tune: top_n_words, n_gram_range, min_topic_size, nr_topics.
         $params['min_topic_size'] = $this->toInt($params['min_topic_size'] ?? null, 2, null, $defaults['min_topic_size']);
         $params['nr_topics'] = $this->normalizeNrTopics($params['nr_topics'] ?? null, $defaults['nr_topics']);
-        $params['top_n_words'] = $this->toInt($params['top_n_words'] ?? null, 1, null, $defaults['top_n_words']);
+        $params['top_n_words'] = $this->toInt($params['top_n_words'] ?? null, 15, null, $defaults['top_n_words']);
 
         $nGramRange = is_array($params['n_gram_range'] ?? null) ? $params['n_gram_range'] : $defaults['n_gram_range'];
         $nGramMin = $this->toInt($nGramRange[0] ?? null, 1, null, $defaults['n_gram_range'][0]);
@@ -1172,27 +1172,37 @@ class TopicModelingManager extends Component
 
     protected function normalizeNrTopics(mixed $value, string|int|null $fallback = null): string|int|null
     {
+        $minimumTopics = 8;
+
+        if ($fallback === 'auto' || $fallback === null) {
+            $fallback = $minimumTopics;
+        } elseif (is_int($fallback)) {
+            $fallback = max($minimumTopics, $fallback);
+        } elseif (is_numeric((string) $fallback)) {
+            $fallback = max($minimumTopics, (int) round((float) $fallback));
+        }
+
         if ($value === null) {
             return $fallback;
         }
 
         if (is_int($value)) {
-            return max(2, $value);
+            return max($minimumTopics, $value);
         }
 
         $text = trim((string) $value);
         $lower = strtolower($text);
 
         if ($text === '' || in_array($lower, ['null', 'none'], true)) {
-            return null;
+            return $fallback;
         }
 
         if ($lower === 'auto') {
-            return 'auto';
+            return $fallback;
         }
 
         if (is_numeric($text)) {
-            return max(2, (int) round((float) $text));
+            return max($minimumTopics, (int) round((float) $text));
         }
 
         return $fallback;
@@ -2085,7 +2095,7 @@ class TopicModelingManager extends Component
             ->toArray();
 
         $this->selectedTopicModalTopicId = (int) $topic->topic_id;
-        $this->selectedTopicModalTopWords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 10) : [];
+        $this->selectedTopicModalTopWords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 15) : [];
         $this->selectedTopicModalDocs = $docs;
         $this->showTopicMappingsModal = true;
     }

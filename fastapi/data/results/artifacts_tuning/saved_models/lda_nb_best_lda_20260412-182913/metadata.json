@@ -1,9 +1,9 @@
 {
-  "job_id": "nb_best_lda_20260410-035246",
+  "job_id": "nb_best_lda_20260412-182913",
   "model_type": "lda",
   "save_mode": "fallback_notebook",
-  "reason": "[Errno 13] Permission denied: '/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/app/ml/trained_models/lda_nb_best_lda_20260410-035246'",
-  "saved_at": "2026-04-10T03:52:46.511269",
+  "reason": "[Errno 13] Permission denied: '/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/app/ml/trained_models/lda_nb_best_lda_20260412-182913'",
+  "saved_at": "2026-04-12T18:29:13.279875",
   "hyperparameters": {
     "num_topics": 8,
     "passes": 20,

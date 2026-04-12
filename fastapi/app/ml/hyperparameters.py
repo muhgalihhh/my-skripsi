@@ -10,9 +10,9 @@ BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
     "default": BERTopicHyperparameters(
         # Notebook-aligned baseline
         embedding_model="denaya/indoSBERT-large",
-        min_topic_size=12,
-        nr_topics="auto",
-        top_n_words=10,
+        min_topic_size=10,
+        nr_topics=8,
+        top_n_words=15,
         n_gram_range=[1, 2],
         vectorizer_min_df=2,
         vectorizer_max_df=0.95,
@@ -26,7 +26,7 @@ BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
             random_state=42,
         ),
         hdbscan_params=HDBSCANHyperparameters(
-            min_cluster_size=16,
+            min_cluster_size=8,
             min_samples=1,
             cluster_selection_method="eom",
         ),
@@ -60,7 +60,7 @@ BERTOPIC_PRESETS: Dict[str, BERTopicHyperparameters] = {
         embedding_model="denaya/indoSBERT-large",
         min_topic_size=20,
         nr_topics=10,
-        top_n_words=10,
+        top_n_words=15,
         n_gram_range=[1, 2],
         vectorizer_min_df=3,
         vectorizer_max_df=0.95,
@@ -93,9 +93,9 @@ BERTOPIC_GRID: Dict[str, List[Any]] = {
     "hdbscan_min_samples": [1, 2],
     "hdbscan_cluster_selection_method": ["eom"],
     # BERTopic
-    "nr_topics": ["auto"],
-    "min_topic_size": [10, 12],
-    "top_n_words": [10],
+    "nr_topics": [8],
+    "min_topic_size": [8, 10, 12],
+    "top_n_words": [15],
     # Vectorizer
     "vectorizer_ngram_range": [(1, 2)],
     "vectorizer_min_df": [1, 2],

@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 router = APIRouter(prefix="/evaluation", tags=["Evaluation"])
 service = TrainingService()
 DTA_TREND_THRESHOLD = 0.5
+TOP_WORDS_PREVIEW_LIMIT = 15
 
 
 def _load_bertopic_trainer(job_id: str):
@@ -107,7 +108,7 @@ def _classify_topic_trends(
         trend = TopicTrend(
             topic_id=int(topic_id),
             topic_label=f"Topic {topic_id}",
-            top_words=top_words[:10],
+            top_words=top_words[:TOP_WORDS_PREVIEW_LIMIT],
             trend=direction,
             frequency_per_year=freq_per_year,
             trend_slope=round(slope, 4),

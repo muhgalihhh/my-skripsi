@@ -1,0 +1,4 @@
+step,n_rows,n_columns,output_csv
+step1_normalized_validated,473,5,/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/results/artifacts_tuning/preprocess_step1_normalized_validated_20260412-182912.csv
+step2_model_ready,473,7,/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/results/artifacts_tuning/preprocess_step2_model_ready_20260412-182912.csv
+step3_thesis_summary,473,5,/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/results/artifacts_tuning/preprocess_step3_thesis_summary_20260412-182912.csv

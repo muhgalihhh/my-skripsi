@@ -58,7 +58,7 @@ class GeminiTopicCurationService:
         representative_abstracts: Optional[List[str]] = None,
         broader_terms: Optional[List[str]] = None,
     ) -> str:
-        keyword_list = ", ".join(keywords[:10])
+        keyword_list = ", ".join(keywords[:15])
         titles = [title.strip() for title in (representative_titles or []) if str(title).strip()]
 
         lines = [

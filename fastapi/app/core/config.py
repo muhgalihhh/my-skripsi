@@ -139,9 +139,9 @@ class BERTopicSettings(BaseSettings):
 
     # IndoSBERT-large: IndoBERT-large + Siamese Network (256-dim output)
     BERTOPIC_EMBEDDING_MODEL: str = "denaya/indoSBERT-large"
-    BERTOPIC_MIN_TOPIC_SIZE: int = 12
-    BERTOPIC_NR_TOPICS: str = "auto"
-    BERTOPIC_TOP_N_WORDS: int = 10
+    BERTOPIC_MIN_TOPIC_SIZE: int = 10
+    BERTOPIC_NR_TOPICS: str = "8"
+    BERTOPIC_TOP_N_WORDS: int = 15
     BERTOPIC_EMBEDDING_BATCH_SIZE: int = 16
     BERTOPIC_SEED: int = 42
 
@@ -177,7 +177,7 @@ class HDBSCANSettings(BaseSettings):
         extra="ignore",
     )
 
-    HDBSCAN_MIN_CLUSTER_SIZE: int = 16
+    HDBSCAN_MIN_CLUSTER_SIZE: int = 8
     HDBSCAN_MIN_SAMPLES: Optional[int] = 1
     HDBSCAN_METRIC: str = "euclidean"
     HDBSCAN_CLUSTER_SELECTION_METHOD: str = "eom"

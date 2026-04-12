@@ -72,12 +72,12 @@ class BERTopicHyperparameters(BaseModel):
             "(IndoBERT-large re-trained with Siamese Network)"
         ),
     )
-    min_topic_size: int = Field(12, ge=2, description="Minimum topic size for BERTopic")
+    min_topic_size: int = Field(10, ge=2, description="Minimum topic size for BERTopic")
     nr_topics: Optional[int | Literal["auto"]] = Field(
-        None,
+        8,
         description="Number of topics. Use integer or 'auto'.",
     )
-    top_n_words: int = Field(10, ge=1, description="Number of words per topic representation")
+    top_n_words: int = Field(15, ge=1, description="Number of words per topic representation")
     n_gram_range: List[int] = Field(default=[1, 2], description="Vectorizer n-gram range [min, max]")
     vectorizer_min_df: int | float = Field(2, description="CountVectorizer min_df")
     vectorizer_max_df: int | float = Field(0.95, description="CountVectorizer max_df")
@@ -141,9 +141,9 @@ class BERTopicHyperparameters(BaseModel):
     def validate_nr_topics(cls, value):
         if value is None or value == "auto":
             return value
-        if isinstance(value, int) and value >= 2:
+        if isinstance(value, int) and value >= 8:
             return value
-        raise ValueError("nr_topics must be >=2, null, or 'auto'")
+        raise ValueError("nr_topics must be >=8, null, or 'auto'")
 
 
 class LDAHyperparameters(BaseModel):

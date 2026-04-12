@@ -118,7 +118,7 @@
 
                                     <td class="px-4 py-3 align-top">
                                         <div class="flex max-w-xs flex-wrap gap-1">
-                                            @foreach (array_slice($topic->top_words ?? [], 0, 10) as $word)
+                                            @foreach (array_slice($topic->top_words ?? [], 0, 15) as $word)
                                                 <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                             @endforeach
                                         </div>

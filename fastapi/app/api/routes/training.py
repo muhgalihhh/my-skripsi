@@ -44,6 +44,7 @@ service = TrainingService()
 
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+TOP_WORDS_PREVIEW_LIMIT = 15
 
 
 def _validate_job_id(job_id: str) -> str:
@@ -135,7 +136,7 @@ def _build_keyword_fallback_distribution(trainer, query: str, top_n_topics: int)
             continue
 
         words_scores = trainer.model.get_topic(topic_id) or []
-        top_words = [str(word) for word, _ in words_scores[:10]]
+        top_words = [str(word) for word, _ in words_scores[:TOP_WORDS_PREVIEW_LIMIT]]
         topic_words_lower = [word.lower() for word in top_words]
 
         if query_token_set:
@@ -160,7 +161,7 @@ def _build_keyword_fallback_distribution(trainer, query: str, top_n_topics: int)
                     continue
 
                 words_scores = trainer.model.get_topic(topic_id) or []
-                top_words = [str(word) for word, _ in words_scores[:10]]
+                top_words = [str(word) for word, _ in words_scores[:TOP_WORDS_PREVIEW_LIMIT]]
                 doc_count = int(row.get("Count", 0) or 0)
                 score = min(1.0, max(0.05, math.log1p(max(doc_count, 1)) / 10.0))
                 scored_topics.append((topic_id, score, top_words))
@@ -477,7 +478,7 @@ async def test_trained_model(job_id: str):
                 filtered = words_scores
             sample_topics.append({
                 "topic_id": tid,
-                "top_words": [w for w, _ in filtered[:10]],
+                "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
             })
 
         summary.update(
@@ -551,7 +552,7 @@ async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
 
         similarity = max(0.0, min(1.0, float(raw_similarity)))
         words_scores = trainer.model.get_topic(topic_id) or []
-        top_words = [str(word) for word, _ in words_scores[:10]]
+        top_words = [str(word) for word, _ in words_scores[:TOP_WORDS_PREVIEW_LIMIT]]
 
         distribution.append(
             TopicInferenceItem(
@@ -602,7 +603,7 @@ async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
     primary_words: List[str] = []
     if primary_topic_id != -1:
         primary_words_scores = trainer.model.get_topic(primary_topic_id) or []
-        primary_words = [str(word) for word, _ in primary_words_scores[:10]]
+        primary_words = [str(word) for word, _ in primary_words_scores[:TOP_WORDS_PREVIEW_LIMIT]]
 
         if all(item.topic_id != primary_topic_id for item in distribution):
             distribution.insert(
@@ -783,7 +784,7 @@ async def test_trained_model_with_dataset(job_id: str):
             filtered = words_scores
         current_topic_info.append({
             "topic_id": int(topic_id),
-            "top_words": [w for w, _ in filtered[:10]],
+            "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
         })
 
     keyword_match = _keyword_match_ratio(

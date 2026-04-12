@@ -40,7 +40,7 @@
                                 <td class="px-4 py-3 align-top text-right text-sm font-semibold text-gray-700">{{ number_format((int) ($topic['doc_count'] ?? 0)) }}</td>
                                 <td class="px-4 py-3 align-top">
                                     <div class="flex max-w-xl flex-wrap gap-1.5">
-                                        @foreach (array_slice($topic['top_words'] ?? [], 0, 8) as $word)
+                                        @foreach (array_slice($topic['top_words'] ?? [], 0, 15) as $word)
                                             <span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700">{{ $word }}</span>
                                         @endforeach
                                     </div>

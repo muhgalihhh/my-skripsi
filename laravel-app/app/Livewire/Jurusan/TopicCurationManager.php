@@ -101,7 +101,7 @@ class TopicCurationManager extends Component
         $this->editTopicRowId = (int) $topic->id;
         $this->editTopicId = (int) $topic->topic_id;
         $this->editRunId = (int) $topic->topic_model_run_id;
-        $this->editTopWords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 10) : [];
+        $this->editTopWords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 15) : [];
         $this->editCustomName = (string) ($topic->custom_name ?? '');
         $this->editRepresentationDescription = (string) ($topic->representation_description ?? '');
         $this->showEditModal = true;
@@ -241,7 +241,7 @@ class TopicCurationManager extends Component
      */
     private function buildTopicCurationContextPayload(TopicModelTopic $topic): array
     {
-        $keywords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 10) : [];
+        $keywords = is_array($topic->top_words) ? array_slice($topic->top_words, 0, 15) : [];
         $keywords = array_values(array_filter(array_map(
             static fn($keyword): string => trim((string) $keyword),
             $keywords

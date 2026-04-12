@@ -1,0 +1,16 @@
+scenario_id,scenario_source,status,objective_score,coherence_cv,topic_diversity,runtime_seconds,num_topics
+lda_preset_fewer_topics,preset,ok,0.252445,0.3482,0.725,9.39,8
+lda_preset_more_topics,preset,ok,0.220455,0.3834,0.575,9.83,20
+lda_grid_007,grid,ok,0.178657,0.3486,0.5125,9.81,8
+lda_grid_008,grid,ok,0.175875,0.335,0.525,9.98,12
+lda_grid_011,grid,ok,0.175172,0.3418,0.5125,10.37,8
+lda_grid_005,grid,ok,0.17425,0.3485,0.5,10.4,8
+lda_preset_default,preset,ok,0.17095,0.3419,0.5,10.52,12
+lda_grid_003,grid,ok,0.159979,0.3459,0.4625,5.69,8
+lda_grid_010,grid,ok,0.157536,0.3282,0.48,5.63,10
+lda_grid_001,grid,ok,0.15656,0.3296,0.475,9.58,12
+lda_grid_012,grid,ok,0.15637,0.3292,0.475,9.64,12
+lda_grid_004,grid,ok,0.154693,0.3157,0.49,5.77,10
+lda_grid_002,grid,ok,0.152075,0.3476,0.4375,6.27,8
+lda_grid_009,grid,ok,0.146582,0.3449,0.425,6.21,8
+lda_grid_006,grid,ok,0.144568,0.3273,0.4417,5.94,12

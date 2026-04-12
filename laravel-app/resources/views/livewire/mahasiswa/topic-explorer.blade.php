@@ -236,7 +236,7 @@
                                         <td class="px-3 py-2.5 align-top text-right text-sm font-semibold text-gray-700">{{ number_format((int) ($topicCard['doc_count'] ?? 0)) }}</td>
                                         <td class="px-3 py-2.5 align-top">
                                             <div class="flex max-w-xl flex-wrap gap-1.5">
-                                                @foreach (array_slice($topicCard['top_words'] ?? [], 0, 8) as $word)
+                                                @foreach (array_slice($topicCard['top_words'] ?? [], 0, 15) as $word)
                                                     <span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700">{{ $word }}</span>
                                                 @endforeach
                                             </div>
@@ -281,7 +281,7 @@
                                         <h3 class="text-base font-bold text-white" x-text="mappingModalTopic?.topic_label ?? 'Detail Mapping Topik'"></h3>
                                     </div>
                                     <div class="mt-2 flex flex-wrap gap-1.5" x-show="Array.isArray(mappingModalTopic?.top_words) && mappingModalTopic.top_words.length > 0">
-                                        <template x-for="word in (mappingModalTopic?.top_words ?? []).slice(0, 10)" :key="word">
+                                        <template x-for="word in (mappingModalTopic?.top_words ?? []).slice(0, 15)" :key="word">
                                             <span class="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white" x-text="word"></span>
                                         </template>
                                     </div>
@@ -373,7 +373,7 @@
                                         <td class="px-4 py-3 text-right align-top text-sm font-semibold text-gray-800">{{ number_format((int) $topic->count) }}</td>
                                         <td class="px-4 py-3 align-top">
                                             <div class="flex max-w-xl flex-wrap gap-1.5">
-                                                @foreach (array_slice($topic->top_words ?? [], 0, 10) as $word)
+                                                @foreach (array_slice($topic->top_words ?? [], 0, 15) as $word)
                                                     <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700">{{ $word }}</span>
                                                 @endforeach
                                             </div>

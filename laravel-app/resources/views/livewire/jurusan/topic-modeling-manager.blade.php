@@ -703,7 +703,7 @@
                                         <td class="px-3 py-3 text-gray-600 sm:px-4">{{ $t->count }}</td>
                                         <td class="px-3 py-3 sm:px-4">
                                             <div class="flex flex-wrap gap-1">
-                                                @foreach (array_slice($t->top_words ?? [], 0, 10) as $word)
+                                                @foreach (array_slice($t->top_words ?? [], 0, 15) as $word)
                                                     <span
                                                         class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ $word }}</span>
                                                 @endforeach
@@ -841,13 +841,13 @@
                     </div>
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">nr_topics</label>
-                        <input type="text" placeholder="auto | 12 | kosong=null"
+                        <input type="text" placeholder="minimal 8 (contoh: 8 | 10 | 12)"
                             class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                             wire:model.live="bertopicParams.nr_topics" />
                     </div>
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">top_n_words</label>
-                        <input type="number" min="1"
+                        <input type="number" min="15"
                             class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                             wire:model.live="bertopicParams.top_n_words" />
                     </div>

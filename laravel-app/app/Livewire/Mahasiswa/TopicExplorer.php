@@ -217,7 +217,7 @@ class TopicExplorer extends Component
                     ? sprintf('T%s - %s', $topicId, $topic->custom_name)
                     : sprintf('Topik %s', $topicId),
                 'doc_count' => (int) ($topic->count ?? 0),
-                'top_words' => array_slice($topic->top_words ?? [], 0, 10),
+                'top_words' => array_slice($topic->top_words ?? [], 0, 15),
                 'documents' => $documents,
             ];
         }
@@ -473,7 +473,7 @@ class TopicExplorer extends Component
                 $distribution[] = [
                     'topic_id' => $topicId,
                     'similarity' => $similarity,
-                    'top_words' => array_slice((array) ($row['top_words'] ?? []), 0, 10),
+                    'top_words' => array_slice((array) ($row['top_words'] ?? []), 0, 15),
                 ];
             }
         }
@@ -593,7 +593,7 @@ class TopicExplorer extends Component
                 'topic_id' => $predictedTopicId,
                 'topic_label' => $topicLabelMap[$predictedTopicId] ?? sprintf('Topik %s', $predictedTopicId),
                 'similarity' => round($predictedSimilarity, 4),
-                'top_words' => array_slice((array) ($inference['top_words'] ?? []), 0, 10),
+                'top_words' => array_slice((array) ($inference['top_words'] ?? []), 0, 15),
             ];
         }
 

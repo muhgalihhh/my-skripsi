@@ -1,20 +1,20 @@
 {
-  "job_id": "nb_best_bertopic_20260410-035246",
+  "job_id": "nb_best_bertopic_20260412-182913",
   "model_type": "bertopic",
   "save_mode": "fallback_notebook",
-  "reason": "[Errno 13] Permission denied: '/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/app/ml/trained_models/bertopic_nb_best_bertopic_20260410-035246'",
-  "saved_at": "2026-04-10T03:52:46.503806",
+  "reason": "[Errno 13] Permission denied: '/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/app/ml/trained_models/bertopic_nb_best_bertopic_20260412-182913'",
+  "saved_at": "2026-04-12T18:29:13.258544",
   "hyperparameters": {
     "embedding_model": "denaya/indoSBERT-large",
     "min_topic_size": 10,
-    "nr_topics": "auto",
-    "top_n_words": 10,
+    "nr_topics": 10,
+    "top_n_words": 15,
     "n_gram_range": [
       1,
       2
     ],
-    "vectorizer_min_df": 2,
-    "vectorizer_max_df": 1.0,
+    "vectorizer_min_df": 1,
+    "vectorizer_max_df": 0.9,
     "vectorizer_token_pattern": "(?u)\\b\\w{3,}\\b",
     "vectorizer_fallback_min_df": 1,
     "vectorizer_fallback_max_df": 1.0,
@@ -31,15 +31,15 @@
     "embedding_batch_size": 16,
     "seed": 42,
     "umap_params": {
-      "n_neighbors": 55,
+      "n_neighbors": 40,
       "n_components": 5,
-      "min_dist": 0.0,
+      "min_dist": 0.05,
       "metric": "cosine",
       "random_state": 42
     },
     "hdbscan_params": {
-      "min_cluster_size": 16,
-      "min_samples": 2,
+      "min_cluster_size": 8,
+      "min_samples": 1,
       "metric": "euclidean",
       "cluster_selection_method": "eom"
     }

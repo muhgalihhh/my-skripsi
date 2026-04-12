@@ -72,7 +72,7 @@ class TitleRecommendationIndex extends Component
                     ? sprintf('T%s - %s', $topicId, $topic->custom_name)
                     : sprintf('Topik %s', $topicId),
                 'doc_count' => (int) ($topic->count ?? 0),
-                'top_words' => array_slice((array) ($topic->top_words ?? []), 0, 10),
+                'top_words' => array_slice((array) ($topic->top_words ?? []), 0, 15),
             ];
         })->values()->all();
     }

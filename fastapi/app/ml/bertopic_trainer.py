@@ -19,9 +19,11 @@ Catatan preprocessing:
 """
 
 import json
+import logging
 import os
 import random
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -46,6 +48,34 @@ from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
 
 from app.services.stopwords import load_stopwords
+
+_BERTOPIC_ASSIGNMENT_WARNING = (
+    "Using a custom list of topic assignments may lead to errors"
+)
+
+
+class _BERTopicWarningFilter(logging.Filter):
+    """Filter noisy BERTopic assignment warnings that are expected in our pipeline."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return _BERTOPIC_ASSIGNMENT_WARNING not in record.getMessage()
+
+
+@contextmanager
+def _suppress_bertopic_assignment_warning():
+    warning_filter = _BERTopicWarningFilter()
+    targets = (
+        logging.getLogger("BERTopic"),
+        logging.getLogger("bertopic"),
+        logging.getLogger("bertopic._bertopic"),
+    )
+    for target in targets:
+        target.addFilter(warning_filter)
+    try:
+        yield
+    finally:
+        for target in targets:
+            target.removeFilter(warning_filter)
 
 class BERTopicTrainer:
     """
@@ -435,12 +465,13 @@ class BERTopicTrainer:
                 update_vectorizer = self._build_vectorizer(use_fallback=True)
 
             try:
-                self.model.update_topics(
-                    documents,
-                    topics=self.topics,
-                    vectorizer_model=update_vectorizer,
-                    representation_model=self.representation_model,
-                )
+                with _suppress_bertopic_assignment_warning():
+                    self.model.update_topics(
+                        documents,
+                        topics=self.topics,
+                        vectorizer_model=update_vectorizer,
+                        representation_model=self.representation_model,
+                    )
                 self.vectorizer_model = update_vectorizer
             except Exception as e:
                 if self._is_vectorizer_df_error(e):
@@ -454,12 +485,13 @@ class BERTopicTrainer:
                         "retrying with fallback min_df/max_df"
                     )
                     self.vectorizer_model = self._build_vectorizer(use_fallback=True)
-                    self.model.update_topics(
-                        documents,
-                        topics=self.topics,
-                        vectorizer_model=self.vectorizer_model,
-                        representation_model=self.representation_model,
-                    )
+                    with _suppress_bertopic_assignment_warning():
+                        self.model.update_topics(
+                            documents,
+                            topics=self.topics,
+                            vectorizer_model=self.vectorizer_model,
+                            representation_model=self.representation_model,
+                        )
                 else:
                     raise
         elif self.params.reduce_outliers:
