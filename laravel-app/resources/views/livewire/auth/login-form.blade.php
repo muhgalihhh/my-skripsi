@@ -118,13 +118,13 @@
             </div>
 
             {{-- Submit Button --}}
-            <button type="submit"
-                class="w-full py-2.5 px-4 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white font-medium rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-unsoed-blue-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            <x-ui.button type="submit"
+                class="w-full py-2.5"
                 wire:loading.attr="disabled">
                 <x-app.icon variant="s" name="arrow-path" wire:loading wire:target="login" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" />
                 <span wire:loading.remove wire:target="login">Masuk</span>
                 <span wire:loading wire:target="login">Memproses...</span>
-            </button>
+            </x-ui.button>
         </form>
 
         {{-- Back to landing --}}

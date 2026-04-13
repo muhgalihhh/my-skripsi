@@ -2,8 +2,7 @@
 
 import numpy as np
 import pandas as pd
-from app.models.schemas import (ComparisonRequest, ComparisonResponse,
-                                DTARequest, DTAResponse, ModelType, TopicTrend,
+from app.models.schemas import (DTARequest, DTAResponse, ModelType, TopicTrend,
                                 TrendDirection)
 from app.services.pipeline import pipeline_service
 from app.services.training import TrainingService
@@ -123,45 +122,6 @@ def _classify_topic_trends(
 
     return emerging, declining, stable
 
-
-@router.post("/compare", response_model=ComparisonResponse)
-async def compare_models(request: ComparisonRequest):
-    """
-    Compare BERTopic vs LDA based on their training results.
-
-    Requires two completed training job IDs (one BERTopic, one LDA).
-    """
-    try:
-        bertopic_results = service.load_results(request.bertopic_job_id)
-        lda_results = service.load_results(request.lda_job_id)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    bertopic_metrics = bertopic_results.get("metrics", {})
-    lda_metrics = lda_results.get("metrics", {})
-
-    b_coh = bertopic_metrics.get("coherence_cv", 0.0)
-    l_coh = lda_metrics.get("coherence_cv", 0.0)
-    b_div = bertopic_metrics.get("topic_diversity", 0.0)
-    l_div = lda_metrics.get("topic_diversity", 0.0)
-
-    # Build summary
-    coherence_winner = "BERTopic" if b_coh > l_coh else "LDA"
-    diversity_winner = "BERTopic" if b_div > l_div else "LDA"
-    summary = (
-        f"Coherence (C_v): BERTopic={b_coh:.4f} vs LDA={l_coh:.4f} → {coherence_winner} wins. "
-        f"Diversity: BERTopic={b_div:.4f} vs LDA={l_div:.4f} → {diversity_winner} wins."
-    )
-
-    return ComparisonResponse(
-        bertopic_coherence=b_coh,
-        lda_coherence=l_coh,
-        bertopic_diversity=b_div,
-        lda_diversity=l_div,
-        bertopic_num_topics=bertopic_results.get("num_topics", 0),
-        lda_num_topics=lda_results.get("num_topics", 0),
-        summary=summary,
-    )
 
 @router.post("/dta", response_model=DTAResponse)
 async def dynamic_topic_analysis(request: DTARequest):

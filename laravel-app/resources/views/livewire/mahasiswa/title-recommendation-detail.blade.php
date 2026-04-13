@@ -60,17 +60,16 @@
             </div>
 
             <div class="pt-1">
-                <button type="submit"
+                <x-ui.button type="submit" variant="primary"
                     wire:loading.attr="disabled"
-                    wire:target="generateRecommendations"
-                    class="inline-flex items-center rounded-lg bg-unsoed-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-unsoed-blue-800 disabled:cursor-not-allowed disabled:opacity-70">
+                    wire:target="generateRecommendations">
                     <x-app.icon name="sparkles" class="mr-1.5 h-4 w-4" wire:loading.remove wire:target="generateRecommendations" />
                     <svg wire:loading wire:target="generateRecommendations" class="mr-1.5 h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
                     </svg>
                     Generate dengan Gemini
-                </button>
+                </x-ui.button>
             </div>
         </form>
 

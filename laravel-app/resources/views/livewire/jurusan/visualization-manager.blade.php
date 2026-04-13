@@ -173,7 +173,7 @@
                     </div>
 
                     @if (!empty($chartPayload['wordcloud_topics']))
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                             @foreach ($chartPayload['wordcloud_topics'] as $topicCloud)
                                 <div class="min-w-0">
                                     <div class="mb-2 flex items-center justify-between gap-2">
@@ -181,7 +181,7 @@
                                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ number_format((int) ($topicCloud['doc_count'] ?? 0)) }} dok</span>
                                     </div>
 
-                                    <canvas data-topic-wordcloud-id="{{ $topicCloud['topic_id'] }}" data-wordcloud-index="{{ $loop->index }}" width="520" height="240" class="h-48 w-full !transform-none sm:h-56"></canvas>
+                                    <canvas data-topic-wordcloud-id="{{ $topicCloud['topic_id'] }}" data-wordcloud-index="{{ $loop->index }}" width="520" height="220" class="h-40 w-full !transform-none sm:h-48"></canvas>
                                 </div>
                             @endforeach
                         </div>
@@ -503,7 +503,7 @@
                     activeVizTab: 'wordcloud',
                     wordCloudPageIndex: 0,
                     wordCloudPageSize: 4,
-                    wordCloudWordLimit: 12,
+                    wordCloudWordLimit: 10,
                     dtmRenderError: '',
                     emergingRenderError: '',
                     decliningRenderError: '',
@@ -772,8 +772,8 @@
                             const labels = limitedWords.map((word) => word.text);
                             const values = limitedWords.map((word) => {
                                 const ratio = (word.rawWeight - minRaw) / denominator;
-                                const scaled = 14 + (Math.pow(ratio, 1.15) * 42);
-                                return Math.max(14, Math.round(scaled));
+                                const scaled = 10 + (Math.pow(ratio, 1.05) * 24);
+                                return Math.max(10, Math.round(scaled));
                             });
 
                             const signature = this.buildWordCloudSignature(topic, labels, rawWeights);
@@ -810,7 +810,7 @@
                                         minRotation: 0,
                                         maxRotation: 0,
                                         rotationSteps: 1,
-                                        padding: 1,
+                                        padding: 3,
                                         autoGrow: {
                                             maxTries: 0,
                                             scalingFactor: 1,
@@ -822,7 +822,7 @@
                                     responsive: false,
                                     maintainAspectRatio: false,
                                     layout: {
-                                        padding: 8,
+                                        padding: 10,
                                     },
                                     plugins: {
                                         legend: {
@@ -852,7 +852,7 @@
                                             minRotation: 0,
                                             maxRotation: 0,
                                             rotationSteps: 1,
-                                            padding: 1,
+                                            padding: 3,
                                         },
                                     },
                                 },

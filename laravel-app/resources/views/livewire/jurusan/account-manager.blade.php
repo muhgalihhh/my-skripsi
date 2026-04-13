@@ -58,15 +58,14 @@
                         <span class="text-sm font-semibold text-red-700">{{ count($selectedIds) }} akun dipilih</span>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button wire:click="$set('selectedIds', [])"
-                            class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <x-ui.button variant="secondary" size="sm" wire:click="$set('selectedIds', [])">
                             Batal Pilih
-                        </button>
-                        <button wire:click="openBulkDeleteConfirm"
-                            class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center shadow-sm">
+                        </x-ui.button>
+                        <x-ui.button variant="danger" size="sm" wire:click="openBulkDeleteConfirm"
+                            class="flex items-center shadow-sm">
                             <x-app.icon name="trash" class="w-3.5 h-3.5 mr-1.5" />
                             Hapus {{ count($selectedIds) }} Akun
-                        </button>
+                        </x-ui.button>
                     </div>
                 </div>
             @endif

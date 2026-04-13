@@ -320,11 +320,12 @@ class FastApiService
    *
    * Payload shape follows TrainingRequest schema in FastAPI.
    */
-  public function startBerTopicTraining(array $bertopicParams = [], ?string $description = null): array
+  public function startBerTopicTraining(array $bertopicParams = [], ?string $description = null, ?int $userId = null): array
   {
     try {
       $payload = array_filter([
         'model_type' => 'bertopic',
+        'user_id' => $userId,
         'bertopic_params' => $bertopicParams ?: null,
         'description' => $description,
       ], fn($v) => $v !== null);
@@ -356,11 +357,12 @@ class FastApiService
    *
    * Payload shape follows TrainingRequest schema in FastAPI.
    */
-  public function startLdaTraining(array $ldaParams = [], ?string $description = null): array
+  public function startLdaTraining(array $ldaParams = [], ?string $description = null, ?int $userId = null): array
   {
     try {
       $payload = array_filter([
         'model_type' => 'lda',
+        'user_id' => $userId,
         'lda_params' => $ldaParams ?: null,
         'description' => $description,
       ], fn($v) => $v !== null);
@@ -380,6 +382,45 @@ class FastApiService
       ];
     } catch (\Exception $e) {
       Log::error('FastAPI start LDA training request failed: ' . $e->getMessage());
+      return [
+        'status' => 'error',
+        'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),
+      ];
+    }
+  }
+
+  /**
+   * Upload BERTopic params JSON and persist it into DB via FastAPI.
+   */
+  public function uploadBertopicSettingsJson(string $filePath, string $filename, int $userId): array
+  {
+    try {
+      if (!is_file($filePath)) {
+        return ['status' => 'error', 'message' => 'File JSON tidak ditemukan.'];
+      }
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = Http::timeout(30)
+        ->attach(
+          'config_file',
+          file_get_contents($filePath),
+          $filename !== '' ? $filename : 'bertopic_params.json'
+        )
+        ->post("{$this->baseUrl}/api/v1/training/settings/upload", [
+          'user_id' => $userId,
+        ]);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      return [
+        'status' => 'error',
+        'message' => 'Gagal upload params. Status: ' . $response->status(),
+        'detail' => $response->json() ?? $response->body(),
+      ];
+    } catch (\Exception $e) {
+      Log::error('FastAPI upload BERTopic settings failed: ' . $e->getMessage());
       return [
         'status' => 'error',
         'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),

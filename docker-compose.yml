@@ -32,7 +32,7 @@ services:
       MYSQL_USER: '${MYSQL_USER:-skripsi}'
       MYSQL_PASSWORD: '${MYSQL_PASSWORD:-skripsi_password}'
     ports:
-      - '${MYSQL_PORT:-3306}:3306'
+      - '${MYSQL_BIND_IP:-127.0.0.1}:${MYSQL_PORT:-3306}:3306'
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
@@ -65,18 +65,18 @@ services:
       dockerfile: Dockerfile
     container_name: skripsi-fastapi
     ports:
-      - '${FASTAPI_PORT:-8000}:8000'
+      - '${FASTAPI_BIND_IP:-127.0.0.1}:${FASTAPI_PORT:-8000}:8000'
     volumes:
       - fastapi-data:/app/data
       - ./fastapi/data/results/artifacts_tuning:/app/data/results/artifacts_tuning
       - fastapi-models:/app/app/ml/trained_models
       - fastapi-logs:/app/logs
     env_file:
-      - ./fastapi/.env
+      - '${FASTAPI_ENV_FILE:-./fastapi/.env}'
     environment:
       - APP_ENV=production
       - APP_DEBUG=false
-      - CORS_ORIGINS=http://localhost:8080,http://laravel:8080
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080,http://laravel:8080}
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_DATABASE=${MYSQL_DATABASE:-skripsi_db}
@@ -113,15 +113,16 @@ services:
       dockerfile: Dockerfile
     container_name: skripsi-laravel
     ports:
-      - '${LARAVEL_PORT:-8080}:8080'
+      - '${LARAVEL_BIND_IP:-0.0.0.0}:${LARAVEL_PORT:-8080}:8080'
     volumes:
       - laravel-storage:/var/www/html/storage
+    env_file:
+      - '${LARAVEL_ENV_FILE:-./laravel-app/.env}'
     environment:
       - APP_NAME=TopicModeling
       - APP_ENV=${APP_ENV:-production}
-      - APP_KEY=${APP_KEY:-}
       - APP_DEBUG=${APP_DEBUG:-false}
-      - APP_URL=http://localhost:${LARAVEL_PORT:-8080}
+      - APP_URL=${APP_URL:-http://localhost:8080}
       - DB_CONNECTION=mysql
       - DB_HOST=mysql
       - DB_PORT=3306

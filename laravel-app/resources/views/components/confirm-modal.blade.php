@@ -1,4 +1,17 @@
-{{--    Reusable Confirm Modal Component    Props:      - wireModel    : Livewire entangle property name, e.g. "showDeleteConfirm"  (default: "showConfirm")      - title        : Modal title                                                 (default: "Konfirmasi")      - message      : Body message text                                           (default: "Apakah Anda yakin?")      - subtext      : Optional extra text below message                          (default: null)      - confirmLabel : Label for confirm button                                   (default: "Ya, Lanjutkan")      - confirmWire  : wire:click action for confirm button                       (required)      - confirmTarget: wire:target for loading spinner                            (optional, same as confirmWire)      - type         : "danger" | "warning" | "info"                             (default: "danger")      - closeWire    : wire:click action for cancel/close button                  (optional)    PENTING: Semua Tailwind class ditulis LANGSUNG (bukan dinamis dari PHP variable)    agar Tailwind CSS v4 bisa mendeteksi saat build / purge. --}}@props([
+{{--
+    Reusable Confirm Modal Component
+    Props:
+    - wireModel: Livewire entangle property name
+    - title: modal title
+    - message: body message
+    - subtext: optional extra text
+    - confirmLabel: confirm button label
+    - confirmWire: wire:click action for confirm button
+    - confirmTarget: wire:target for loading state
+    - type: danger | warning | info
+    - closeWire: wire:click action for cancel/close
+--}}
+@props([
     'wireModel' => 'showConfirm',
     'title' => 'Konfirmasi',
     'message' => 'Apakah Anda yakin?',
@@ -8,70 +21,97 @@
     'confirmTarget' => null,
     'type' => 'danger',
     'closeWire' => '',
-])@php $confirmTarget = $confirmTarget ?? $confirmWire;@endphp<div
-    x-data="{ open: @entangle($wireModel).live }" x-show="open" x-cloak class="fixed inset-0 z-[60] overflow-y-auto" role="dialog"
-    aria-modal="true"> {{-- Backdrop --}} <div x-show="open" x-transition:enter="ease-out duration-200"
-        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-150"
-        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-black/60 backdrop-blur-sm"
-        @if ($closeWire) wire:click="{{ $closeWire }}" @else @click="open = false" @endif> </div>
-    {{-- Panel Container --}} <div class="flex min-h-full items-center justify-center p-4">
+])
+
+@php
+    $confirmTarget = $confirmTarget ?? $confirmWire;
+@endphp
+
+<div x-data="{ open: @entangle($wireModel).live }" x-show="open" x-cloak class="fixed inset-0 z-[60] overflow-y-auto" role="dialog"
+    aria-modal="true">
+    {{-- Backdrop --}}
+    @if ($closeWire)
+        <div x-show="open" x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-150"
+            x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm" wire:click="{{ $closeWire }}"></div>
+    @else
+        <div x-show="open" x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-150"
+            x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm" x-on:click="open = false"></div>
+    @endif
+
+    <div class="flex min-h-full items-center justify-center p-4">
         <div x-show="open" x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0 scale-90"
             x-transition:enter-end="opacity-100 scale-100" x-transition:leave="ease-in duration-150"
-            x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-90" @click.stop
-            class="relative bg-white rounded-2xl shadow-2xl p-6" style="width: 100%; max-width: 24rem;">
-            <div class="flex flex-col items-center text-center"> {{-- Icon — class langsung per type --}} @if ($type === 'warning')
-                    <div class="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4 shrink-0">
-                        <x-app.icon variant="o" name="exclamation-triangle" class="w-7 h-7 text-amber-500" /> </div>
+            x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-90" x-on:click.stop
+            class="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="flex flex-col items-center text-center">
+                @if ($type === 'warning')
+                    <div class="mb-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                        <x-app.icon variant="o" name="exclamation-triangle" class="h-7 w-7 text-amber-500" />
+                    </div>
                 @elseif ($type === 'info')
-                    <div class="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-4 shrink-0"> <x-app.icon variant="o" name="information-circle" class="w-7 h-7 text-blue-500" /> </div>
+                    <div class="mb-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                        <x-app.icon variant="o" name="information-circle" class="h-7 w-7 text-blue-500" />
+                    </div>
                 @else
-                    {{-- danger (default) --}} <div
-                        class="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-4 shrink-0"> <x-app.icon variant="o" name="x-circle" class="w-7 h-7 text-red-500" /> </div>
-                    @endif {{-- Title --}} <h3 class="text-lg font-bold text-gray-900 mb-1.5">{{ $title }}
-                    </h3> {{-- Message --}} <p class="text-sm text-gray-500 leading-relaxed">{{ $message }}</p>
-                    {{-- Subtext --}} @if ($subtext)
-                        <p class="text-xs text-gray-400 mt-1">{{ $subtext }}</p>
-                        @endif {{-- Custom slot content --}} @if ($slot->isNotEmpty())
-                            <div class="mt-2 w-full">{{ $slot }}</div>
-                            @endif {{-- Buttons --}} <div class="flex gap-3 w-full mt-6"> {{-- Cancel --}}
-                                <button
-                                    @if ($closeWire) wire:click="{{ $closeWire }}" @else @click="open = false" @endif
-                                    type="button"
-                                    class="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition">
-                                    Batal </button> {{-- Confirm — class langsung per type --}} @if ($confirmWire)
-                                    @if ($type === 'warning')
-                                        <button wire:click="{{ $confirmWire }}" wire:loading.attr="disabled"
-                                            wire:target="{{ $confirmTarget }}" type="button"
-                                            class="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                                            <x-app.icon name="arrow-path" wire:loading wire:target="{{ $confirmTarget }}" class="animate-spin w-4 h-4" /> <span wire:loading.remove
-                                                wire:target="{{ $confirmTarget }}">{{ $confirmLabel }}</span> <span
-                                                wire:loading wire:target="{{ $confirmTarget }}"
-                                                class="sr-only">Memproses...</span> </button>
-                                    @elseif ($type === 'info')
-                                        <button wire:click="{{ $confirmWire }}" wire:loading.attr="disabled"
-                                            wire:target="{{ $confirmTarget }}" type="button"
-                                            class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                                            <x-app.icon name="arrow-path" wire:loading wire:target="{{ $confirmTarget }}" class="animate-spin w-4 h-4" />
-                                            <span wire:loading.remove
-                                                wire:target="{{ $confirmTarget }}">{{ $confirmLabel }}</span>
-                                            <span wire:loading wire:target="{{ $confirmTarget }}"
-                                                class="sr-only">Memproses...</span>
-                                        </button>
-                                    @else
-                                        {{-- danger (default) --}}
-                                        <button wire:click="{{ $confirmWire }}" wire:loading.attr="disabled"
-                                            wire:target="{{ $confirmTarget }}" type="button"
-                                            class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                                            <x-app.icon name="arrow-path" wire:loading wire:target="{{ $confirmTarget }}" class="animate-spin w-4 h-4" />
-                                            <span wire:loading.remove
-                                                wire:target="{{ $confirmTarget }}">{{ $confirmLabel }}</span>
-                                            <span wire:loading wire:target="{{ $confirmTarget }}"
-                                                class="sr-only">Memproses...</span>
-                                        </button>
-                                    @endif
-                                @endif
-                            </div>
+                    <div class="mb-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-red-100">
+                        <x-app.icon variant="o" name="x-circle" class="h-7 w-7 text-red-500" />
+                    </div>
+                @endif
+
+                <h3 class="mb-1.5 text-lg font-bold text-gray-900">{{ $title }}</h3>
+                <p class="text-sm leading-relaxed text-gray-500">{{ $message }}</p>
+
+                @if ($subtext)
+                    <p class="mt-1 text-xs text-gray-400">{{ $subtext }}</p>
+                @endif
+
+                @if ($slot->isNotEmpty())
+                    <div class="mt-2 w-full">{{ $slot }}</div>
+                @endif
+
+                <div class="mt-6 flex w-full gap-3">
+                    @if ($closeWire)
+                        <x-ui.button wire:click="{{ $closeWire }}" variant="light" class="flex-1 !rounded-xl !py-2.5">
+                            Batal
+                        </x-ui.button>
+                    @else
+                        <x-ui.button x-on:click="open = false" variant="light" class="flex-1 !rounded-xl !py-2.5">
+                            Batal
+                        </x-ui.button>
+                    @endif
+
+                    @if ($confirmWire)
+                        @if ($type === 'warning')
+                            <x-ui.button variant="warning" wire:click="{{ $confirmWire }}" wire:loading.attr="disabled"
+                                wire:target="{{ $confirmTarget }}" class="flex-1 !rounded-xl !py-2.5">
+                                <x-app.icon name="arrow-path" wire:loading wire:target="{{ $confirmTarget }}"
+                                    class="h-4 w-4 animate-spin" />
+                                <span wire:loading.remove wire:target="{{ $confirmTarget }}">{{ $confirmLabel }}</span>
+                                <span wire:loading wire:target="{{ $confirmTarget }}" class="sr-only">Memproses...</span>
+                            </x-ui.button>
+                        @elseif ($type === 'info')
+                            <x-ui.button variant="info" wire:click="{{ $confirmWire }}" wire:loading.attr="disabled"
+                                wire:target="{{ $confirmTarget }}" class="flex-1 !rounded-xl !py-2.5">
+                                <x-app.icon name="arrow-path" wire:loading wire:target="{{ $confirmTarget }}"
+                                    class="h-4 w-4 animate-spin" />
+                                <span wire:loading.remove wire:target="{{ $confirmTarget }}">{{ $confirmLabel }}</span>
+                                <span wire:loading wire:target="{{ $confirmTarget }}" class="sr-only">Memproses...</span>
+                            </x-ui.button>
+                        @else
+                            <x-ui.button variant="danger" wire:click="{{ $confirmWire }}" wire:loading.attr="disabled"
+                                wire:target="{{ $confirmTarget }}" class="flex-1 !rounded-xl !py-2.5">
+                                <x-app.icon name="arrow-path" wire:loading wire:target="{{ $confirmTarget }}"
+                                    class="h-4 w-4 animate-spin" />
+                                <span wire:loading.remove wire:target="{{ $confirmTarget }}">{{ $confirmLabel }}</span>
+                                <span wire:loading wire:target="{{ $confirmTarget }}" class="sr-only">Memproses...</span>
+                            </x-ui.button>
+                        @endif
+                    @endif
+                </div>
             </div>
         </div>
     </div>

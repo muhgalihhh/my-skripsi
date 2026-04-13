@@ -162,6 +162,11 @@ class LDAHyperparameters(BaseModel):
 class TrainingRequest(BaseModel):
     """Request to start a training job."""
     model_type: ModelType
+    user_id: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Optional user id to resolve saved params from topic_model_settings",
+    )
     bertopic_params: Optional[BERTopicHyperparameters] = None
     lda_params: Optional[LDAHyperparameters] = None
     description: Optional[str] = Field(None, description="Description for this training run")

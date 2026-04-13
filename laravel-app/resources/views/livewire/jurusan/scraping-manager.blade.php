@@ -43,12 +43,12 @@
                             class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke FastAPI service.' }}</span>
                     @endif
                 </div>
-                <button wire:click="checkApiStatus"
-                    class="text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition"
+                <x-ui.button variant="ghost-primary" size="sm" wire:click="checkApiStatus"
+                    class="font-medium flex items-center transition !px-2"
                     wire:loading.class="opacity-50" wire:target="checkApiStatus">
                     <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus" />
                     Refresh Status
-                </button>
+                </x-ui.button>
             </div>
         </div>
 
@@ -66,16 +66,16 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button wire:click="openMonitoring"
-                            class="px-3 py-1.5 bg-unsoed-blue-50 hover:bg-unsoed-blue-100 text-unsoed-blue-600 text-xs font-medium rounded-lg border border-unsoed-blue-200 transition flex items-center">
+                        <x-ui.button variant="primary" size="sm" wire:click="openMonitoring"
+                            class="!bg-unsoed-blue-50 hover:!bg-unsoed-blue-100 !text-unsoed-blue-600 !border-unsoed-blue-200 shadow-none">
                             <x-app.icon name="eye" class="w-4 h-4 mr-1" />
                             Pantau Detail
-                        </button>
-                        <button wire:click="openCancelConfirm"
-                            class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg border border-red-200 transition flex items-center">
+                        </x-ui.button>
+                        <x-ui.button variant="danger" size="sm" wire:click="openCancelConfirm"
+                            class="!bg-red-50 hover:!bg-red-100 !text-red-600 !border-red-200 shadow-none">
                             <x-app.icon name="stop-circle" class="w-4 h-4 mr-1" />
                             Batalkan
-                        </button>
+                        </x-ui.button>
                     </div>
                 </div>
 
@@ -240,15 +240,14 @@
                             dipilih</span>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button wire:click="$set('selectedLogIds', [])"
-                            class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <x-ui.button variant="secondary" size="sm" wire:click="$set('selectedLogIds', [])">
                             Batal Pilih
-                        </button>
-                        <button wire:click="openBulkDeleteLogsConfirm"
-                            class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center shadow-sm">
+                        </x-ui.button>
+                        <x-ui.button variant="danger" size="sm" wire:click="openBulkDeleteLogsConfirm"
+                            class="flex items-center shadow-sm">
                             <x-app.icon name="trash" class="w-3.5 h-3.5 mr-1.5" />
                             Hapus {{ count($selectedLogIds) }} Riwayat
-                        </button>
+                        </x-ui.button>
                     </div>
                 </div>
             @endif
@@ -594,10 +593,9 @@
                             </span>
                         @endif
                     </p>
-                    <button wire:click="closeMonitoring"
-                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition">
+                    <x-ui.button variant="secondary" wire:click="closeMonitoring">
                         Tutup
-                    </button>
+                    </x-ui.button>
                 </div>
             </div>
         </div>

@@ -43,19 +43,19 @@
             <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p class="text-xs text-gray-500">Export mengikuti filter dan pencarian yang sedang aktif.</p>
                 <div class="flex flex-wrap gap-2">
-                    <button wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv"
-                        class="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-60">
+                    <x-ui.button variant="ghost-primary" size="sm" wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv"
+                        class="!border !border-emerald-200 !bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100 disabled:opacity-60 transition">
                         <x-app.icon name="arrow-down-tray" class="mr-1.5 h-3.5 w-3.5" />
                         <span wire:loading.remove wire:target="exportCsv">Export CSV</span>
                         <span wire:loading wire:target="exportCsv">Menyiapkan...</span>
-                    </button>
+                    </x-ui.button>
 
-                    <button wire:click="exportExcel" wire:loading.attr="disabled" wire:target="exportExcel"
-                        class="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition disabled:opacity-60">
+                    <x-ui.button variant="ghost-primary" size="sm" wire:click="exportExcel" wire:loading.attr="disabled" wire:target="exportExcel"
+                        class="!border !border-blue-200 !bg-blue-50 !text-blue-700 hover:!bg-blue-100 disabled:opacity-60 transition">
                         <x-app.icon name="arrow-down-tray" class="mr-1.5 h-3.5 w-3.5" />
                         <span wire:loading.remove wire:target="exportExcel">Export Excel</span>
                         <span wire:loading wire:target="exportExcel">Menyiapkan...</span>
-                    </button>
+                    </x-ui.button>
                 </div>
             </div>
         </div>
@@ -72,15 +72,14 @@
                     <span class="text-sm font-semibold text-red-700">{{ count($selectedIds) }} data dipilih</span>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button wire:click="$set('selectedIds', [])"
-                        class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    <x-ui.button variant="secondary" size="sm" wire:click="$set('selectedIds', [])">
                         Batal Pilih
-                    </button>
-                    <button wire:click="openBulkDeleteConfirm"
-                        class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center shadow-sm">
+                    </x-ui.button>
+                    <x-ui.button variant="danger" size="sm" wire:click="openBulkDeleteConfirm"
+                        class="flex items-center shadow-sm">
                         <x-app.icon name="trash" class="w-3.5 h-3.5 mr-1.5" />
                         Hapus {{ count($selectedIds) }} Data
-                    </button>
+                    </x-ui.button>
                 </div>
             </div>
         @endif
@@ -363,28 +362,28 @@
                 <div
                     class="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex justify-between items-center flex-shrink-0">
                     @if ($selectedSkripsiId)
-                        <button wire:click="confirmDelete({{ $selectedSkripsiId }})"
-                            class="px-3 py-2 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold rounded-xl border border-red-200 transition flex items-center gap-1.5">
+                        <x-ui.button variant="ghost-danger" size="sm" wire:click="confirmDelete({{ $selectedSkripsiId }})"
+                            class="!rounded-xl border border-red-200 bg-white">
                             <x-app.icon name="trash" class="w-4 h-4" />
                             Hapus
-                        </button>
+                        </x-ui.button>
                         <div class="flex items-center gap-2">
-                            <button wire:click="openEdit({{ $selectedSkripsiId }})"
-                                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                            <x-ui.button variant="warning" size="md" wire:click="openEdit({{ $selectedSkripsiId }})"
+                                class="!rounded-xl flex items-center gap-1.5 shadow-sm">
                                 <x-app.icon name="pencil-square" class="w-4 h-4" />
                                 Edit
-                            </button>
-                            <button wire:click="closeDetail"
-                                class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition">
+                            </x-ui.button>
+                            <x-ui.button variant="light" size="md" wire:click="closeDetail"
+                                class="!rounded-xl">
                                 Tutup
-                            </button>
+                            </x-ui.button>
                         </div>
                     @else
                         <div></div>
-                        <button wire:click="closeDetail"
-                            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition">
+                        <x-ui.button variant="light" size="md" wire:click="closeDetail"
+                            class="!rounded-xl">
                             Tutup
-                        </button>
+                        </x-ui.button>
                     @endif
                 </div>
             </div>

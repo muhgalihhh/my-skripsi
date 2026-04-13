@@ -54,14 +54,12 @@
                     </div>
 
                     <div class="mt-6 sm:mt-7 flex flex-col sm:flex-row sm:items-center gap-3">
-                        <a href="{{ url('/') }}"
-                            class="inline-flex items-center justify-center rounded-lg bg-unsoed-blue-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-unsoed-blue-900 transition">
+                        <x-ui.button href="{{ url('/') }}" class="!py-2.5">
                             Kembali ke Beranda
-                        </a>
-                        <a href="{{ url()->previous() }}"
-                            class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                        </x-ui.button>
+                        <x-ui.button variant="secondary" href="{{ url()->previous() }}" class="!py-2.5">
                             Kembali
-                        </a>
+                        </x-ui.button>
                         <div class="sm:ml-auto text-xs text-gray-400 sm:text-right">
                             Waktu: {{ now()->format('d M Y H:i') }}
                         </div>

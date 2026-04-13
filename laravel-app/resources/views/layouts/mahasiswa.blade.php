@@ -109,7 +109,7 @@
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit"
-                                    class="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                    class="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50 font-medium transition-colors">
                                     <x-app.icon name="arrow-right-on-rectangle" class="w-4 h-4 mr-2" />
                                     Logout
                                 </button>
@@ -156,10 +156,9 @@
                                 <input type="text" x-ref="topbarSearchInput" x-model="topbarSearchQuery"
                                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                                     placeholder="Cari topik skripsi...">
-                                <button type="submit"
-                                    class="inline-flex items-center justify-center rounded-lg bg-unsoed-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-unsoed-blue-800">
+                                <x-ui.button type="submit" variant="primary" class="!px-3 !py-2 shrink-0">
                                     Cari
-                                </button>
+                                </x-ui.button>
                             </form>
                         </div>
                     </div>

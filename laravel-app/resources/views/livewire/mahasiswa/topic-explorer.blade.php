@@ -187,7 +187,7 @@
                 </div>
 
                 @if (!empty($chartPayload['wordcloud_topics']))
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         @foreach ($chartPayload['wordcloud_topics'] as $topicCloud)
                             <div class="min-w-0 rounded-xl border border-gray-200 bg-white p-3">
                                 <div class="mb-2 flex items-center justify-between gap-2">
@@ -198,8 +198,8 @@
                                     data-topic-wordcloud-id="{{ $topicCloud['topic_id'] }}"
                                     data-wordcloud-index="{{ $loop->index }}"
                                     width="520"
-                                    height="240"
-                                    class="h-44 w-full !transform-none sm:h-52"></canvas>
+                                    height="220"
+                                    class="h-40 w-full !transform-none sm:h-48"></canvas>
                             </div>
                         @endforeach
                     </div>
@@ -286,11 +286,11 @@
                                         </template>
                                     </div>
                                 </div>
-                                <button type="button" @click="closeMappingModal()"
-                                    class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/25"
+                                <x-ui.button variant="ghost" size="icon" type="button" x-on:click="closeMappingModal()"
+                                    class="!bg-white/10 !text-white hover:!bg-white/25"
                                     aria-label="Tutup modal">
                                     <x-app.icon name="x-mark" class="h-4 w-4" />
-                                </button>
+                                </x-ui.button>
                             </div>
                         </div>
 
@@ -416,7 +416,7 @@
                     mappingModalTopic: null,
                     wordCloudCharts: new Map(),
                     wordCloudRenderSignatures: new Map(),
-                    wordCloudWordLimit: 12,
+                    wordCloudWordLimit: 10,
 
                     init() {
                         this.$nextTick(() => {
@@ -576,7 +576,14 @@
 
                             const labels = limitedWords.map((item) => item.text);
                             const rawWeights = limitedWords.map((item) => item.rawWeight);
-                            const values = limitedWords.map((item) => item.visualWeight > 0 ? item.visualWeight : item.rawWeight);
+                            const minRaw = Math.min(...rawWeights);
+                            const maxRaw = Math.max(...rawWeights);
+                            const denominator = (maxRaw - minRaw) || 1;
+                            const values = limitedWords.map((item) => {
+                                const ratio = (item.rawWeight - minRaw) / denominator;
+                                const scaled = 11 + (Math.pow(ratio, 1.1) * 22);
+                                return Math.max(11, Math.round(scaled));
+                            });
                             const colors = labels.map((_, wordIndex) => colorPool[wordIndex % colorPool.length]);
 
                             const signature = this.buildWordCloudSignature(topic, labels, rawWeights);
@@ -602,7 +609,7 @@
                                         minRotation: 0,
                                         maxRotation: 0,
                                         rotationSteps: 1,
-                                        padding: 1,
+                                        padding: 3,
                                         autoGrow: {
                                             maxTries: 0,
                                             scalingFactor: 1,
@@ -614,7 +621,7 @@
                                     responsive: false,
                                     maintainAspectRatio: false,
                                     layout: {
-                                        padding: 8,
+                                        padding: 10,
                                     },
                                     plugins: {
                                         legend: {

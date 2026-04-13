@@ -1,0 +1,7 @@
+{
+  "job_id": "nb_best_lda_20260413-132545",
+  "model_type": "lda",
+  "save_mode": "fallback_notebook",
+  "reason": "[Errno 13] Permission denied: '/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/app/ml/trained_models/lda_nb_best_lda_20260413-132545'",
+  "saved_at": "2026-04-13T14:28:07.121672"
+}

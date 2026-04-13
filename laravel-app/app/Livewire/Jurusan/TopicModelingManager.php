@@ -15,11 +15,14 @@ use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('layouts.jurusan')]
 #[Title('Topic Modeling')]
 class TopicModelingManager extends Component
 {
+    use WithFileUploads;
+
     // UI state
     public bool $isProcessing = false;
     public string $statusMessage = '';
@@ -52,6 +55,8 @@ class TopicModelingManager extends Component
 
     // Dataset readiness (from FastAPI)
     public array $datasetSummary = [];
+
+    public $bertopicParamsJsonFile;
 
     // Model utilities (download + test)
     public bool $modelTestLoading = false;
@@ -91,7 +96,7 @@ class TopicModelingManager extends Component
     /**
      * Load BERTopic training params with precedence:
      * 1) active draft run snapshot (pending/preprocessing/training/failed)
-     * 2) user default setting (topic_model_settings.bertopic_params / lda_params)
+     * 2) user default setting (topic_model_settings.bertopic_params)
      * 3) metadata.json from analysis output / fallback default
      */
     protected function loadTrainingParams(): void
@@ -99,23 +104,29 @@ class TopicModelingManager extends Component
         $hasBerTopicParams = false;
         $hasLdaParams = false;
 
+        $modelType = $this->modelType ?: 'bertopic';
+
         $shouldUseActiveRunSnapshot = $this->activeRun
             && in_array((string) $this->activeRun->status, ['pending', 'preprocessing', 'training', 'failed'], true);
 
         // 1) Active run snapshot (only while run is still considered draft/in-progress)
-        if ($shouldUseActiveRunSnapshot && is_array($this->activeRun->bertopic_params) && !empty($this->activeRun->bertopic_params)) {
-            $this->bertopicParams = $this->activeRun->bertopic_params;
-            $hasBerTopicParams = true;
-        }
+        if ($shouldUseActiveRunSnapshot) {
+            if (is_array($this->activeRun->bertopic_params) && !empty($this->activeRun->bertopic_params)) {
+                $this->bertopicParams = $this->activeRun->bertopic_params;
+                $hasBerTopicParams = true;
+            }
 
-        if ($shouldUseActiveRunSnapshot && is_array($this->activeRun->lda_params) && !empty($this->activeRun->lda_params)) {
-            $this->ldaParams = $this->activeRun->lda_params;
-            $hasLdaParams = true;
+            if (is_array($this->activeRun->lda_params) && !empty($this->activeRun->lda_params)) {
+                $this->ldaParams = $this->activeRun->lda_params;
+                $hasLdaParams = true;
+            }
         }
 
         if ($this->activeRun && in_array($this->activeRun->model_type, ['bertopic', 'lda'], true)) {
-            $this->modelType = (string) $this->activeRun->model_type;
+            $modelType = (string) $this->activeRun->model_type;
         }
+
+        $this->modelType = $modelType;
 
         /** @var int|null $userId */
         $userId = Auth::id();
@@ -135,25 +146,40 @@ class TopicModelingManager extends Component
         }
 
         // 3) Notebook artifacts/default
-        $currentLdaParams = $this->ldaParams;
-        if (!$hasBerTopicParams) {
+        if (!$hasBerTopicParams || !$hasLdaParams) {
+            $existingBertopic = $this->bertopicParams;
+            $existingLda = $this->ldaParams;
+
             $this->loadBestParamsFromMetadata();
-        }
 
-        if ($hasLdaParams && !empty($currentLdaParams)) {
-            $this->ldaParams = $currentLdaParams;
-        }
-
-        if (empty($this->ldaParams)) {
-            $this->ldaParams = $this->getDefaultLdaParams();
+            if ($hasBerTopicParams) {
+                $this->bertopicParams = $existingBertopic;
+            }
+            if ($hasLdaParams) {
+                $this->ldaParams = $existingLda;
+            }
         }
 
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
     }
 
+    public function updatedModelType(): void
+    {
+        if ($this->modelType === 'lda') {
+            if (empty($this->ldaParams)) {
+                $this->ldaParams = $this->normalizeLdaParams($this->getDefaultLdaParams());
+            }
+            return;
+        }
+
+        if (empty($this->bertopicParams)) {
+            $this->bertopicParams = $this->normalizeBertopicParams($this->getDefaultBertopicParams());
+        }
+    }
+
     /**
-     * Persist current BERTopic + LDA params as user's default in DB.
+     * Persist current BERTopic params as user's default in DB.
      */
     public function saveTrainingParams(): void
     {
@@ -182,11 +208,12 @@ class TopicModelingManager extends Component
             $this->activeRun->update([
                 'bertopic_params' => $bertopicParamsForStorage ?: null,
                 'lda_params' => $ldaParamsForStorage ?: null,
+                'model_type' => $this->modelType,
             ]);
             $this->activeRun->refresh();
         }
 
-        $this->dispatch('toast', type: 'success', message: 'Parameter training BERTopic & LDA tersimpan di database.');
+        $this->dispatch('toast', type: 'success', message: 'Parameter training tersimpan di database.');
     }
 
     public function resetTrainingParamsToNotebookBest(): void
@@ -201,6 +228,7 @@ class TopicModelingManager extends Component
             $this->activeRun->update([
                 'bertopic_params' => $bertopicParamsForStorage ?: null,
                 'lda_params' => $ldaParamsForStorage ?: null,
+                'model_type' => $this->modelType,
             ]);
             $this->activeRun->refresh();
         }
@@ -219,10 +247,13 @@ class TopicModelingManager extends Component
 
     public function resetTrainingParamsToBestCompletedTraining(): void
     {
-        $this->bertopicParams = $this->getDefaultBertopicParams();
-        $this->ldaParams = $this->getDefaultLdaParams();
+        if ($this->modelType === 'lda') {
+            $this->ldaParams = $this->getDefaultLdaParams();
+        } else {
+            $this->bertopicParams = $this->getDefaultBertopicParams();
+        }
 
-        if (!$this->loadBestParamsFromCompletedRuns()) {
+        if (!$this->loadBestParamsFromCompletedRuns($this->modelType)) {
             $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
             $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
             $this->dispatch('toast', type: 'warning', message: 'Belum ada run completed yang bisa dijadikan best config training.');
@@ -238,11 +269,52 @@ class TopicModelingManager extends Component
             $this->activeRun->update([
                 'bertopic_params' => $bertopicParamsForStorage ?: null,
                 'lda_params' => $ldaParamsForStorage ?: null,
+                'model_type' => $this->modelType,
             ]);
             $this->activeRun->refresh();
         }
 
         $this->dispatch('toast', type: 'success', message: 'Parameter di-reset dari best run training (completed).');
+    }
+
+    public function uploadBertopicParamsJson(): void
+    {
+        /** @var int|null $userId */
+        $userId = Auth::id();
+        if ($userId === null) {
+            $this->dispatch('toast', type: 'error', message: 'Silakan login terlebih dahulu.');
+            return;
+        }
+
+        if (!$this->bertopicParamsJsonFile) {
+            $this->dispatch('toast', type: 'error', message: 'Pilih file JSON terlebih dahulu.');
+            return;
+        }
+
+        $filename = (string) ($this->bertopicParamsJsonFile->getClientOriginalName() ?? '');
+        if ($filename !== '' && !str_ends_with(strtolower($filename), '.json')) {
+            $this->dispatch('toast', type: 'error', message: 'File harus berformat .json');
+            return;
+        }
+
+        $path = $this->bertopicParamsJsonFile->getRealPath();
+        if (!$path) {
+            $this->dispatch('toast', type: 'error', message: 'File upload tidak bisa dibaca.');
+            return;
+        }
+
+        $fastApi = app(FastApiService::class);
+        $response = $fastApi->uploadBertopicSettingsJson($path, $filename, (int) $userId);
+
+        if (($response['status'] ?? '') !== 'ok') {
+            $message = (string) ($response['message'] ?? 'Gagal mengunggah JSON ke FastAPI.');
+            $this->dispatch('toast', type: 'error', message: $message);
+            return;
+        }
+
+        $this->bertopicParamsJsonFile = null;
+        $this->loadTrainingParams();
+        $this->dispatch('toast', type: 'success', message: 'BERTopic params berhasil di-update dari JSON.');
     }
 
     public function loadDbPreprocessedRows(): void
@@ -572,21 +644,28 @@ class TopicModelingManager extends Component
                                     ? $value
                                     : (float) $value;
                             }
-                        }
-
-                        if ($model === 'LDA') {
+                        } elseif ($model === 'LDA') {
                             if ($param === 'num_topics') {
                                 $this->ldaParams['num_topics'] = (int) $value;
                             } elseif ($param === 'passes') {
                                 $this->ldaParams['passes'] = (int) $value;
                             } elseif ($param === 'iterations') {
                                 $this->ldaParams['iterations'] = (int) $value;
+                            } elseif ($param === 'chunksize') {
+                                $this->ldaParams['chunksize'] = (int) $value;
+                            } elseif ($param === 'random_state') {
+                                $this->ldaParams['random_state'] = (int) $value;
                             } elseif ($param === 'alpha') {
                                 $this->ldaParams['alpha'] = $value;
                             } elseif ($param === 'eta') {
                                 $this->ldaParams['eta'] = $value;
+                            } elseif ($param === 'no_below') {
+                                $this->ldaParams['no_below'] = (int) $value;
+                            } elseif ($param === 'no_above') {
+                                $this->ldaParams['no_above'] = (float) $value;
                             }
                         }
+
                     }
                 }
 
@@ -637,6 +716,9 @@ class TopicModelingManager extends Component
     protected function loadBestParamsFromNotebookPayloads(): bool
     {
         $hasLoaded = false;
+        $targetModel = $this->modelType ?: 'bertopic';
+        $loadedBertopic = false;
+        $loadedLda = false;
 
         // Source utama lintas-container: minta artifact best-config dari FastAPI API.
         try {
@@ -644,17 +726,22 @@ class TopicModelingManager extends Component
             $apiPayload = $fastApi->getLatestTrainingBestConfig();
 
             if (($apiPayload['status'] ?? '') === 'ok') {
-                $bertopicPayload = $apiPayload['best_bertopic']['params'] ?? null;
-                $ldaPayload = $apiPayload['best_lda']['params'] ?? null;
-
+                $bertopicPayload = $apiPayload['best_bertopic']['params'] ?? ($apiPayload['best_bertopic'] ?? null);
                 if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
                     $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
-                    $hasLoaded = true;
+                    $loadedBertopic = true;
+                    if ($targetModel === 'bertopic') {
+                        $hasLoaded = true;
+                    }
                 }
 
+                $ldaPayload = $apiPayload['best_lda']['params'] ?? ($apiPayload['best_lda'] ?? null);
                 if (is_array($ldaPayload) && !empty($ldaPayload)) {
-                    $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
-                    $hasLoaded = true;
+                    $this->ldaParams = array_replace_recursive($this->ldaParams, $ldaPayload);
+                    $loadedLda = true;
+                    if ($targetModel === 'lda') {
+                        $hasLoaded = true;
+                    }
                 }
 
                 if ($hasLoaded) {
@@ -665,24 +752,38 @@ class TopicModelingManager extends Component
             Log::warning('Failed to load best config from FastAPI API', ['error' => $e->getMessage()]);
         }
 
-        // Source utama: hasil notebook tuning terbaru (Cell simpan artifacts).
-        $notebookArtifactDir = base_path('../fastapi/data/results/artifacts_tuning');
-        if (File::isDirectory($notebookArtifactDir)) {
-            $bestConfigPayload = $this->loadLatestJsonArtifact($notebookArtifactDir . '/best_config_*.json');
+        // Source lokal: artifacts_tuning dan output run notebook terbaru.
+        $localBestConfigPatterns = [
+            base_path('../fastapi/data/results/artifacts_tuning/best_config_*.json'),
+            base_path('../fastapi/data/results/notebook_tuning_web_form/run_*/best_config.json'),
+        ];
 
-            if (is_array($bestConfigPayload)) {
-                $bertopicPayload = $bestConfigPayload['best_bertopic']['params'] ?? null;
-                $ldaPayload = $bestConfigPayload['best_lda']['params'] ?? null;
+        foreach ($localBestConfigPatterns as $pattern) {
+            $bestConfigPayload = $this->loadLatestJsonArtifact($pattern);
+            if (!is_array($bestConfigPayload)) {
+                continue;
+            }
 
-                if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
-                    $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
+            $bertopicPayload = $bestConfigPayload['best_bertopic']['params'] ?? ($bestConfigPayload['best_bertopic'] ?? null);
+            if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
+                $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
+                $loadedBertopic = true;
+                if ($targetModel === 'bertopic') {
                     $hasLoaded = true;
                 }
+            }
 
-                if (is_array($ldaPayload) && !empty($ldaPayload)) {
-                    $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
+            $ldaPayload = $bestConfigPayload['best_lda']['params'] ?? ($bestConfigPayload['best_lda'] ?? null);
+            if (is_array($ldaPayload) && !empty($ldaPayload)) {
+                $this->ldaParams = array_replace_recursive($this->ldaParams, $ldaPayload);
+                $loadedLda = true;
+                if ($targetModel === 'lda') {
                     $hasLoaded = true;
                 }
+            }
+
+            if ($hasLoaded) {
+                return true;
             }
         }
 
@@ -691,7 +792,7 @@ class TopicModelingManager extends Component
         }
 
         // Fallback menengah: run training completed terbaik per model (dari DB Laravel).
-        if ($this->loadBestParamsFromCompletedRuns()) {
+        if ($this->loadBestParamsFromCompletedRuns($targetModel)) {
             return true;
         }
 
@@ -711,15 +812,8 @@ class TopicModelingManager extends Component
             $bertopicPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/bertopic_laravel_payload_*.json');
         }
 
-        $ldaPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/lda_laravel_payload_*.json');
-
         if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
             $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
-            $hasLoaded = true;
-        }
-
-        if (is_array($ldaPayload) && !empty($ldaPayload)) {
-            $this->ldaParams = array_replace($this->ldaParams, $ldaPayload);
             $hasLoaded = true;
         }
 
@@ -727,12 +821,12 @@ class TopicModelingManager extends Component
     }
 
     /**
-     * Load best params from completed training runs in DB (per model type).
+     * Load best params from completed BERTopic runs in DB.
      *
      * Score sederhana: 0.7 * coherence_cv + 0.3 * topic_diversity,
      * lalu tie-break by run id terbaru.
      */
-    protected function loadBestParamsFromCompletedRuns(): bool
+    protected function loadBestParamsFromCompletedRuns(?string $modelType = null): bool
     {
         /** @var int|null $userId */
         $userId = Auth::id();
@@ -740,19 +834,63 @@ class TopicModelingManager extends Component
             return false;
         }
 
+        $targetModel = $modelType ?: $this->modelType;
+
+        if ($targetModel === 'lda') {
+            $runs = TopicModelRun::query()
+                ->where('user_id', $userId)
+                ->where('status', 'completed')
+                ->where('model_type', 'lda')
+                ->whereNotNull('lda_params')
+                ->orderByDesc('id')
+                ->get([
+                    'id',
+                    'model_type',
+                    'lda_params',
+                    'coherence_cv',
+                    'topic_diversity',
+                ]);
+
+            if ($runs->isEmpty()) {
+                return false;
+            }
+
+            $bestLda = null;
+            $bestLdaScore = null;
+
+            foreach ($runs as $run) {
+                $coherence = is_numeric($run->coherence_cv) ? (float) $run->coherence_cv : 0.0;
+                $diversity = is_numeric($run->topic_diversity) ? (float) $run->topic_diversity : 0.0;
+                $score = (0.7 * $coherence) + (0.3 * $diversity);
+
+                if (
+                    is_array($run->lda_params)
+                    && !empty($run->lda_params)
+                    && ($bestLdaScore === null || $score > $bestLdaScore)
+                ) {
+                    $bestLda = $run->lda_params;
+                    $bestLdaScore = $score;
+                }
+            }
+
+            if (is_array($bestLda) && !empty($bestLda)) {
+                $this->ldaParams = array_replace_recursive($this->ldaParams, $bestLda);
+                return true;
+            }
+
+            return false;
+        }
+
         $runs = TopicModelRun::query()
             ->where('user_id', $userId)
             ->where('status', 'completed')
-            ->whereIn('model_type', ['bertopic', 'lda'])
-            ->where(function ($q): void {
-                $q->whereNotNull('bertopic_params')->orWhereNotNull('lda_params');
-            })
+            ->where('model_type', 'bertopic')
+            ->whereNotNull('bertopic_params')
             ->orderByDesc('id')
             ->get([
                 'id',
                 'model_type',
                 'bertopic_params',
-                'lda_params',
                 'coherence_cv',
                 'topic_diversity',
             ]);
@@ -763,8 +901,6 @@ class TopicModelingManager extends Component
 
         $bestBertopic = null;
         $bestBertopicScore = null;
-        $bestLda = null;
-        $bestLdaScore = null;
 
         foreach ($runs as $run) {
             $coherence = is_numeric($run->coherence_cv) ? (float) $run->coherence_cv : 0.0;
@@ -772,39 +908,21 @@ class TopicModelingManager extends Component
             $score = (0.7 * $coherence) + (0.3 * $diversity);
 
             if (
-                $run->model_type === 'bertopic'
-                && is_array($run->bertopic_params)
+                is_array($run->bertopic_params)
                 && !empty($run->bertopic_params)
                 && ($bestBertopicScore === null || $score > $bestBertopicScore)
             ) {
                 $bestBertopic = $run->bertopic_params;
                 $bestBertopicScore = $score;
             }
-
-            if (
-                $run->model_type === 'lda'
-                && is_array($run->lda_params)
-                && !empty($run->lda_params)
-                && ($bestLdaScore === null || $score > $bestLdaScore)
-            ) {
-                $bestLda = $run->lda_params;
-                $bestLdaScore = $score;
-            }
         }
-
-        $hasLoaded = false;
 
         if (is_array($bestBertopic) && !empty($bestBertopic)) {
             $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bestBertopic);
-            $hasLoaded = true;
+            return true;
         }
 
-        if (is_array($bestLda) && !empty($bestLda)) {
-            $this->ldaParams = array_replace($this->ldaParams, $bestLda);
-            $hasLoaded = true;
-        }
-
-        return $hasLoaded;
+        return false;
     }
 
     /**
@@ -1371,18 +1489,23 @@ class TopicModelingManager extends Component
         $this->previewRows = $rows->map(function ($r) use ($service) {
             $raw = (string) $r->abstract;
 
+            $cleaned = $service->cleanText($raw);
+            $tokenized = $service->tokenize($cleaned);
+            $filtered = $service->filterByLength($tokenized);
+            $stopwordsRemoved = $service->removeStopwordsFromTokens($filtered);
+            $finalProcessed = trim(implode(' ', $stopwordsRemoved));
+
             return [
                 'id' => $r->skripsi_id,
                 'year' => $r->year,
                 'title' => (string) ($r->title ?? '-'),
                 'raw' => $raw,
-                'cleaned' => $service->cleanText($raw),
-                'tokenized' => $service->tokenize($service->cleanText($raw)),
-                'filtered_tokens' => $service->filterByLength($service->tokenize($service->cleanText($raw))),
-                'stopwords_removed' => $service->removeStopwordsFromTokens(
-                    $service->filterByLength($service->tokenize($service->cleanText($raw)))
-                ),
+                'cleaned' => $cleaned,
+                'tokenized' => $tokenized,
+                'filtered_tokens' => $filtered,
+                'stopwords_removed' => $stopwordsRemoved,
                 'final_cleaned_text' => $service->preprocessCleaned($raw),
+                'final_processed_text' => $finalProcessed,
             ];
         })->toArray();
         // PENTING: Tidak ada update ke DB untuk previewRows
@@ -1416,9 +1539,14 @@ class TopicModelingManager extends Component
         $this->statusMessage = 'Menjalankan preprocessing data...';
         $this->preprocessingDroppedReport = [];
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
-        $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
+        $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
+
+        $modelType = in_array($this->modelType, ['bertopic', 'lda'], true)
+            ? $this->modelType
+            : 'bertopic';
+        $this->modelType = $modelType;
 
         /** @var int|null $userId */
         $userId = Auth::id();
@@ -1433,7 +1561,7 @@ class TopicModelingManager extends Component
         // Buat run baru — tanpa preprocessing_preview (sudah dihapus dari DB)
         $run = TopicModelRun::create([
             'user_id' => $userId,
-            'model_type' => $this->modelType,
+            'model_type' => $modelType,
             'status' => 'preprocessing',
             'bertopic_params' => $bertopicParamsForStorage ?: null,
             'lda_params' => $ldaParamsForStorage ?: null,
@@ -1666,7 +1794,7 @@ class TopicModelingManager extends Component
     }
 
     /**
-     * Step 2: Mulai BERTopic training di FastAPI.
+     * Step 2: Mulai training model di FastAPI.
      */
     public function openStartTrainingConfirm(): void
     {
@@ -1682,6 +1810,9 @@ class TopicModelingManager extends Component
     {
         $this->showStartTrainingConfirm = false;
 
+        /** @var int|null $userId */
+        $userId = Auth::id();
+
         if (!$this->activeRun) {
             $this->statusType = 'error';
             $this->statusMessage = 'Jalankan preprocessing terlebih dahulu.';
@@ -1696,36 +1827,37 @@ class TopicModelingManager extends Component
 
         $this->isProcessing = true;
         $this->statusType = 'info';
-        $this->statusMessage = sprintf('Memulai training %s...', strtoupper($this->modelType));
+
+        $modelType = in_array($this->modelType, ['bertopic', 'lda'], true)
+            ? $this->modelType
+            : 'bertopic';
+        $this->modelType = $modelType;
+
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
 
+        $this->activeRun->update([
+            'model_type' => $modelType,
+            'bertopic_params' => $bertopicParamsForStorage ?: null,
+            'lda_params' => $ldaParamsForStorage ?: null,
+        ]);
+
         $fastApi = app(FastApiService::class);
-        if ($this->modelType === 'lda') {
-            $params = $this->ldaParams;
-
-            $this->activeRun->update([
-                'model_type' => 'lda',
-                'lda_params' => $ldaParamsForStorage ?: null,
-            ]);
-
+        if ($modelType === 'lda') {
+            $this->statusMessage = 'Memulai training LDA...';
             $resp = $fastApi->startLdaTraining(
-                ldaParams: $params,
+                ldaParams: $this->ldaParams,
                 description: 'LDA run dari dashboard Jurusan',
+                userId: $userId,
             );
         } else {
-            $params = $this->bertopicParams;
-
-            $this->activeRun->update([
-                'model_type' => 'bertopic',
-                'bertopic_params' => $bertopicParamsForStorage ?: null,
-            ]);
-
+            $this->statusMessage = 'Memulai training BERTopic...';
             $resp = $fastApi->startBerTopicTraining(
-                bertopicParams: $params,
+                bertopicParams: $this->bertopicParams,
                 description: 'BERTopic run dari dashboard Jurusan',
+                userId: $userId,
             );
         }
 
@@ -1740,7 +1872,7 @@ class TopicModelingManager extends Component
 
         $this->activeRun->update([
             'status' => 'training',
-            'model_type' => $this->modelType,
+            'model_type' => $modelType,
             'fastapi_training_job_id' => $this->trainingJobId,
         ]);
 

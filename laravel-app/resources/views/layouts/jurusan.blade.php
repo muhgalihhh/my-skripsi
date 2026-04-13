@@ -153,7 +153,7 @@
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit"
-                                    class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                    class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50 font-medium transition-colors">
                                     <x-app.icon name="arrow-right-on-rectangle" class="w-4 h-4 mr-2" />
                                     Logout
                                 </button>

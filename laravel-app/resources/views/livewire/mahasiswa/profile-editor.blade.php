@@ -74,12 +74,12 @@
                 </label>
 
                 <div class="pt-2">
-                    <button type="submit"
-                        class="inline-flex items-center justify-center rounded-xl bg-unsoed-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-unsoed-blue-700 disabled:opacity-50"
+                    <x-ui.button type="submit" variant="primary"
+                        class="!rounded-xl !py-2.5"
                         wire:loading.attr="disabled">
                         <x-app.icon name="arrow-path" wire:loading wire:target="savePasswordSettings" class="mr-2 h-4 w-4 animate-spin" />
                         Simpan Pengaturan Password
-                    </button>
+                    </x-ui.button>
                 </div>
             </form>
         </div>

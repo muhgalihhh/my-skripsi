@@ -1,0 +1,111 @@
+{
+  "doc_profile": {
+    "source": "csv:/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/raw/raw_data.csv",
+    "raw_rows": 474,
+    "filtered_rows": 473,
+    "final_rows": 473,
+    "duplicate_abstract_removed": 1,
+    "year_min": 2018,
+    "year_max": 2026,
+    "processed_token_p25": 107.0,
+    "processed_token_p50": 146.0,
+    "processed_token_p75": 200.0,
+    "cleaned_token_p50": 270.0
+  },
+  "bertopic_tuning_space": {
+    "min_topic_size": [
+      6,
+      8,
+      10
+    ],
+    "nr_topics": [
+      "auto",
+      8,
+      10,
+      11,
+      12,
+      14
+    ],
+    "top_n_words": [
+      15,
+      20
+    ],
+    "n_gram_range": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "umap_n_neighbors": [
+      15,
+      30,
+      45
+    ],
+    "umap_n_components": [
+      5,
+      8
+    ],
+    "umap_metric": [
+      "cosine"
+    ],
+    "hdbscan_min_cluster_size": [
+      6,
+      8,
+      10
+    ],
+    "hdbscan_min_samples": [
+      1,
+      2
+    ],
+    "hdbscan_metric": [
+      "euclidean"
+    ]
+  },
+  "lda_tuning_space": {
+    "num_topics": [
+      8,
+      10,
+      11,
+      12,
+      14
+    ],
+    "passes": [
+      15,
+      25
+    ],
+    "iterations": [
+      200,
+      300
+    ],
+    "chunksize": [
+      100,
+      150
+    ],
+    "random_state": [
+      42
+    ],
+    "alpha": [
+      "asymmetric",
+      "symmetric"
+    ],
+    "eta": [
+      null,
+      "symmetric"
+    ],
+    "no_below": [
+      2,
+      3
+    ],
+    "no_above": [
+      0.9,
+      0.95
+    ]
+  },
+  "max_bertopic_scenarios": 10,
+  "max_lda_scenarios": 15,
+  "seed": 42
+}

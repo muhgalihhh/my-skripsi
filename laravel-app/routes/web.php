@@ -78,6 +78,9 @@ Route::middleware(['auth', EnsureUserIsJurusan::class])
         Route::get('/visualisasi', VisualizationManager::class)->name('visualisasi');
 
         // Topic Modeling - model artifacts
+        Route::get('/topic-modeling/settings/template/download', [TopicModelingModelController::class, 'downloadSettingsTemplate'])
+            ->name('topic-modeling.settings.template.download');
+
         Route::get('/topic-modeling/model/{jobId}/download', [TopicModelingModelController::class, 'download'])
             ->name('topic-modeling.model.download');
     });

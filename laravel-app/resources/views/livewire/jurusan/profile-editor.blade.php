@@ -57,13 +57,12 @@
                     @enderror
                 </div>
                 <div class="flex justify-end pt-2">
-                    <button type="submit"
-                        class="px-5 py-2.5 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-sm"
+                    <x-ui.button type="submit" variant="primary" class="!rounded-xl flex items-center gap-2 shadow-sm !py-2.5"
                         wire:loading.attr="disabled" wire:target="saveProfile">
                         <x-app.icon name="arrow-path" wire:loading wire:target="saveProfile" class="animate-spin w-4 h-4" />
                         <x-app.icon name="check" wire:loading.remove wire:target="saveProfile" class="w-4 h-4" />
                         Simpan Profil
-                    </button>
+                    </x-ui.button>
                 </div>
             </form>
         </div>
@@ -102,13 +101,12 @@
                         class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
                 </div>
                 <div class="flex justify-end pt-2">
-                    <button type="submit"
-                        class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-sm"
+                    <x-ui.button type="submit" variant="warning" class="!rounded-xl flex items-center gap-2 shadow-sm !py-2.5"
                         wire:loading.attr="disabled" wire:target="changePassword">
                         <x-app.icon name="arrow-path" wire:loading wire:target="changePassword" class="animate-spin w-4 h-4" />
                         <x-app.icon name="key" wire:loading.remove wire:target="changePassword" class="w-4 h-4" />
                         Ubah Password
-                    </button>
+                    </x-ui.button>
                 </div>
             </form>
         </div>

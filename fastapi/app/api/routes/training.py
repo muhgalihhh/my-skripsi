@@ -13,7 +13,7 @@ import pandas as pd
 from app.core import database
 from app.core.config import path_settings
 from app.ml.evaluator import TopicEvaluator
-from app.ml.hyperparameters import BERTOPIC_PRESETS, LDA_PRESETS
+from app.ml.hyperparameters import BERTOPIC_PRESETS
 from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 ModelType, TrainingRequest,
                                 TitleRecommendationRequest,
@@ -36,8 +36,8 @@ from app.services.gemini_topic_curation import (
 from app.services.training import TrainingService
 from loguru import logger
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 
 router = APIRouter(prefix="/training", tags=["Training"])
 service = TrainingService()
@@ -54,24 +54,190 @@ def _validate_job_id(job_id: str) -> str:
 
 
 def _load_latest_best_config_payload() -> Optional[dict]:
-    """Load newest best_config_*.json from results/artifacts_tuning."""
-    artifacts_dir = path_settings.get_results_dir() / "artifacts_tuning"
-    if not artifacts_dir.exists() or not artifacts_dir.is_dir():
-        return None
+    """Load newest best-config payload from artifacts_tuning or notebook runs."""
+    results_dir = path_settings.get_results_dir()
+    candidates: List[Path] = []
 
-    candidates = sorted(artifacts_dir.glob("best_config_*.json"), reverse=True)
+    artifacts_dir = results_dir / "artifacts_tuning"
+    if artifacts_dir.exists() and artifacts_dir.is_dir():
+        candidates.extend(artifacts_dir.glob("best_config_*.json"))
+
+    notebook_root = results_dir / "notebook_tuning_web_form"
+    if notebook_root.exists() and notebook_root.is_dir():
+        candidates.extend(notebook_root.glob("run_*/best_config.json"))
+
     if not candidates:
         return None
 
-    best_file = candidates[0]
+    def _safe_mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except Exception:
+            return 0.0
+
+    best_file = max(candidates, key=_safe_mtime)
     try:
         payload = json.loads(best_file.read_text(encoding="utf-8"))
+        try:
+            file_ref = str(best_file.relative_to(results_dir))
+        except Exception:
+            file_ref = best_file.name
+
         return {
-            "file": best_file.name,
+            "file": file_ref,
             "payload": payload,
         }
     except Exception:
         return None
+
+
+def _extract_bertopic_params_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="JSON config harus berupa object/dict.",
+        )
+
+    candidates: List[dict] = []
+
+    if isinstance(payload.get("best_bertopic"), dict):
+        best_block = payload.get("best_bertopic") or {}
+        if isinstance(best_block.get("params"), dict):
+            candidates.append(best_block["params"])
+        elif isinstance(best_block.get("hyperparameters"), dict):
+            candidates.append(best_block["hyperparameters"])
+
+    if isinstance(payload.get("bertopic_params"), dict):
+        candidates.append(payload["bertopic_params"])
+
+    if isinstance(payload.get("params"), dict):
+        candidates.append(payload["params"])
+
+    if isinstance(payload.get("bertopic"), dict):
+        candidates.append(payload["bertopic"])
+
+    if not candidates:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "JSON config tidak berisi params BERTopic. "
+                "Gunakan kunci: best_bertopic.params, bertopic_params, params, atau bertopic."
+            ),
+        )
+
+    params_payload = candidates[0]
+    if not isinstance(params_payload, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="Format params BERTopic harus object/dict.",
+        )
+
+    return params_payload
+
+
+def _coerce_bertopic_params(payload: dict, source: str) -> Optional[BERTopicHyperparameters]:
+    if not isinstance(payload, dict) or not payload:
+        return None
+
+    try:
+        return BERTopicHyperparameters(**payload)
+    except Exception as exc:
+        logger.warning("Ignoring invalid BERTopic params from {}: {}", source, str(exc))
+        return None
+
+
+def _coerce_lda_params(payload: dict, source: str) -> Optional[LDAHyperparameters]:
+    if not isinstance(payload, dict) or not payload:
+        return None
+
+    try:
+        return LDAHyperparameters(**payload)
+    except Exception as exc:
+        logger.warning("Ignoring invalid LDA params from {}: {}", source, str(exc))
+        return None
+
+
+def _resolve_bertopic_params_for_start(request: TrainingRequest) -> tuple[BERTopicHyperparameters, str]:
+    if request.bertopic_params is not None:
+        return request.bertopic_params, "request"
+
+    if request.user_id is not None:
+        source = f"topic_model_settings(user_id={int(request.user_id)})"
+        try:
+            settings = database.get_topic_model_settings(int(request.user_id))
+        except Exception as exc:
+            logger.warning("Failed to load {}: {}", source, str(exc))
+            settings = None
+
+        from_settings = _coerce_bertopic_params(
+            (settings or {}).get("bertopic_params") or {},
+            source,
+        )
+        if from_settings is not None:
+            return from_settings, source
+
+    loaded = _load_latest_best_config_payload()
+    if loaded is not None and isinstance(loaded.get("payload"), dict):
+        source = f"artifacts_tuning/{loaded['file']}"
+        payload = loaded["payload"]
+
+        candidates: List[dict] = []
+        best_block = payload.get("best_bertopic")
+        if isinstance(best_block, dict):
+            if isinstance(best_block.get("params"), dict):
+                candidates.append(best_block.get("params") or {})
+            if isinstance(best_block.get("hyperparameters"), dict):
+                candidates.append(best_block.get("hyperparameters") or {})
+
+        if isinstance(payload.get("bertopic_params"), dict):
+            candidates.append(payload.get("bertopic_params") or {})
+
+        for candidate in candidates:
+            from_artifact = _coerce_bertopic_params(candidate, source)
+            if from_artifact is not None:
+                return from_artifact, source
+
+    return BERTopicHyperparameters(), "schema_default"
+
+
+def _resolve_lda_params_for_start(request: TrainingRequest) -> tuple[LDAHyperparameters, str]:
+    if request.lda_params is not None:
+        return request.lda_params, "request"
+
+    if request.user_id is not None:
+        source = f"topic_model_settings(user_id={int(request.user_id)})"
+        try:
+            settings = database.get_topic_model_settings(int(request.user_id))
+        except Exception as exc:
+            logger.warning("Failed to load {}: {}", source, str(exc))
+            settings = None
+
+        from_settings = _coerce_lda_params((settings or {}).get("lda_params") or {}, source)
+        if from_settings is not None:
+            return from_settings, source
+
+    loaded = _load_latest_best_config_payload()
+    if loaded is not None and isinstance(loaded.get("payload"), dict):
+        source = f"artifacts_tuning/{loaded['file']}"
+        payload = loaded["payload"]
+
+        candidates: List[dict] = []
+        best_block = payload.get("best_lda")
+        if isinstance(best_block, dict):
+            if isinstance(best_block.get("params"), dict):
+                candidates.append(best_block.get("params") or {})
+            if isinstance(best_block.get("hyperparameters"), dict):
+                candidates.append(best_block.get("hyperparameters") or {})
+
+        if isinstance(payload.get("lda_params"), dict):
+            candidates.append(payload.get("lda_params") or {})
+
+        for candidate in candidates:
+            from_artifact = _coerce_lda_params(candidate, source)
+            if from_artifact is not None:
+                return from_artifact, source
+
+    return LDAHyperparameters(), "schema_default"
 
 
 def _tokenize_query_for_keyword_fallback(text: str) -> List[str]:
@@ -241,14 +407,28 @@ async def start_training(
     """
     Start a model training job (runs in background).
 
-    - Choose model_type: 'bertopic' or 'lda'
-    - Optionally provide custom hyperparameters
+    - Model yang didukung: 'bertopic' dan 'lda'
+    - Optionally provide custom hyperparameters sesuai model
     - Returns a job_id to track progress
     """
+
+    if request.model_type == ModelType.BERTOPIC:
+        resolved_bertopic_params, params_source = _resolve_bertopic_params_for_start(request)
+        resolved_lda_params = request.lda_params
+    else:
+        resolved_lda_params, params_source = _resolve_lda_params_for_start(request)
+        resolved_bertopic_params = request.bertopic_params
+
+    description = (request.description or "").strip()
+    if description != "":
+        description = f"{description} | params_source={params_source}"
+    else:
+        description = f"params_source={params_source}"
+
     # Create job
     job_id = service.create_job(
         model_type=request.model_type,
-        description=request.description or "",
+        description=description,
     )
 
     # Start training in background
@@ -256,8 +436,8 @@ async def start_training(
         _run_training_job,
         job_id=job_id,
         model_type=request.model_type,
-        bertopic_params=request.bertopic_params,
-        lda_params=request.lda_params,
+        bertopic_params=resolved_bertopic_params,
+        lda_params=resolved_lda_params,
     )
 
     return TrainingStatusResponse(
@@ -265,7 +445,77 @@ async def start_training(
         status=TrainingStatus.PENDING,
         model_type=request.model_type,
         progress=0.0,
-        message="Training job created and queued",
+        message=f"Training job created and queued (params_source={params_source})",
+    )
+
+
+@router.post("/settings/upload")
+async def upload_bertopic_settings(
+    user_id: int = Form(...),
+    config_file: UploadFile = File(...),
+):
+    """Upload BERTopic JSON params and update topic_model_settings in DB."""
+    filename = (config_file.filename or "").strip()
+    if filename and not filename.lower().endswith(".json"):
+        raise HTTPException(status_code=400, detail="File harus berformat .json")
+
+    try:
+        raw_bytes = await config_file.read()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Gagal membaca file: {exc}")
+
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="File JSON kosong")
+
+    try:
+        payload = json.loads(raw_bytes.decode("utf-8"))
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File JSON harus UTF-8")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"JSON tidak valid: {exc.msg}")
+
+    params_payload = _extract_bertopic_params_payload(payload)
+
+    try:
+        bertopic_params = BERTopicHyperparameters(**params_payload)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid BERTopic params: {exc}")
+
+    try:
+        database.upsert_topic_model_settings(
+            user_id=int(user_id),
+            bertopic_params=bertopic_params.model_dump(),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Gagal update DB: {exc}")
+
+    return {
+        "status": "ok",
+        "user_id": int(user_id),
+        "bertopic_params": bertopic_params.model_dump(),
+    }
+
+
+@router.post("/start-from-json")
+async def upload_bertopic_settings_legacy(
+    user_id: int = Form(...),
+    config_file: UploadFile = File(...),
+):
+    """Deprecated alias for /training/settings/upload."""
+    return await upload_bertopic_settings(user_id=user_id, config_file=config_file)
+
+
+@router.get("/settings/template")
+async def download_bertopic_settings_template():
+    """Download template JSON for BERTopic settings."""
+    template_payload = {
+        "bertopic_params": BERTopicHyperparameters().model_dump(),
+    }
+    return JSONResponse(
+        content=template_payload,
+        headers={
+            "Content-Disposition": "attachment; filename=bertopic_params_template.json",
+        },
     )
 
 
@@ -416,12 +666,10 @@ async def download_trained_model(job_id: str):
 
 @router.get("/model/{job_id}/test")
 async def test_trained_model(job_id: str):
-    """Lightweight smoke-test for a trained BERTopic model.
+    """Lightweight smoke-test for a trained BERTopic/LDA model.
 
     Loads the model from disk (if present) and returns a small summary.
     Does NOT run embeddings/inference on new documents.
-
-    Note: This endpoint is BERTopic-only.
     """
 
     _validate_job_id(job_id)
@@ -434,14 +682,22 @@ async def test_trained_model(job_id: str):
 
     model_type = (results.get("model_type") or "").lower()
     model_path = results.get("model_path")
-    if not model_path:
-        # Guess model directory (BERTopic only)
-        bertopic_dir = path_settings.get_models_dir() / f"bertopic_{job_id}"
-        if bertopic_dir.exists():
-            model_path = str(bertopic_dir)
-            model_type = "bertopic"
 
     model_dir = Path(str(model_path)) if model_path else None
+    if model_dir is None or not model_dir.exists():
+        bertopic_dir = path_settings.get_models_dir() / f"bertopic_{job_id}"
+        lda_dir = path_settings.get_models_dir() / f"lda_{job_id}"
+
+        if model_type == "lda" and lda_dir.exists():
+            model_dir = lda_dir
+        elif model_type == "bertopic" and bertopic_dir.exists():
+            model_dir = bertopic_dir
+        elif bertopic_dir.exists():
+            model_dir = bertopic_dir
+            model_type = "bertopic"
+        elif lda_dir.exists():
+            model_dir = lda_dir
+            model_type = "lda"
 
     if not model_dir or not model_dir.exists():
         raise HTTPException(status_code=404, detail=f"Model directory not found for job {job_id}")
@@ -452,14 +708,45 @@ async def test_trained_model(job_id: str):
         "model_path": str(model_dir),
     }
 
-    # BERTopic smoke test (only)
-    if model_type != "bertopic" and not (model_dir / "model").exists():
-        raise HTTPException(
-            status_code=400,
-            detail="Only BERTopic is supported for model testing in this API.",
-        )
+    is_bertopic_artifact = (model_dir / "model").exists()
+    is_lda_artifact = (model_dir / "lda_model").exists()
 
-    if (model_dir / "model").exists():
+    if model_type == "lda" or (not model_type and is_lda_artifact):
+        if not is_lda_artifact:
+            raise HTTPException(status_code=404, detail=f"LDA model artifacts not found for job {job_id}")
+
+        from app.services.stopwords import load_stopwords
+        from gensim.corpora import Dictionary
+        from gensim.models import LdaModel
+
+        model = LdaModel.load(str(model_dir / "lda_model"))
+        _ = Dictionary.load(str(model_dir / "dictionary.dict"))
+
+        stopwords = load_stopwords("indonesian", include_academic=True)
+        sample_topics = []
+        for tid in range(min(model.num_topics, 5)):
+            words_scores = model.show_topic(tid, topn=TOP_WORDS_PREVIEW_LIMIT)
+            filtered = [(w, s) for (w, s) in words_scores if w not in stopwords and len(w) >= 3]
+            if not filtered:
+                filtered = words_scores
+            sample_topics.append({
+                "topic_id": tid,
+                "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
+            })
+
+        summary.update(
+            {
+                "model_type": "lda",
+                "num_topics": model.num_topics,
+                "sample_topics": sample_topics,
+            }
+        )
+        return summary
+
+    if model_type == "bertopic" or is_bertopic_artifact:
+        if not is_bertopic_artifact:
+            raise HTTPException(status_code=404, detail=f"BERTopic model artifacts not found for job {job_id}")
+
         from app.services.stopwords import load_stopwords
         from app.ml.bertopic_trainer import BERTopicTrainer
 
@@ -491,7 +778,7 @@ async def test_trained_model(job_id: str):
 
         return summary
 
-    raise HTTPException(status_code=404, detail=f"BERTopic model artifacts not found for job {job_id}")
+    raise HTTPException(status_code=400, detail="Unsupported model artifacts for this job")
 @router.post("/model/{job_id}/infer", response_model=TopicInferenceResponse)
 async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
     """Infer the most relevant BERTopic topic from a free-text query."""
@@ -627,7 +914,7 @@ async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
 
 @router.get("/model/{job_id}/test-dataset")
 async def test_trained_model_with_dataset(job_id: str):
-    """Re-test a saved BERTopic model against the existing dataset in DB.
+    """Re-test a saved BERTopic/LDA model against the existing dataset in DB.
 
     This endpoint loads the trained model from disk, loads the current
     preprocessed dataset from MySQL, re-computes evaluation metrics,
@@ -637,7 +924,6 @@ async def test_trained_model_with_dataset(job_id: str):
             - Re-test does NOT re-run embeddings/inference; it evaluates coherence/diversity
                 based on model topic words and dataset tokens.
             - Results may differ if the dataset in DB has changed since training.
-            - This endpoint is BERTopic-only.
     """
 
     _validate_job_id(job_id)
@@ -648,19 +934,23 @@ async def test_trained_model_with_dataset(job_id: str):
         raise HTTPException(status_code=404, detail=f"Results not found for job {job_id}")
 
     model_type = (stored_results.get("model_type") or "").lower()
-    if model_type and model_type != "bertopic":
-        raise HTTPException(
-            status_code=400,
-            detail="Only BERTopic is supported for dataset re-test in this API.",
-        )
 
     model_path = stored_results.get("model_path")
-    if not model_path:
-        # Guess model directory (BERTopic only)
+    model_dir = Path(str(model_path)) if model_path else None
+    if model_dir is None or not model_dir.exists():
         bertopic_dir = path_settings.get_models_dir() / f"bertopic_{job_id}"
-        if bertopic_dir.exists():
-            model_path = str(bertopic_dir)
+        lda_dir = path_settings.get_models_dir() / f"lda_{job_id}"
+
+        if model_type == "lda" and lda_dir.exists():
+            model_dir = lda_dir
+        elif model_type == "bertopic" and bertopic_dir.exists():
+            model_dir = bertopic_dir
+        elif bertopic_dir.exists():
+            model_dir = bertopic_dir
             model_type = "bertopic"
+        elif lda_dir.exists():
+            model_dir = lda_dir
+            model_type = "lda"
 
     if not model_type:
         model_type = "bertopic"
@@ -672,10 +962,15 @@ async def test_trained_model_with_dataset(job_id: str):
         raise HTTPException(status_code=400, detail="Dataset in DB is empty. Run preprocessing first.")
 
     before = len(df)
-    df = df.dropna(subset=["cleaned_text", "processed_text"])
-    df["cleaned_text"] = df["cleaned_text"].astype(str)
-    df["processed_text"] = df["processed_text"].astype(str)
-    df = df[(df["cleaned_text"].str.strip() != "") & (df["processed_text"].str.strip() != "")]
+    if model_type == "lda":
+        df = df.dropna(subset=["processed_text"])
+        df["processed_text"] = df["processed_text"].astype(str)
+        df = df[df["processed_text"].str.strip() != ""]
+    else:
+        df = df.dropna(subset=["cleaned_text", "processed_text"])
+        df["cleaned_text"] = df["cleaned_text"].astype(str)
+        df["processed_text"] = df["processed_text"].astype(str)
+        df = df[(df["cleaned_text"].str.strip() != "") & (df["processed_text"].str.strip() != "")]
     used = int(len(df))
     dropped = int(before - used)
     if used == 0:
@@ -715,7 +1010,7 @@ async def test_trained_model_with_dataset(job_id: str):
         return value
 
     # Compare topic keywords (using the same stopword-filtering strategy as trainers)
-    def _keyword_match_ratio(stored_topic_info, current_topic_info, topn: int = 10) -> float:
+    def _keyword_match_ratio(stored_topic_info, current_topic_info, topn: int = 10) -> Optional[float]:
         try:
             stored_map = {
                 int(t.get("topic_id")): list(t.get("top_words") or [])[:topn]
@@ -727,103 +1022,120 @@ async def test_trained_model_with_dataset(job_id: str):
                 for t in (current_topic_info or [])
                 if t.get("topic_id") is not None
             }
+            if not stored_map or not current_map:
+                return None
+
+            scores = []
+            for topic_id, words in stored_map.items():
+                current_words = current_map.get(topic_id)
+                if not current_words:
+                    continue
+                overlap = set(words).intersection(current_words)
+                scores.append(len(overlap) / max(len(words), 1))
+
+            if not scores:
+                return 0.0
+
+            return round(sum(scores) / len(scores), 4)
         except Exception:
-            return 0.0
+            return None
 
-        if not stored_map or not current_map:
-            return 0.0
+    keyword_match = None
 
-        common_ids = sorted(set(stored_map.keys()) & set(current_map.keys()))
-        if not common_ids:
-            return 0.0
+    if model_type == "lda":
+        from gensim.corpora import Dictionary
+        from gensim.models import LdaModel
 
-        matches = 0
-        for tid in common_ids:
-            if stored_map[tid] == current_map[tid]:
-                matches += 1
+        if model_dir is None or not (model_dir / "lda_model").exists():
+            raise HTTPException(status_code=404, detail=f"LDA model artifacts not found for job {job_id}")
 
-        return round(matches / len(common_ids), 4)
+        model = LdaModel.load(str(model_dir / "lda_model"))
+        dictionary = Dictionary.load(str(model_dir / "dictionary.dict"))
+        tokenized_docs = [str(doc).split() for doc in df["processed_text"].tolist()]
+        tokenized_docs = [tokens for tokens in tokenized_docs if tokens]
 
-    # BERTopic re-test (only)
-    from app.services.stopwords import load_stopwords
-    from app.ml.bertopic_trainer import BERTopicTrainer
+        if not tokenized_docs:
+            raise HTTPException(status_code=400, detail="No valid processed_text tokens for LDA evaluation.")
 
-    documents = [d for d in df["cleaned_text"].tolist() if isinstance(d, str) and d.strip()]
-    if not documents:
-        raise HTTPException(status_code=400, detail="No valid cleaned_text documents for BERTopic")
+        retest_metrics = evaluator.evaluate_lda(
+            model=model,
+            tokenized_docs=tokenized_docs,
+            dictionary=dictionary,
+        )
+    else:
+        from app.ml.bertopic_trainer import BERTopicTrainer
+        from app.services.stopwords import load_stopwords
 
-    trainer = BERTopicTrainer()
-    trainer.load_model(job_id)
+        trainer = BERTopicTrainer()
+        trainer.load_model(job_id)
 
-    hyper = stored_results.get("hyperparameters") or {}
-    top_n_words = int(hyper.get("top_n_words", 10))
-    coherence_type = str(hyper.get("coherence_type", "c_v"))
-    coherence_tokenization = str(hyper.get("coherence_tokenization", "vectorizer"))
-    coherence_dict_no_below = int(hyper.get("coherence_dict_no_below", 3))
-    coherence_dict_no_above = float(hyper.get("coherence_dict_no_above", 0.95))
+        retest_metrics = evaluator.evaluate_bertopic(
+            model=trainer.model,
+            documents=df["cleaned_text"].tolist(),
+            topics=None,
+            vectorizer_model=trainer.vectorizer_model,
+            coherence_type=stored_metrics.get("coherence_type", "c_v"),
+            coherence_tokenization=stored_metrics.get("coherence_tokenization", "vectorizer"),
+            coherence_dict_no_below=stored_metrics.get("coherence_dict_no_below", 3),
+            coherence_dict_no_above=stored_metrics.get("coherence_dict_no_above", 0.95),
+            top_n_words=int(stored_metrics.get("top_n_words", 10) or 10),
+        )
 
-    retest_metrics = evaluator.evaluate_bertopic(
-        model=trainer.model,
-        documents=documents,
-        vectorizer_model=getattr(trainer.model, "vectorizer_model", None),
-        coherence_type=coherence_type,
-        coherence_tokenization=coherence_tokenization,
-        coherence_dict_no_below=coherence_dict_no_below,
-        coherence_dict_no_above=coherence_dict_no_above,
-        top_n_words=top_n_words,
-    )
+        current_topic_info = []
+        info = trainer.model.get_topic_info()
+        topic_ids = [int(t) for t in info["Topic"].tolist() if int(t) != -1]
+        stopwords = load_stopwords("indonesian", include_academic=True)
+        top_n_words = int(stored_metrics.get("top_n_words", TOP_WORDS_PREVIEW_LIMIT) or TOP_WORDS_PREVIEW_LIMIT)
 
-    stopwords = load_stopwords("indonesian", include_academic=True)
-    current_topic_info = []
-    for topic_id in trainer.model.get_topics().keys():
-        if int(topic_id) == -1:
-            continue
-        words_scores = trainer.model.get_topic(int(topic_id)) or []
-        filtered = [(w, s) for (w, s) in words_scores if w not in stopwords and len(w) >= 3]
-        if not filtered:
-            filtered = words_scores
-        current_topic_info.append({
-            "topic_id": int(topic_id),
-            "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
-        })
+        for topic_id in topic_ids:
+            words_scores = trainer.model.get_topic(int(topic_id)) or []
+            filtered = [(w, s) for (w, s) in words_scores if w not in stopwords and len(w) >= 3]
+            if not filtered:
+                filtered = words_scores
+            current_topic_info.append({
+                "topic_id": int(topic_id),
+                "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
+            })
 
-    keyword_match = _keyword_match_ratio(
-        stored_topic_info=stored_results.get("topic_info"),
-        current_topic_info=current_topic_info,
-        topn=top_n_words,
-    )
+        keyword_match = _keyword_match_ratio(
+            stored_topic_info=stored_results.get("topic_info"),
+            current_topic_info=current_topic_info,
+            topn=top_n_words,
+        )
 
-    return _sanitize_json({
-            "job_id": job_id,
-            "model_type": "bertopic",
-            "model_path": model_path,
-            "dataset": {
-                "total": total,
-                "used": used,
-                "dropped": dropped,
-                "year_min": year_min,
-                "year_max": year_max,
-            },
-            "stored_metrics": stored_metrics,
-            "retest_metrics": retest_metrics,
-            "delta": {
-                "coherence_cv": _delta(retest_metrics.get("coherence_cv"), stored_metrics.get("coherence_cv")),
-                "topic_diversity": _delta(retest_metrics.get("topic_diversity"), stored_metrics.get("topic_diversity")),
-                "num_topics": _delta(retest_metrics.get("num_topics"), stored_metrics.get("num_topics")),
-            },
-            "same": {
-                "coherence_cv": abs(float(retest_metrics.get("coherence_cv", 0)) - float(stored_metrics.get("coherence_cv", 0))) <= tolerance
-                if stored_metrics.get("coherence_cv") is not None
-                else None,
-                "topic_diversity": abs(float(retest_metrics.get("topic_diversity", 0)) - float(stored_metrics.get("topic_diversity", 0))) <= tolerance
-                if stored_metrics.get("topic_diversity") is not None
-                else None,
-                "num_topics": int(retest_metrics.get("num_topics", 0)) == int(stored_metrics.get("num_topics", 0))
-                if stored_metrics.get("num_topics") is not None
-                else None,
-                "keyword_match_ratio": keyword_match,
-            },
-        })
+    retest_metrics = _sanitize_json(retest_metrics)
+
+    return JSONResponse(content={
+        "status": "ok",
+        "job_id": job_id,
+        "model_type": model_type,
+        "dataset": {
+            "total": total,
+            "used": used,
+            "dropped": dropped,
+            "year_min": year_min,
+            "year_max": year_max,
+        },
+        "stored_metrics": stored_metrics,
+        "retest_metrics": retest_metrics,
+        "delta": {
+            "coherence_cv": _delta(retest_metrics.get("coherence_cv"), stored_metrics.get("coherence_cv")),
+            "topic_diversity": _delta(retest_metrics.get("topic_diversity"), stored_metrics.get("topic_diversity")),
+            "num_topics": _delta(retest_metrics.get("num_topics"), stored_metrics.get("num_topics")),
+        },
+        "same": {
+            "coherence_cv": abs(float(retest_metrics.get("coherence_cv", 0)) - float(stored_metrics.get("coherence_cv", 0))) <= tolerance
+            if stored_metrics.get("coherence_cv") is not None
+            else None,
+            "topic_diversity": abs(float(retest_metrics.get("topic_diversity", 0)) - float(stored_metrics.get("topic_diversity", 0))) <= tolerance
+            if stored_metrics.get("topic_diversity") is not None
+            else None,
+            "num_topics": int(retest_metrics.get("num_topics", 0)) == int(stored_metrics.get("num_topics", 0))
+            if stored_metrics.get("num_topics") is not None
+            else None,
+            "keyword_match_ratio": keyword_match,
+        },
+    })
 
 
 
@@ -843,7 +1155,7 @@ async def get_training_dataset_summary():
 
 @router.get("/tuning/best-config")
 async def get_latest_tuning_best_config():
-    """Return latest notebook tuning best config from artifacts_tuning."""
+    """Return latest notebook tuning best config (BERTopic + LDA)."""
     loaded = _load_latest_best_config_payload()
     if loaded is None:
         raise HTTPException(
@@ -938,13 +1250,4 @@ async def get_bertopic_presets():
     return {
         name: params.model_dump()
         for name, params in BERTOPIC_PRESETS.items()
-    }
-
-
-@router.get("/presets/lda")
-async def get_lda_presets():
-    """Get available LDA hyperparameter presets."""
-    return {
-        name: params.model_dump()
-        for name, params in LDA_PRESETS.items()
     }

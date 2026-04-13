@@ -10,7 +10,7 @@
                     <span class="inline-flex items-center rounded-full bg-unsoed-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-unsoed-blue-700">FastAPI Pipeline</span>
                     <h1 class="mt-2 text-2xl font-bold text-gray-900">Topic Modeling</h1>
                     <p class="mt-1.5 text-sm text-gray-500">
-                        Pipeline FastAPI-Laravel untuk BERTopic dan LDA (preprocessing bersama, training per-model) pada analisis topik skripsi UNSOED.
+                        Pipeline FastAPI-Laravel untuk BERTopic & LDA (preprocessing + training) pada analisis topik skripsi UNSOED.
                     </p>
                 </div>
                 <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2 sm:p-2.5 xl:w-auto">
@@ -109,12 +109,12 @@
                         @endif
                     </div>
 
-                    <button wire:click="checkApiStatus"
-                        class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
+                    <x-ui.button variant="ghost-primary" size="sm" wire:click="checkApiStatus"
+                        class="self-start font-medium flex items-center transition sm:self-auto !px-2"
                         wire:loading.class="opacity-50" wire:target="checkApiStatus">
                         <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus" />
                         Refresh Status
-                    </button>
+                    </x-ui.button>
                 </div>
             </div>
 
@@ -127,12 +127,12 @@
                             untuk
                             training.</div>
                     </div>
-                    <button wire:click="loadDatasetSummary"
-                        class="self-start text-xs text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center transition sm:self-auto"
+                    <x-ui.button variant="ghost-primary" size="sm" wire:click="loadDatasetSummary"
+                        class="self-start font-medium flex items-center transition sm:self-auto !px-2"
                         wire:loading.class="opacity-50" wire:target="loadDatasetSummary">
                         <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="loadDatasetSummary" />
                         Refresh
-                    </button>
+                    </x-ui.button>
                 </div>
 
                 @if (($datasetSummary['status'] ?? '') === 'ok')
@@ -150,10 +150,10 @@
                             <p class="text-lg font-bold text-unsoed-blue-800">
                                 {{ (int) ($datasetSummary['valid_bertopic'] ?? 0) }}</p>
                         </div>
-                        <div class="rounded-lg border border-gray-200 bg-white p-2.5">
-                            <p class="text-xs text-gray-500">Valid LDA</p>
-                            <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['valid_lda'] ?? 0) }}
-                            </p>
+                        <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 p-2.5">
+                            <p class="text-xs text-emerald-600">Valid LDA</p>
+                            <p class="text-lg font-bold text-emerald-700">
+                                {{ (int) ($datasetSummary['valid_lda'] ?? 0) }}</p>
                         </div>
                         <div class="rounded-lg border border-amber-200 bg-amber-50/80 p-2.5">
                             <p class="text-xs text-amber-600">Ter-drop (dari sumber)</p>
@@ -299,7 +299,7 @@
                             ],
                             [
                                 'label' => 'Training',
-                                'desc' => $modelType === 'lda' ? 'LDA (Gensim) baseline' : 'IndoSBERT → UMAP → HDBSCAN',
+                                'desc' => 'BERTopic (UMAP/HDBSCAN) atau LDA',
                                 'statuses' => ['training', 'completed'],
                             ],
                             ['label' => 'Selesai', 'desc' => 'Hasil tersimpan di DB', 'statuses' => ['completed']],
@@ -348,7 +348,7 @@
                         </p>
                     </div>
                     <div class="flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-                        @foreach (['final' => 'BERTopic Input', 'raw' => 'Raw', 'cleaned' => 'Cleaned', 'tokens' => 'Tokens', 'nostop' => 'LDA Input'] as $tab => $label)
+                        @foreach (['final' => 'BERTopic Input', 'lda' => 'LDA Input', 'raw' => 'Raw', 'cleaned' => 'Cleaned', 'tokens' => 'Tokens'] as $tab => $label)
                             <button type="button" @click="activePreviewTab = '{{ $tab }}'"
                                 :class="activePreviewTab === '{{ $tab }}'
                                     ?
@@ -401,21 +401,6 @@
                                         @endif
                                     </div>
                                 </div>
-                                <div x-show="activePreviewTab === 'nostop'" class="break-words">
-                                    <span
-                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">LDA
-                                        Input — Stopwords removed (50 pertama)</span>
-                                    <div class="flex flex-wrap gap-1">
-                                        @foreach (array_slice($row['stopwords_removed'], 0, 50) as $tok)
-                                            <span
-                                                class="rounded bg-white px-1.5 py-0.5 ring-1 ring-gray-200">{{ $tok }}</span>
-                                        @endforeach
-                                        @if (count($row['stopwords_removed']) > 50)
-                                            <span class="text-gray-400">+{{ count($row['stopwords_removed']) - 50 }}
-                                                lagi…</span>
-                                        @endif
-                                    </div>
-                                </div>
                                 <div x-show="activePreviewTab === 'final'" class="break-words">
                                     <span
                                         class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
@@ -426,6 +411,17 @@
                                         class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] text-blue-700">
                                         IndoSBERT butuh teks natural — stopword & stemming dihandle oleh c-TF-IDF
                                         vectorizer di dalam BERTopic.
+                                    </div>
+                                </div>
+                                <div x-show="activePreviewTab === 'lda'" class="break-words">
+                                    <span
+                                        class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                        LDA Input — Tokenized + stopword removal (tanpa stemming lokal)
+                                    </span>
+                                    {{ Str::limit($row['final_processed_text'], 350) }}
+                                    <div
+                                        class="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] text-emerald-700">
+                                        Stemming & finalisasi processed_text tetap dikerjakan di FastAPI preprocessing.
                                     </div>
                                 </div>
                             </div>
@@ -450,7 +446,7 @@
                         <h2 class="text-sm font-semibold text-gray-900">Hasil Preprocessing (Database)</h2>
                         <p class="mt-0.5 text-xs text-gray-500">
                             Data <code class="font-mono">cleaned_text</code> (BERTopic) dan <code
-                                class="font-mono">processed_text</code> (LDA) yang sudah tersimpan di tabel
+                                class="font-mono">processed_text</code> yang sudah tersimpan di tabel
                             <code class="font-mono">skripsi</code>.
                         </p>
                     </div>
@@ -481,7 +477,7 @@
                                         cleaned_text (BERTopic)</th>
                                     <th
                                         class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
-                                        processed_text (LDA)</th>
+                                        processed_text</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 bg-white">
@@ -545,15 +541,17 @@
                                 <x-app.icon name="arrow-down-tray" class="h-4 w-4" />
                                 Download Model
                             </x-ui.button>
-                            <x-ui.button wire:click="openTestModelWithDatasetConfirm" wire:loading.attr="disabled" variant="secondary">
-                                <x-app.icon name="beaker" class="h-4 w-4" />
-                                <span wire:loading.remove wire:target="testModelWithDataset">Test Model (Dataset)</span>
-                                <span wire:loading wire:target="testModelWithDataset">Testing…</span>
-                            </x-ui.button>
+                            @if (($activeRun->model_type ?? '') === 'bertopic')
+                                <x-ui.button wire:click="openTestModelWithDatasetConfirm" wire:loading.attr="disabled" variant="secondary">
+                                    <x-app.icon name="beaker" class="h-4 w-4" />
+                                    <span wire:loading.remove wire:target="testModelWithDataset">Test Model (Dataset)</span>
+                                    <span wire:loading wire:target="testModelWithDataset">Testing…</span>
+                                </x-ui.button>
+                            @endif
                             <div class="text-xs text-gray-500 sm:ml-auto">Job ID: {{ $activeRun->fastapi_training_job_id }}</div>
                         </div>
 
-                        @if (!empty($modelTestDatasetResult) && !isset($modelTestDatasetResult['status']))
+                        @if (($activeRun->model_type ?? '') === 'bertopic' && !empty($modelTestDatasetResult) && !isset($modelTestDatasetResult['status']))
                             @php
                                 $stored = $modelTestDatasetResult['stored_metrics'] ?? [];
                                 $retest = $modelTestDatasetResult['retest_metrics'] ?? [];
@@ -915,7 +913,130 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
-                <div class="text-xs text-gray-400">Simpan sebagai default di database (BERTopic + LDA per akun).</div>
+                <div class="text-xs text-gray-400">Simpan sebagai default di database (BERTopic per akun).</div>
+                <div class="flex items-center gap-2">
+                    <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
+                        <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="resetTrainingParamsToNotebookBest">Reset ke Best Eksperimen</span>
+                        <span wire:loading wire:target="resetTrainingParamsToNotebookBest">Reset…</span>
+                    </x-ui.button>
+
+                    <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
+                        <x-app.icon name="bookmark-square" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
+                        <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
+                    </x-ui.button>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Upload JSON Params</div>
+                        <div class="mt-1 text-xs text-gray-500">
+                            Upload JSON untuk update default BERTopic di database (tanpa menjalankan training).
+                        </div>
+                    </div>
+                    <a
+                        class="inline-flex items-center gap-2 rounded-lg border border-unsoed-blue-200 bg-white px-3 py-2 text-xs font-semibold text-unsoed-blue-700 hover:bg-unsoed-blue-50"
+                        href="{{ route('jurusan.topic-modeling.settings.template.download') }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <x-app.icon name="arrow-down-tray" class="h-4 w-4" />
+                        Download Template JSON
+                    </a>
+                </div>
+                <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <input
+                        type="file"
+                        accept="application/json,.json"
+                        class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model="bertopicParamsJsonFile"
+                    />
+                    <x-ui.button wire:click="uploadBertopicParamsJson" wire:loading.attr="disabled" variant="primary" class="sm:w-auto">
+                        <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="uploadBertopicParamsJson">Upload JSON</span>
+                        <span wire:loading wire:target="uploadBertopicParamsJson">Mengunggah...</span>
+                    </x-ui.button>
+                </div>
+            </div>
+        </div>
+    </x-ui.card>
+
+    {{-- ---- LDA Settings ---- --}}
+    <x-ui.card no-padding>
+        <div class="border-b border-gray-200 px-5 py-4">
+            <h2 class="text-sm font-semibold text-gray-900">Konfigurasi LDA</h2>
+            <p class="mt-0.5 text-xs text-gray-500">Parameter dasar LDA (Gensim) untuk training topik.</p>
+        </div>
+        <div class="space-y-5 px-5 py-4">
+            <x-ui.alert type="info">
+                Pastikan preprocessing menghasilkan <strong>processed_text</strong> sebelum training LDA.
+            </x-ui.alert>
+
+            <div>
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">LDA</div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">num_topics</label>
+                        <input type="number" min="2"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.num_topics" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">passes</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.passes" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">iterations</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.iterations" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">chunksize</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.chunksize" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">alpha</label>
+                        <input type="text" placeholder="asymmetric | symmetric"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.alpha" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">eta</label>
+                        <input type="text" placeholder="symmetric | null"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.eta" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">no_below</label>
+                        <input type="number" min="1"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.no_below" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">no_above</label>
+                        <input type="number" min="0.0" max="1.0" step="0.01"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.no_above" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">random_state</label>
+                        <input type="number" min="0"
+                            class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                            wire:model.live="ldaParams.random_state" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
+                <div class="text-xs text-gray-400">Simpan sebagai default di database (LDA per akun).</div>
                 <div class="flex items-center gap-2">
                     <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
@@ -933,82 +1054,12 @@
         </div>
     </x-ui.card>
 
-    {{-- ---- LDA Settings ---- --}}
-    <x-ui.card no-padding>
-        <div class="border-b border-gray-200 px-5 py-4">
-            <h2 class="text-sm font-semibold text-gray-900">Konfigurasi LDA</h2>
-            <p class="mt-0.5 text-xs text-gray-500">Parameter LDA juga tersimpan sebagai default user agar konsisten dengan training payload.</p>
-        </div>
-        <div class="space-y-4 px-5 py-4">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">num_topics</label>
-                    <input type="number" min="2"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.num_topics" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">passes</label>
-                    <input type="number" min="1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.passes" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">iterations</label>
-                    <input type="number" min="1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.iterations" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">chunksize</label>
-                    <input type="number" min="1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.chunksize" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">random_state</label>
-                    <input type="number" min="0"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.random_state" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">no_below</label>
-                    <input type="number" min="1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.no_below" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">no_above</label>
-                    <input type="number" step="0.01" min="0" max="1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.no_above" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">alpha</label>
-                    <input type="text" placeholder="asymmetric | symmetric | auto | 0.1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.alpha" />
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">eta</label>
-                    <input type="text" placeholder="null | auto | symmetric | asymmetric | 0.1"
-                        class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model.live="ldaParams.eta" />
-                </div>
-            </div>
-
-            <x-ui.alert type="info">
-                Pilih model di atas tombol training. Preprocessing tetap satu alur, lalu training dijalankan sesuai model yang dipilih.
-            </x-ui.alert>
-        </div>
-    </x-ui.card>
-
     {{-- ---- Preprocessing Note ---- --}}
     <x-ui.alert type="warning">
-        <div class="font-semibold">Strategi preprocessing dual-pipeline:</div>
+        <div class="font-semibold">Strategi preprocessing:</div>
         <ul class="mt-1 space-y-0.5 text-amber-700">
             <li>• <strong>BERTopic:</strong> soft clean — tidak hapus stopword, tidak stemming</li>
-            <li>• <strong>LDA:</strong> full clean + stopword removal + stemming Sastrawi</li>
+            <li>• <strong>LDA:</strong> tokenized + stopword removal + stemming (di FastAPI preprocessing)</li>
         </ul>
     </x-ui.alert>
 

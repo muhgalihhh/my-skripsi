@@ -15,8 +15,20 @@ class GoogleAuthController extends Controller
 {
     public function redirect(): RedirectResponse
     {
+        $missingConfig = $this->missingGoogleConfig();
+        if (!empty($missingConfig)) {
+            return redirect()
+                ->route('login')
+                ->withErrors([
+                    'oauth' => 'Konfigurasi Google OAuth belum lengkap: ' . implode(', ', $missingConfig) . '.',
+                ]);
+        }
+
         $driver = Socialite::driver('google')
-            ->scopes(['openid', 'profile', 'email']);
+            ->scopes(['openid', 'profile', 'email'])
+            ->with([
+                'prompt' => 'select_account',
+            ]);
 
         $primaryDomain = $this->singleAllowedDomain();
         if ($primaryDomain !== null) {
@@ -28,6 +40,15 @@ class GoogleAuthController extends Controller
 
     public function callback(Request $request): RedirectResponse
     {
+        $missingConfig = $this->missingGoogleConfig();
+        if (!empty($missingConfig)) {
+            return redirect()
+                ->route('login')
+                ->withErrors([
+                    'oauth' => 'Konfigurasi Google OAuth belum lengkap: ' . implode(', ', $missingConfig) . '.',
+                ]);
+        }
+
         try {
             $googleUser = Socialite::driver('google')->user();
         } catch (Throwable $exception) {
@@ -166,5 +187,26 @@ class GoogleAuthController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function missingGoogleConfig(): array
+    {
+        $required = [
+            'client_id' => config('services.google.client_id'),
+            'client_secret' => config('services.google.client_secret'),
+            'redirect' => config('services.google.redirect'),
+        ];
+
+        $missing = [];
+        foreach ($required as $key => $value) {
+            if (blank($value)) {
+                $missing[] = $key;
+            }
+        }
+
+        return $missing;
     }
 }

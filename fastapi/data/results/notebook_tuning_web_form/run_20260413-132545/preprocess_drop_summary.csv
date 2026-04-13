@@ -1,0 +1,5 @@
+reason,count
+dropna_abstract,0
+duplicate_abstract,1
+year_out_of_range,0
+empty_after_preprocessing,0

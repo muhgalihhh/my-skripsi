@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 from app.core.config import app_settings
 from loguru import logger
@@ -256,6 +258,109 @@ def replace_preprocessed_dataset_in_db(df):
         return True
     except Exception as e:
         logger.error(f"Failed to replace topic_model_datasets: {e}")
+        raise
+
+
+def upsert_topic_model_settings(user_id: int, bertopic_params: dict) -> None:
+    """Upsert BERTopic params in topic_model_settings for a user."""
+    if user_id is None or int(user_id) <= 0:
+        raise ValueError("Invalid user_id")
+
+    engine = get_engine()
+
+    try:
+        with engine.begin() as conn:
+            if not _table_exists(conn, "topic_model_settings"):
+                raise RuntimeError("topic_model_settings table not found")
+
+            payload_json = json.dumps(bertopic_params, ensure_ascii=False)
+
+            query = text(
+                """
+                INSERT INTO topic_model_settings
+                    (user_id, bertopic_params, created_at, updated_at)
+                VALUES
+                    (:user_id, :bertopic_params, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    bertopic_params = VALUES(bertopic_params),
+                    updated_at = NOW()
+                """
+            )
+
+            conn.execute(
+                query,
+                {
+                    "user_id": int(user_id),
+                    "bertopic_params": payload_json,
+                },
+            )
+    except Exception as e:
+        logger.error(f"Failed to upsert topic_model_settings: {e}")
+        raise
+
+
+def _decode_json_object(value):
+    """Decode JSON payload that may come from MySQL as str/bytes/object."""
+    if value is None:
+        return None
+
+    if isinstance(value, dict):
+        return value
+
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            value = value.decode("utf-8")
+        except Exception:
+            return None
+
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if text == "":
+        return None
+
+    try:
+        decoded = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+    return decoded if isinstance(decoded, dict) else None
+
+
+def get_topic_model_settings(user_id: int):
+    """Get BERTopic/LDA params from topic_model_settings for a user."""
+    if user_id is None or int(user_id) <= 0:
+        raise ValueError("Invalid user_id")
+
+    engine = get_engine()
+
+    query = text(
+        """
+        SELECT user_id, bertopic_params, lda_params
+        FROM topic_model_settings
+        WHERE user_id = :user_id
+        LIMIT 1
+        """
+    )
+
+    try:
+        with engine.begin() as conn:
+            if not _table_exists(conn, "topic_model_settings"):
+                return None
+
+            row = conn.execute(query, {"user_id": int(user_id)}).mappings().first()
+
+        if row is None:
+            return None
+
+        return {
+            "user_id": int(row["user_id"]),
+            "bertopic_params": _decode_json_object(row.get("bertopic_params")),
+            "lda_params": _decode_json_object(row.get("lda_params")),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get topic_model_settings for user_id {user_id}: {e}")
         raise
 
 

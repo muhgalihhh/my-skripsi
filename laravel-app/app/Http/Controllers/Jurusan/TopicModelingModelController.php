@@ -8,6 +8,45 @@ use Illuminate\Support\Facades\Log;
 
 class TopicModelingModelController
 {
+    public function downloadSettingsTemplate(Request $request)
+    {
+        $baseUrl = rtrim(config('services.fastapi.base_url', 'http://localhost:8000'), '/');
+        $url = "{$baseUrl}/api/v1/training/settings/template";
+
+        try {
+            $resp = Http::timeout(30)->get($url);
+
+            if (!$resp->successful()) {
+                Log::warning('FastAPI settings template download failed', [
+                    'status' => $resp->status(),
+                    'body' => $resp->body(),
+                ]);
+
+                abort(502, 'Failed to download settings template from FastAPI');
+            }
+
+            $payload = $resp->json();
+            if (!is_array($payload)) {
+                abort(502, 'Invalid settings template response from FastAPI');
+            }
+
+            return response()->json(
+                $payload,
+                200,
+                [
+                    'Content-Disposition' => 'attachment; filename=bertopic_params_template.json',
+                ],
+                JSON_UNESCAPED_UNICODE
+            );
+        } catch (\Throwable $e) {
+            Log::error('Settings template download proxy failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            abort(502, 'Failed to proxy settings template download');
+        }
+    }
+
     public function download(Request $request, string $jobId)
     {
         if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $jobId)) {

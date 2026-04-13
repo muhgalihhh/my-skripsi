@@ -1,0 +1,2 @@
+source,raw_rows,filtered_rows,final_rows,duplicate_abstract_removed,year_min,year_max,processed_token_p25,processed_token_p50,processed_token_p75,cleaned_token_p50
+csv:/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/raw/raw_data.csv,474,473,473,1,2018,2026,107.0,146.0,200.0,270.0
