@@ -18,7 +18,13 @@ class TopicExplorer extends Component
 {
     public string $searchQuery = '';
 
+    public string $referenceTitle = '';
+
+    public string $referenceAbstract = '';
+
     public array $smartSearchResult = [];
+
+    public array $clusterCheckResult = [];
 
     protected int $topicCardLimit = 8;
     protected int $mappingRowsLimit = 1200;
@@ -31,6 +37,7 @@ class TopicExplorer extends Component
     public function mount(): void
     {
         $this->smartSearchResult = $this->emptySmartSearchState();
+        $this->clusterCheckResult = $this->emptyClusterCheckState();
     }
 
     #[On('mahasiswa-search-submit')]
@@ -109,6 +116,170 @@ class TopicExplorer extends Component
         $this->smartSearchResult = $this->buildSmartSearchResults($activeRun, $query, $fastApiResponse);
     }
 
+    public function resetClusterCheckForm(): void
+    {
+        $this->referenceTitle = '';
+        $this->referenceAbstract = '';
+        $this->clusterCheckResult = $this->emptyClusterCheckState();
+    }
+
+    public function checkReferenceCluster(): void
+    {
+        $title = trim($this->referenceTitle);
+        $abstract = trim($this->referenceAbstract);
+
+        if (mb_strlen($title) < 5) {
+            $this->clusterCheckResult = [
+                'status' => 'error',
+                'message' => 'Judul minimal 5 karakter untuk cek klaster.',
+                'predicted_topic' => null,
+                'topic_distribution' => [],
+                'job_id' => null,
+            ];
+            return;
+        }
+
+        if (mb_strlen($abstract) < 20) {
+            $this->clusterCheckResult = [
+                'status' => 'error',
+                'message' => 'Abstrak minimal 20 karakter untuk cek klaster.',
+                'predicted_topic' => null,
+                'topic_distribution' => [],
+                'job_id' => null,
+            ];
+            return;
+        }
+
+        $combinedText = trim($title . "\n\n" . $abstract);
+        if (mb_strlen($combinedText) > 5000) {
+            $this->clusterCheckResult = [
+                'status' => 'error',
+                'message' => 'Gabungan judul dan abstrak maksimal 5000 karakter.',
+                'predicted_topic' => null,
+                'topic_distribution' => [],
+                'job_id' => null,
+            ];
+            return;
+        }
+
+        $activeRun = $this->resolveActiveRun();
+        if (!$activeRun) {
+            $this->clusterCheckResult = [
+                'status' => 'error',
+                'message' => 'Belum ada model BERTopic completed untuk cek klaster.',
+                'predicted_topic' => null,
+                'topic_distribution' => [],
+                'job_id' => null,
+            ];
+            return;
+        }
+
+        $jobId = trim((string) ($activeRun->fastapi_training_job_id ?? ''));
+        if ($jobId === '') {
+            $this->clusterCheckResult = [
+                'status' => 'error',
+                'message' => 'Run aktif belum memiliki job id FastAPI.',
+                'predicted_topic' => null,
+                'topic_distribution' => [],
+                'job_id' => null,
+            ];
+            return;
+        }
+
+        $fastApiResponse = app(FastApiService::class)->inferTopicForQuery($jobId, $combinedText, $this->searchTopTopics);
+        $status = (string) ($fastApiResponse['status'] ?? 'ok');
+
+        if (in_array($status, ['error', 'unreachable', 'not_found'], true)) {
+            $this->clusterCheckResult = [
+                'status' => 'warning',
+                'message' => $fastApiResponse['message'] ?? 'Gagal melakukan cek klaster.',
+                'predicted_topic' => null,
+                'topic_distribution' => [],
+                'job_id' => $jobId,
+            ];
+            return;
+        }
+
+        $topicIds = [];
+        $predictedTopicId = isset($fastApiResponse['topic_id']) && is_numeric($fastApiResponse['topic_id'])
+            ? (int) $fastApiResponse['topic_id']
+            : -1;
+
+        if ($predictedTopicId >= 0) {
+            $topicIds[] = $predictedTopicId;
+        }
+
+        if (isset($fastApiResponse['topic_distribution']) && is_array($fastApiResponse['topic_distribution'])) {
+            foreach ($fastApiResponse['topic_distribution'] as $row) {
+                if (!is_array($row) || !isset($row['topic_id']) || !is_numeric($row['topic_id'])) {
+                    continue;
+                }
+
+                $topicId = (int) $row['topic_id'];
+                if ($topicId < 0) {
+                    continue;
+                }
+
+                $topicIds[] = $topicId;
+            }
+        }
+
+        $topicIds = array_values(array_unique($topicIds));
+
+        $topicLabelMap = [];
+        if (!empty($topicIds)) {
+            $topicRows = TopicModelTopic::query()
+                ->where('topic_model_run_id', $activeRun->id)
+                ->whereIn('topic_id', $topicIds)
+                ->get(['topic_id', 'custom_name']);
+
+            $topicLabelMap = $this->buildTopicLabelMap($topicRows);
+        }
+
+        $topicDistribution = [];
+        if (isset($fastApiResponse['topic_distribution']) && is_array($fastApiResponse['topic_distribution'])) {
+            foreach ($fastApiResponse['topic_distribution'] as $row) {
+                if (!is_array($row) || !isset($row['topic_id']) || !is_numeric($row['topic_id'])) {
+                    continue;
+                }
+
+                $topicId = (int) $row['topic_id'];
+                if ($topicId < 0) {
+                    continue;
+                }
+
+                $topicDistribution[] = [
+                    'topic_id' => $topicId,
+                    'topic_label' => $topicLabelMap[$topicId] ?? sprintf('Topik %s', $topicId),
+                    'similarity' => isset($row['similarity']) && is_numeric($row['similarity'])
+                        ? max(0.0, min(1.0, (float) $row['similarity']))
+                        : 0.0,
+                    'top_words' => array_slice((array) ($row['top_words'] ?? []), 0, 10),
+                ];
+            }
+        }
+
+        $predictedTopic = null;
+        if ($predictedTopicId >= 0) {
+            $predictedTopic = [
+                'topic_id' => $predictedTopicId,
+                'topic_label' => $topicLabelMap[$predictedTopicId] ?? sprintf('Topik %s', $predictedTopicId),
+                'similarity' => isset($fastApiResponse['topic_similarity']) && is_numeric($fastApiResponse['topic_similarity'])
+                    ? max(0.0, min(1.0, (float) $fastApiResponse['topic_similarity']))
+                    : 0.0,
+                'top_words' => array_slice((array) ($fastApiResponse['top_words'] ?? []), 0, 10),
+            ];
+        }
+
+        $this->clusterCheckResult = [
+            'status' => 'ok',
+            'message' => 'Prediksi klaster berhasil dibuat sebagai referensi.',
+            'predicted_topic' => $predictedTopic,
+            'topic_distribution' => $topicDistribution,
+            'job_id' => $jobId,
+        ];
+    }
+
     protected function emptySmartSearchState(): array
     {
         return [
@@ -119,6 +290,17 @@ class TopicExplorer extends Component
             'topic_distribution' => [],
             'items' => [],
             'used_fallback' => false,
+        ];
+    }
+
+    protected function emptyClusterCheckState(): array
+    {
+        return [
+            'status' => 'idle',
+            'message' => null,
+            'predicted_topic' => null,
+            'topic_distribution' => [],
+            'job_id' => null,
         ];
     }
 
@@ -715,6 +897,7 @@ class TopicExplorer extends Component
             'topicCards' => $topicCards,
             'chartPayload' => $chartPayload,
             'smartSearchResult' => $this->smartSearchResult,
+            'clusterCheckResult' => $this->clusterCheckResult,
         ]);
     }
 }

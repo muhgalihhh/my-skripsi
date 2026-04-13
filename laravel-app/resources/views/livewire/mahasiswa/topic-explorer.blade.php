@@ -13,6 +13,105 @@
             </div>
         </div>
 
+        <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <div class="mb-3">
+                <h2 class="text-lg font-semibold text-gray-900">Cek Klaster Judul & Abstrak</h2>
+                <p class="text-xs text-gray-500">Masukkan draft judul dan abstrak untuk melihat prediksi klaster topik sebagai referensi.</p>
+            </div>
+
+            <form wire:submit.prevent="checkReferenceCluster" class="space-y-3">
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Judul</label>
+                    <input
+                        type="text"
+                        wire:model.defer="referenceTitle"
+                        maxlength="350"
+                        placeholder="Contoh: Analisis Sentimen ..."
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Abstrak</label>
+                    <textarea
+                        wire:model.defer="referenceAbstract"
+                        rows="5"
+                        maxlength="4650"
+                        placeholder="Tulis abstrak singkat yang ingin dicek klasternya..."
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                    ></textarea>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button
+                        type="submit"
+                        class="inline-flex items-center rounded-lg bg-unsoed-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-unsoed-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        wire:loading.attr="disabled"
+                        wire:target="checkReferenceCluster"
+                        @disabled(!$activeRun)
+                    >
+                        <x-app.icon name="magnifying-glass" class="mr-1.5 h-4 w-4" />
+                        <span wire:loading.remove wire:target="checkReferenceCluster">Cek Klaster</span>
+                        <span wire:loading wire:target="checkReferenceCluster">Mengecek...</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        wire:click="resetClusterCheckForm"
+                        class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                        Reset
+                    </button>
+                </div>
+            </form>
+
+            @if (!$activeRun)
+                <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Model BERTopic belum tersedia untuk inferensi. Minta admin Jurusan menjalankan preprocessing dan training terlebih dahulu.
+                </div>
+            @endif
+
+            @if (($clusterCheckResult['status'] ?? 'idle') !== 'idle')
+                <div class="mt-4 space-y-3">
+                    @if (!empty($clusterCheckResult['message']))
+                        <div @class([
+                            'rounded-xl border px-3 py-2 text-xs',
+                            'border-red-200 bg-red-50 text-red-700' => ($clusterCheckResult['status'] ?? '') === 'error',
+                            'border-amber-200 bg-amber-50 text-amber-700' => ($clusterCheckResult['status'] ?? '') === 'warning',
+                            'border-green-200 bg-green-50 text-green-700' => ($clusterCheckResult['status'] ?? '') === 'ok',
+                        ])>
+                            {{ $clusterCheckResult['message'] }}
+                        </div>
+                    @endif
+
+                    @if (!empty($clusterCheckResult['predicted_topic']))
+                        <div class="rounded-xl border border-unsoed-blue-200 bg-unsoed-blue-50 px-3.5 py-3 text-xs text-unsoed-blue-800">
+                            <p class="font-semibold">Klaster Prediksi: {{ $clusterCheckResult['predicted_topic']['topic_label'] ?? '-' }}</p>
+                            <p class="mt-1">Similarity: {{ number_format((float) ($clusterCheckResult['predicted_topic']['similarity'] ?? 0), 4) }}</p>
+                            @if (!empty($clusterCheckResult['predicted_topic']['top_words']))
+                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                    @foreach ($clusterCheckResult['predicted_topic']['top_words'] as $word)
+                                        <span class="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-unsoed-blue-700">{{ $word }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if (!empty($clusterCheckResult['topic_distribution']))
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach ($clusterCheckResult['topic_distribution'] as $topicCandidate)
+                                <span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+                                    {{ $topicCandidate['topic_label'] ?? ('Topik ' . ($topicCandidate['topic_id'] ?? '-')) }}
+                                    • {{ number_format((float) ($topicCandidate['similarity'] ?? 0), 3) }}
+                                </span>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            @endif
+        </div>
+
         @if ($activeRun)
             <div class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
                 <div class="flex flex-wrap gap-2" role="tablist" aria-label="Navigasi dashboard mahasiswa">
@@ -46,7 +145,6 @@
 
 
             </div>
-
             @if (($smartSearchResult['status'] ?? 'idle') !== 'idle')
                 <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3">
