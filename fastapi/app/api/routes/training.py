@@ -6,8 +6,9 @@ Endpoints for model training (BERTopic & LDA).
 import re
 import math
 import json
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pandas as pd
 from app.core import database
@@ -20,6 +21,9 @@ from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 TitleRecommendationResponse,
                                 TopicCurationSuggestionRequest,
                                 TopicCurationSuggestionResponse,
+                                TopicInferenceBatchItem,
+                                TopicInferenceBatchRequest,
+                                TopicInferenceBatchResponse,
                                 TopicInferenceItem,
                                 TopicInferenceRequest,
                                 TopicInferenceResponse, TrainingStatus,
@@ -51,6 +55,113 @@ def _validate_job_id(job_id: str) -> str:
     if not _JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=400, detail="Invalid job_id")
     return job_id
+
+
+def _parse_iso_datetime(value: object) -> Optional[datetime]:
+    if not isinstance(value, str) or value.strip() == "":
+        return None
+
+    try:
+        return datetime.fromisoformat(value)
+    except Exception:
+        return None
+
+
+def _has_bertopic_model_artifact(job_id: str) -> bool:
+    model_path = path_settings.get_models_dir() / f"bertopic_{job_id}" / "model"
+    if model_path.exists():
+        return True
+
+    try:
+        results = service.load_results(job_id)
+    except Exception:
+        results = {}
+
+    result_model_dir_raw = results.get("model_path")
+    if not result_model_dir_raw:
+        return False
+
+    try:
+        result_model_dir = Path(str(result_model_dir_raw))
+    except Exception:
+        return False
+
+    return result_model_dir.exists() and (result_model_dir / "model").exists()
+
+
+def _resolve_bertopic_job_for_inference(requested_job_id: Optional[str]) -> Tuple[str, str]:
+    """Resolve BERTopic job_id for inference.
+
+    Priority:
+    1) explicitly requested job_id
+    2) latest completed BERTopic job from persisted job state
+    3) latest BERTopic result_*.json fallback
+    """
+
+    if requested_job_id is not None:
+        return _validate_job_id(requested_job_id), "requested_job_id"
+
+    jobs = service.list_jobs()
+    candidates: List[Tuple[datetime, str]] = []
+
+    for job in jobs:
+        model_type = str(job.get("model_type") or "").lower()
+        status = str(job.get("status") or "").lower()
+        job_id = str(job.get("job_id") or "").strip()
+
+        if model_type != ModelType.BERTOPIC.value:
+            continue
+        if status != TrainingStatus.COMPLETED.value:
+            continue
+        if not job_id:
+            continue
+
+        completed_at = _parse_iso_datetime(job.get("completed_at"))
+        started_at = _parse_iso_datetime(job.get("started_at"))
+        sort_key = completed_at or started_at
+        if sort_key is None:
+            continue
+
+        candidates.append((sort_key, job_id))
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+
+    for _, job_id in candidates:
+        if _has_bertopic_model_artifact(job_id):
+            return job_id, "latest_completed_job"
+
+    # Fallback for older runs where job-state is missing but result JSON still exists.
+    results_dir = path_settings.get_results_dir()
+    result_files = sorted(
+        results_dir.glob("result_*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+    for result_file in result_files:
+        try:
+            payload = json.loads(result_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        model_type = str(payload.get("model_type") or "").lower()
+        if model_type != ModelType.BERTOPIC.value:
+            continue
+
+        job_id = str(payload.get("job_id") or result_file.stem.replace("result_", "")).strip()
+        if not job_id:
+            continue
+
+        if _has_bertopic_model_artifact(job_id):
+            return job_id, "latest_results_fallback"
+
+    raise HTTPException(
+        status_code=404,
+        detail=(
+            "Belum ada model BERTopic siap inferensi. "
+            "Silakan jalankan training BERTopic minimal satu kali."
+        ),
+    )
 
 
 def _load_latest_best_config_payload() -> Optional[dict]:
@@ -779,23 +890,47 @@ async def test_trained_model(job_id: str):
         return summary
 
     raise HTTPException(status_code=400, detail="Unsupported model artifacts for this job")
-@router.post("/model/{job_id}/infer", response_model=TopicInferenceResponse)
-async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
-    """Infer the most relevant BERTopic topic from a free-text query."""
 
-    _validate_job_id(job_id)
 
+def _load_bertopic_trainer(job_id: str):
     from app.ml.bertopic_trainer import BERTopicTrainer
+    import numpy as np
+    from bertopic import BERTopic
 
     trainer = BERTopicTrainer()
     try:
         trainer.load_model(job_id)
+        return trainer
     except FileNotFoundError:
+        try:
+            results = service.load_results(job_id)
+        except Exception:
+            results = {}
+
+        model_dir_raw = results.get("model_path")
+        model_dir = Path(str(model_dir_raw)) if model_dir_raw else None
+
+        if model_dir is not None and model_dir.exists() and (model_dir / "model").exists():
+            trainer.model = BERTopic.load(str(model_dir / "model"))
+
+            embeddings_path = model_dir / "embeddings.npy"
+            if embeddings_path.exists():
+                trainer.embeddings = np.load(str(embeddings_path))
+
+            return trainer
+
         raise HTTPException(
             status_code=404,
             detail=f"BERTopic model not found for job {job_id}",
         )
 
+
+def _infer_topic_from_text_with_trainer(
+    *,
+    trainer,
+    job_id: str,
+    request: TopicInferenceRequest,
+) -> TopicInferenceResponse:
     query = request.text.strip()
     if query == "":
         raise HTTPException(status_code=422, detail="text cannot be empty")
@@ -807,16 +942,20 @@ async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
 
     can_run_semantic_search = True
     if getattr(trainer.model, "embedding_model", None) is None:
-        try:
-            trainer.embedding_model = trainer._build_embedding_model()
-            trainer.model.embedding_model = trainer.embedding_model
-        except Exception as e:
+        if bool(getattr(trainer, "_embedding_attach_failed", False)):
             can_run_semantic_search = False
-            logger.warning(
-                "Embedding model unavailable for semantic topic search (job_id={}): {}",
-                job_id,
-                str(e),
-            )
+        else:
+            try:
+                trainer.embedding_model = trainer._build_embedding_model()
+                trainer.model.embedding_model = trainer.embedding_model
+            except Exception as e:
+                trainer._embedding_attach_failed = True
+                can_run_semantic_search = False
+                logger.warning(
+                    "Embedding model unavailable for semantic topic search (job_id={}): {}",
+                    job_id,
+                    str(e),
+                )
 
     if can_run_semantic_search:
         try:
@@ -909,6 +1048,53 @@ async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
         topic_similarity=round(max(0.0, min(1.0, primary_similarity)), 6),
         top_words=primary_words,
         topic_distribution=distribution[: request.top_n_topics],
+    )
+
+
+@router.post("/model/{job_id}/infer", response_model=TopicInferenceResponse)
+async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
+    """Infer the most relevant BERTopic topic from a free-text query."""
+
+    _validate_job_id(job_id)
+    trainer = _load_bertopic_trainer(job_id)
+    return _infer_topic_from_text_with_trainer(trainer=trainer, job_id=job_id, request=request)
+
+
+@router.post("/model/infer-batch", response_model=TopicInferenceBatchResponse)
+async def infer_topics_for_new_data(request: TopicInferenceBatchRequest):
+    """Infer topics for multiple new texts using an existing BERTopic model.
+
+    If `job_id` is omitted, this endpoint automatically uses the latest completed
+    BERTopic model available on the server (no retraining required).
+    """
+
+    resolved_job_id, model_source = _resolve_bertopic_job_for_inference(request.job_id)
+    trainer = _load_bertopic_trainer(resolved_job_id)
+
+    items: List[TopicInferenceBatchItem] = []
+    for idx, text in enumerate(request.texts):
+        single_result = _infer_topic_from_text_with_trainer(
+            trainer=trainer,
+            job_id=resolved_job_id,
+            request=TopicInferenceRequest(text=text, top_n_topics=request.top_n_topics),
+        )
+
+        items.append(
+            TopicInferenceBatchItem(
+                index=idx,
+                query=single_result.query,
+                topic_id=single_result.topic_id,
+                topic_similarity=single_result.topic_similarity,
+                top_words=single_result.top_words,
+                topic_distribution=single_result.topic_distribution,
+            )
+        )
+
+    return TopicInferenceBatchResponse(
+        job_id=resolved_job_id,
+        model_source=model_source,
+        total=len(items),
+        items=items,
     )
 
 

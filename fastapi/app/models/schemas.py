@@ -300,6 +300,77 @@ class TopicInferenceResponse(BaseModel):
     topic_distribution: List[TopicInferenceItem] = Field(default_factory=list)
 
 
+class TopicInferenceBatchRequest(BaseModel):
+    """Request to infer topics for multiple new texts using an existing BERTopic model."""
+
+    texts: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Collection of new texts to infer without retraining",
+    )
+    top_n_topics: int = Field(
+        5,
+        ge=1,
+        le=10,
+        description="Number of similar topics to return for each text",
+    )
+    job_id: Optional[str] = Field(
+        None,
+        description="Optional BERTopic job_id. If omitted, latest completed BERTopic model is used.",
+    )
+
+    @field_validator("texts")
+    @classmethod
+    def validate_texts(cls, value: List[str]) -> List[str]:
+        cleaned: List[str] = []
+
+        for item in value:
+            normalized = str(item).strip()
+            if len(normalized) < 3:
+                raise ValueError("each text must contain at least 3 non-space characters")
+            if len(normalized) > 5000:
+                raise ValueError("each text must not exceed 5000 characters")
+            cleaned.append(normalized)
+
+        return cleaned
+
+    @field_validator("job_id")
+    @classmethod
+    def validate_job_id_optional(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        if normalized == "":
+            raise ValueError("job_id cannot be empty")
+
+        return normalized
+
+
+class TopicInferenceBatchItem(BaseModel):
+    """One inference result for a single input text in a batch request."""
+
+    index: int = Field(..., ge=0)
+    query: str
+    topic_id: int
+    topic_similarity: float = Field(..., ge=0.0, le=1.0)
+    top_words: List[str] = Field(default_factory=list)
+    topic_distribution: List[TopicInferenceItem] = Field(default_factory=list)
+
+
+class TopicInferenceBatchResponse(BaseModel):
+    """Batch inference response using a resolved existing BERTopic model."""
+
+    job_id: str
+    model_source: str = Field(
+        ...,
+        description="Source of selected model: requested_job_id, latest_completed_job, or latest_results_fallback",
+    )
+    total: int = Field(..., ge=0)
+    items: List[TopicInferenceBatchItem] = Field(default_factory=list)
+
+
 class TopicCurationSuggestionRequest(BaseModel):
     """Request to generate AI suggestion for topic curation."""
 
