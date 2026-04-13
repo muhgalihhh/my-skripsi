@@ -38,6 +38,7 @@ Di `laravel-app/.env.server.local`, pastikan minimal:
 - `APP_ENV=production`
 - `APP_DEBUG=false`
 - `APP_URL` sama dengan `APP_URL` di root `.env.server.local`
+- `TRUSTED_PROXIES=*` (agar skema HTTPS dari Nginx terbaca benar)
 - `DB_HOST=mysql`
 - `DB_PORT=3306`
 - `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` sesuai root `.env.server.local`
@@ -132,3 +133,34 @@ docker exec skripsi-laravel php artisan view:cache
 - Secara default, port MySQL dan FastAPI dibind ke `127.0.0.1` (tidak terbuka publik).
 - Laravel bisa tetap dibind ke `127.0.0.1:8080` dan hanya diakses Nginx host.
 - FastAPI sebaiknya tetap internal (`127.0.0.1:8000`) kecuali memang butuh endpoint publik.
+
+## 6) Troubleshooting: Styling Hilang di Domain
+
+Gejala umum:
+- Halaman tanpa CSS/JS saat akses domain.
+- Jika cek container, ada file `public/hot` atau `public/build/manifest.json` tidak ada.
+
+Penyebab umum:
+- Stack dijalankan dengan `docker-compose.dev.yml` (mode Vite dev).
+- Tertinggal file `public/hot`, sehingga Laravel mencoba asset dari dev server `localhost:5173`.
+- App belum trust reverse proxy, sehingga halaman HTTPS tetap menghasilkan URL asset `http://...`.
+
+Langkah perbaikan cepat:
+
+```bash
+# 1) Stop stack dev jika pernah dijalankan
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+
+# 2) Hapus penanda Vite dev dari source host
+rm -f laravel-app/public/hot
+
+# 3) Jalankan stack production-only
+docker compose --env-file .env.server.local -f docker-compose.yml up -d --build --force-recreate laravel
+
+# 4) Refresh cache Laravel
+docker exec skripsi-laravel php artisan optimize:clear
+docker exec skripsi-laravel php artisan config:cache
+
+# 5) Verifikasi assets production
+docker exec skripsi-laravel sh -lc '[ -f public/build/manifest.json ] && echo manifest_ok || echo manifest_missing; [ -f public/hot ] && echo hot_exists || echo hot_missing'
+```
