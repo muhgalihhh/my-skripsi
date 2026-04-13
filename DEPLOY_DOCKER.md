@@ -1,10 +1,13 @@
 # Docker Deployment Guide
 
 Panduan ini untuk menjalankan stack production:
-- Reverse Proxy (Nginx + Let's Encrypt)
 - Laravel (web)
 - FastAPI (ML service)
 - MySQL
+
+Best practice untuk Ubuntu server:
+- Jalankan aplikasi via Docker Compose.
+- Jalankan reverse proxy Nginx di host Ubuntu (di luar Docker) untuk HTTPS/domain.
 
 ## 1) Siapkan Environment File
 
@@ -19,8 +22,6 @@ Lalu edit `.env.server.local` sesuai server Anda:
 - `APP_DEBUG=false`
 - `APP_URL=https://domain-anda`
 - password MySQL wajib diganti
-- `PUBLIC_DOMAIN=domain-anda`
-- `LETSENCRYPT_EMAIL=email-anda`
 
 Siapkan env aplikasi server:
 
@@ -51,17 +52,42 @@ Catatan DNS dan firewall:
 - `A record` domain harus mengarah ke IP server.
 - Port `80` dan `443` harus terbuka dari internet.
 
-## 2) Jalankan Deploy
+## 2) Jalankan Deploy Aplikasi
 
 ```bash
 docker compose --env-file .env.server.local -f docker-compose.yml up -d --build
 ```
 
-## 3) Verifikasi
+## 3) Setup Nginx Reverse Proxy di Ubuntu Host
+
+Install Nginx + Certbot:
+
+```bash
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+Buat server block (contoh file ada di `ops/nginx/analitikskripsi.online.conf.example`):
+
+```bash
+sudo cp ops/nginx/analitikskripsi.online.conf.example /etc/nginx/sites-available/analitikskripsi.online
+sudo ln -sf /etc/nginx/sites-available/analitikskripsi.online /etc/nginx/sites-enabled/analitikskripsi.online
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Aktifkan SSL otomatis:
+
+```bash
+sudo certbot --nginx -d analitikskripsi.online -d www.analitikskripsi.online
+```
+
+## 4) Verifikasi
 
 ```bash
 docker compose -f docker-compose.yml ps
-docker compose -f docker-compose.yml logs -f reverse-proxy acme-companion mysql fastapi laravel
+docker compose -f docker-compose.yml logs -f mysql fastapi laravel
 ```
 
 Health check yang aktif:
@@ -94,5 +120,5 @@ docker exec skripsi-laravel php artisan view:cache
 ## 5) Catatan Keamanan
 
 - Secara default, port MySQL dan FastAPI dibind ke `127.0.0.1` (tidak terbuka publik).
-- Akses publik masuk lewat reverse proxy (`PROXY_HTTP_PORT` / `PROXY_HTTPS_PORT`).
-- Laravel bisa tetap dipublish ke `127.0.0.1:8080` untuk menerima proxy internal.
+- Laravel bisa tetap dibind ke `127.0.0.1:8080` dan hanya diakses Nginx host.
+- FastAPI sebaiknya tetap internal (`127.0.0.1:8000`) kecuali memang butuh endpoint publik.
