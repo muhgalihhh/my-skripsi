@@ -1,7 +1,0 @@
-{
-  "job_id": "nb_best_bertopic_20260413-132545",
-  "model_type": "bertopic",
-  "save_mode": "fallback_notebook",
-  "reason": "[Errno 13] Permission denied: '/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/app/ml/trained_models/bertopic_nb_best_bertopic_20260413-132545'",
-  "saved_at": "2026-04-13T14:27:56.983219"
-}

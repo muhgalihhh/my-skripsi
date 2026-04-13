@@ -81,6 +81,17 @@ analysis/output/
 analysis/data/
 analysis/data_user/
 
+# FastAPI generated artifacts (docker/notebook outputs)
+fastapi/data/embeddings/
+fastapi/data/processed/**
+fastapi/data/results/**
+!fastapi/data/raw/README.md
+!fastapi/data/processed/README.md
+!fastapi/data/results/README.md
+
+# FastAPI runtime logs
+fastapi/logs/
+
 # Model artifacts (very large) — keep only best model metadata for reproducibility
 analysis/output/models/**
 !analysis/output/models/bertopic_best_model/metadata.json

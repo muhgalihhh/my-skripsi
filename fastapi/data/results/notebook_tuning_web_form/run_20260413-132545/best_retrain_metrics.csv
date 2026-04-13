@@ -1,3 +1,0 @@
-model,scenario_id,coherence_cv,topic_diversity,num_topics,model_path
-BERTopic,bertopic_014,0.4587,0.9,9,/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/results/notebook_tuning_web_form/run_20260413-132545/saved_models/bertopic_nb_best_bertopic_20260413-132545
-LDA,lda_009,0.3525,0.625,8,/home/galih/MySkripsi/- Aplikasi/my-skripsi/fastapi/data/results/notebook_tuning_web_form/run_20260413-132545/saved_models/lda_nb_best_lda_20260413-132545
