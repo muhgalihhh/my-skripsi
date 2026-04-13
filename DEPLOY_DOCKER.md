@@ -34,7 +34,12 @@ Di `laravel-app/.env`, pastikan minimal:
 - `DB_PORT=3306`
 - `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` sesuai root `.env`
 - `FASTAPI_BASE_URL=http://fastapi:8000`
+- `FASTAPI_API_KEY` wajib sama dengan `FASTAPI_API_KEY` di `fastapi/.env`
 - `GOOGLE_REDIRECT_URI` sesuai URL publik Anda, contoh `https://domain-anda/auth/google/callback`
+
+Di `fastapi/.env`, pastikan:
+- `FASTAPI_API_KEY` terisi strong random key
+- `FASTAPI_REQUIRE_API_KEY=true`
 
 ## 2) Jalankan Deploy
 

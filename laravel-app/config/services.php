@@ -56,6 +56,7 @@ return [
     */
     'fastapi' => [
         'base_url' => env('FASTAPI_BASE_URL', 'http://localhost:8000'),
+        'api_key' => env('FASTAPI_API_KEY', ''),
     ],
 
 ];

@@ -2,16 +2,32 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class FastApiService
 {
   protected string $baseUrl;
+  protected string $apiKey;
 
   public function __construct()
   {
     $this->baseUrl = rtrim(config('services.fastapi.base_url', 'http://localhost:8000'), '/');
+    $this->apiKey = trim((string) config('services.fastapi.api_key', ''));
+  }
+
+  protected function fastApiRequest(int $timeout = 30): PendingRequest
+  {
+    $request = Http::timeout($timeout);
+
+    if ($this->apiKey !== '') {
+      $request = $request->withHeaders([
+        'X-API-Key' => $this->apiKey,
+      ]);
+    }
+
+    return $request;
   }
 
   /**
@@ -21,7 +37,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(5)->get("{$this->baseUrl}/api/v1/health");
+      $response = $this->fastApiRequest(5)->get("{$this->baseUrl}/api/v1/health");
 
       if ($response->successful()) {
         return $response->json();
@@ -50,7 +66,7 @@ class FastApiService
       }
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(15)
+      $response = $this->fastApiRequest(15)
         ->post("{$this->baseUrl}/api/v1/scraping/start", $payload);
 
       if ($response->successful()) {
@@ -98,7 +114,7 @@ class FastApiService
         $params['include_monitoring'] = 'true';
       $query = $params ? '?' . http_build_query($params) : '';
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->get("{$this->baseUrl}/api/v1/scraping/jobs/{$jobId}{$query}");
 
       if ($response->successful()) {
@@ -123,7 +139,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->post("{$this->baseUrl}/api/v1/scraping/jobs/{$jobId}/cancel");
 
       if ($response->successful()) {
@@ -143,7 +159,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(5)->get("{$this->baseUrl}/api/v1/scraping/status");
+      $response = $this->fastApiRequest(5)->get("{$this->baseUrl}/api/v1/scraping/status");
 
       if ($response->successful()) {
         return $response->json();
@@ -166,7 +182,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->post("{$this->baseUrl}/api/v1/preprocessing/start", ['run_id' => $runId]);
 
       if ($response->successful()) {
@@ -194,7 +210,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->get("{$this->baseUrl}/api/v1/preprocessing/jobs/{$jobId}");
 
       if ($response->successful()) {
@@ -219,7 +235,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->get("{$this->baseUrl}/api/v1/preprocessing/jobs/{$jobId}/dropped");
 
       if ($response->successful()) {
@@ -244,7 +260,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->post("{$this->baseUrl}/api/v1/preprocessing/jobs/{$jobId}/cancel");
 
       if ($response->successful()) {
@@ -268,7 +284,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->get("{$this->baseUrl}/api/v1/training/dataset/summary");
 
       if ($response->successful()) {
@@ -289,7 +305,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(15)
+      $response = $this->fastApiRequest(15)
         ->get("{$this->baseUrl}/api/v1/training/tuning/best-config");
 
       if ($response->successful()) {
@@ -331,7 +347,7 @@ class FastApiService
       ], fn($v) => $v !== null);
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(30)
+      $response = $this->fastApiRequest(30)
         ->post("{$this->baseUrl}/api/v1/training/start", $payload);
 
       if ($response->successful()) {
@@ -368,7 +384,7 @@ class FastApiService
       ], fn($v) => $v !== null);
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(30)
+      $response = $this->fastApiRequest(30)
         ->post("{$this->baseUrl}/api/v1/training/start", $payload);
 
       if ($response->successful()) {
@@ -400,7 +416,7 @@ class FastApiService
       }
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(30)
+      $response = $this->fastApiRequest(30)
         ->attach(
           'config_file',
           file_get_contents($filePath),
@@ -435,7 +451,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->get("{$this->baseUrl}/api/v1/training/status/{$jobId}");
 
       if ($response->successful()) {
@@ -460,7 +476,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(10)
+      $response = $this->fastApiRequest(10)
         ->post("{$this->baseUrl}/api/v1/training/jobs/{$jobId}/cancel");
 
       if ($response->successful()) {
@@ -493,7 +509,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(20)
+      $response = $this->fastApiRequest(20)
         ->get("{$this->baseUrl}/api/v1/training/results/{$jobId}");
 
       if ($response->successful()) {
@@ -519,7 +535,7 @@ class FastApiService
   {
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(120)
+      $response = $this->fastApiRequest(120)
         ->get("{$this->baseUrl}/api/v1/training/model/{$jobId}/test-dataset");
 
       if ($response->successful()) {
@@ -568,7 +584,7 @@ class FastApiService
       }
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(120)
+      $response = $this->fastApiRequest(120)
         ->post("{$this->baseUrl}/api/v1/evaluation/dta", $payload);
 
       if ($response->successful()) {
@@ -674,7 +690,7 @@ class FastApiService
 
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(45)
+      $response = $this->fastApiRequest(45)
         ->post("{$this->baseUrl}/api/v1/training/topic-curation/generate", $requestPayload);
 
       if ($response->successful()) {
@@ -765,7 +781,7 @@ class FastApiService
 
     try {
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(60)
+      $response = $this->fastApiRequest(60)
         ->post("{$this->baseUrl}/api/v1/training/title-recommendation/generate", $requestPayload);
 
       if ($response->successful()) {
@@ -806,7 +822,7 @@ class FastApiService
       ];
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = Http::timeout(60)
+      $response = $this->fastApiRequest(60)
         ->post("{$this->baseUrl}/api/v1/training/model/{$jobId}/infer", $payload);
 
       if ($response->successful()) {

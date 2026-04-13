@@ -23,6 +23,8 @@ class AppSettings(BaseSettings):
     APP_DEBUG: bool = True
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
+    FASTAPI_API_KEY: str = ""
+    FASTAPI_REQUIRE_API_KEY: bool = True
 
     # Database
     DB_HOST: str = "localhost"

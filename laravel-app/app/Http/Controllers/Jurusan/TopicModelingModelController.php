@@ -3,18 +3,33 @@
 namespace App\Http\Controllers\Jurusan;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class TopicModelingModelController
 {
+    private function fastApiRequest(int $timeout = 30): PendingRequest
+    {
+        $request = Http::timeout($timeout);
+        $apiKey = trim((string) config('services.fastapi.api_key', ''));
+
+        if ($apiKey !== '') {
+            $request = $request->withHeaders([
+                'X-API-Key' => $apiKey,
+            ]);
+        }
+
+        return $request;
+    }
+
     public function downloadSettingsTemplate(Request $request)
     {
         $baseUrl = rtrim(config('services.fastapi.base_url', 'http://localhost:8000'), '/');
         $url = "{$baseUrl}/api/v1/training/settings/template";
 
         try {
-            $resp = Http::timeout(30)->get($url);
+            $resp = $this->fastApiRequest(30)->get($url);
 
             if (!$resp->successful()) {
                 Log::warning('FastAPI settings template download failed', [
@@ -57,7 +72,7 @@ class TopicModelingModelController
         $url = "{$baseUrl}/api/v1/training/model/{$jobId}/download";
 
         try {
-            $resp = Http::timeout(300)
+            $resp = $this->fastApiRequest(300)
                 ->withOptions(['stream' => true])
                 ->get($url);
 

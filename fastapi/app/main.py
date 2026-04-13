@@ -9,9 +9,10 @@ from app.api.routes.scraping import router as scraping_router
 from app.api.routes.training import router as training_router
 from app.core.config import app_settings, path_settings
 from app.core.logging import get_logger
+from app.core.security import verify_api_key
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 logger = get_logger("main")
 
@@ -50,10 +51,10 @@ app.add_middleware(
 API_V1_PREFIX = "/api/v1"
 
 app.include_router(health_router, prefix=API_V1_PREFIX)
-app.include_router(scraping_router, prefix=API_V1_PREFIX)
-app.include_router(preprocessing_router, prefix=API_V1_PREFIX)
-app.include_router(training_router, prefix=API_V1_PREFIX)
-app.include_router(evaluation_router, prefix=API_V1_PREFIX)
+app.include_router(scraping_router, prefix=API_V1_PREFIX, dependencies=[Depends(verify_api_key)])
+app.include_router(preprocessing_router, prefix=API_V1_PREFIX, dependencies=[Depends(verify_api_key)])
+app.include_router(training_router, prefix=API_V1_PREFIX, dependencies=[Depends(verify_api_key)])
+app.include_router(evaluation_router, prefix=API_V1_PREFIX, dependencies=[Depends(verify_api_key)])
 
 @app.get("/", tags=["Root"])
 async def root():
