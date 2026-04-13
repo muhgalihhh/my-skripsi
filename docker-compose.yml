@@ -21,6 +21,52 @@
 
 services:
   # ============================================
+  # Reverse Proxy (Nginx + Let's Encrypt)
+  # ============================================
+  reverse-proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    container_name: skripsi-reverse-proxy
+    ports:
+      - '${PROXY_BIND_IP:-0.0.0.0}:${PROXY_HTTP_PORT:-80}:80'
+      - '${PROXY_BIND_IP:-0.0.0.0}:${PROXY_HTTPS_PORT:-443}:443'
+    volumes:
+      - proxy-certs:/etc/nginx/certs:rw
+      - proxy-vhost:/etc/nginx/vhost.d
+      - proxy-html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - skripsi-net
+    restart: unless-stopped
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: skripsi-reverse-proxy-acme
+    depends_on:
+      reverse-proxy:
+        condition: service_started
+    environment:
+      - NGINX_PROXY_CONTAINER=skripsi-reverse-proxy
+      - DEFAULT_EMAIL=${LETSENCRYPT_EMAIL:-admin@example.com}
+    volumes:
+      - proxy-certs:/etc/nginx/certs:rw
+      - proxy-vhost:/etc/nginx/vhost.d
+      - proxy-html:/usr/share/nginx/html
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - skripsi-net
+    restart: unless-stopped
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  # ============================================
   # MySQL 8.4 - Database
   # ============================================
   mysql:
@@ -134,11 +180,17 @@ services:
       - CACHE_STORE=file
       - QUEUE_CONNECTION=sync
       - FASTAPI_BASE_URL=http://fastapi:8000
+      - VIRTUAL_HOST=${PUBLIC_DOMAIN:-localhost}
+      - VIRTUAL_PORT=8080
+      - LETSENCRYPT_HOST=${PUBLIC_DOMAIN:-}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@example.com}
     depends_on:
       mysql:
         condition: service_healthy
       fastapi:
         condition: service_healthy
+      reverse-proxy:
+        condition: service_started
     networks:
       - skripsi-net
     restart: unless-stopped
@@ -176,3 +228,6 @@ volumes:
   fastapi-models:
   fastapi-logs:
   laravel-storage:
+  proxy-certs:
+  proxy-vhost:
+  proxy-html:
