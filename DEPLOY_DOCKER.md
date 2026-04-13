@@ -77,10 +77,20 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+Catatan:
+- File contoh adalah bootstrap HTTP-only agar `nginx -t` lolos sebelum sertifikat tersedia.
+- Jangan taruh `include /etc/letsencrypt/options-ssl-nginx.conf` sebelum Certbot dijalankan.
+
 Aktifkan SSL otomatis:
 
 ```bash
 sudo certbot --nginx -d analitikskripsi.online -d www.analitikskripsi.online
+```
+
+Jika DNS `www` belum ada, gunakan:
+
+```bash
+sudo certbot --nginx -d analitikskripsi.online
 ```
 
 ## 4) Verifikasi
