@@ -9,14 +9,14 @@
                     <span class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-unsoed-gold-200">
                         Insight Visualisasi
                     </span>
-                    <h1 class="mt-2 text-2xl font-bold">Visualisasi Topic Modeling</h1>
+                    <h1 class="mt-2 text-2xl font-bold">Visualisasi Analisis Topik</h1>
                     <p class="mt-1.5 text-sm text-unsoed-blue-100">
-                        Eksplorasi hasil topik dari satu halaman: Word Cloud per topik, Dynamic Topic Modelling, serta perbandingan Emerging dan Declining.
+                        Eksplorasi hasil topik dari satu halaman: Word Cloud per topik, pemodelan topik dinamis, serta perbandingan topik meningkat dan menurun.
                     </p>
                     <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-medium">
                         <span class="rounded-full border border-white/20 bg-white/10 px-2.5 py-1">Word Cloud per Topik</span>
                         <span class="rounded-full border border-white/20 bg-white/10 px-2.5 py-1">Tooltip Interaktif</span>
-                        <span class="rounded-full border border-white/20 bg-white/10 px-2.5 py-1">DTM per Tahun</span>
+                        <span class="rounded-full border border-white/20 bg-white/10 px-2.5 py-1">Tren Topik per Tahun</span>
                     </div>
                 </div>
 
@@ -36,7 +36,7 @@
         <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
             <div class="grid grid-cols-1 items-end gap-4 lg:grid-cols-3">
                 <div class="lg:col-span-2">
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Pilih Run Training</label>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Pilih Run Pelatihan</label>
                     <select wire:model.live="runFilter"
                         class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500">
                         @if ($completedRuns->isEmpty())
@@ -55,7 +55,7 @@
                     </select>
                     <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500">
                         <span class="inline-flex items-center rounded-full border border-unsoed-blue-200 bg-unsoed-blue-50 px-2.5 py-1 text-unsoed-blue-700">
-                            {{ $completedRuns->count() }} run completed
+                            {{ $completedRuns->count() }} run selesai
                         </span>
                         @if ($activeRun)
                             <span class="inline-flex items-center rounded-full border border-unsoed-gold-200 bg-unsoed-gold-50 px-2.5 py-1 text-unsoed-gold-700">
@@ -74,7 +74,7 @@
                         </div>
                     @else
                         <div class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
-                            Belum ada run training dengan status completed.
+                            Belum ada run pelatihan dengan status selesai.
                         </div>
                     @endif
                 </div>
@@ -138,25 +138,25 @@
                             :class="activeVizTab === 'wordcloud' ? 'bg-unsoed-blue-800 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                             class="snap-start whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors">
                             <span class="sm:hidden">WordCloud</span>
-                            <span class="hidden sm:inline">Tab WordCloud</span>
+                            <span class="hidden sm:inline">WordCloud</span>
                         </button>
                         <button type="button" @click="setVizTab('dtm')"
                             :class="activeVizTab === 'dtm' ? 'bg-unsoed-blue-800 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                             class="snap-start whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors">
                             <span class="sm:hidden">DTM</span>
-                            <span class="hidden sm:inline">Tab DTM</span>
+                            <span class="hidden sm:inline">Tren Tahunan</span>
                         </button>
                         <button type="button" @click="setVizTab('trend')"
                             :class="activeVizTab === 'trend' ? 'bg-unsoed-blue-800 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                             class="snap-start whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors">
                             <span class="sm:hidden">Trend</span>
-                            <span class="hidden sm:inline">Tab Emerging Declining</span>
+                            <span class="hidden sm:inline">Tab Naik Turun</span>
                         </button>
                         <button type="button" @click="setVizTab('mapping')"
                             :class="activeVizTab === 'mapping' ? 'bg-unsoed-blue-800 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                             class="snap-start whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors">
-                            <span class="sm:hidden">Mapping</span>
-                            <span class="hidden sm:inline">Tab Mapping Skripsi</span>
+                            <span class="sm:hidden">Peta</span>
+                            <span class="hidden sm:inline">Pemetaan Skripsi</span>
                         </button>
                     </div>
                 </div>
@@ -204,7 +204,7 @@
                             <x-app.icon name="presentation-chart-line" class="h-4 w-4 text-unsoed-blue-700" />
                         </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Dynamic Topic Modelling</h2>
+                            <h2 class="text-lg font-semibold text-gray-900">Pemodelan Topik Dinamis</h2>
                             <p class="text-xs text-gray-500">Line chart proporsi topik per tahun dengan tooltip interaktif.</p>
                         </div>
                     </div>
@@ -218,7 +218,7 @@
                         <div class="flex h-[20rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[28rem] xl:h-[34rem]">
                             <x-app.icon name="presentation-chart-line" class="mb-3 h-12 w-12 text-gray-200" />
                             <p class="text-sm font-medium">Data DTM belum tersedia.</p>
-                            <p class="mt-1 text-xs">{{ $chartPayload['dtm']['missing_reason'] ?? 'Perlu mapping dokumen-topik dan tahun skripsi yang valid.' }}</p>
+                            <p class="mt-1 text-xs">{{ $chartPayload['dtm']['missing_reason'] ?? 'Perlu pemetaan dokumen-topik dan tahun skripsi yang valid.' }}</p>
                         </div>
                     @endif
                 </div>
@@ -230,7 +230,7 @@
                                 <x-app.icon name="arrow-trending-up" class="h-4 w-4 text-unsoed-blue-700" />
                             </div>
                             <div>
-                                <h2 class="text-lg font-semibold text-gray-900">Topic Emerging</h2>
+                                <h2 class="text-lg font-semibold text-gray-900">Topik Meningkat</h2>
                                 <p class="text-xs text-gray-500">Topik dengan kenaikan proporsi tertinggi.</p>
                             </div>
                         </div>
@@ -243,7 +243,7 @@
                         @else
                             <div class="flex h-[16rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[20rem]">
                                 <x-app.icon name="arrow-trending-up" class="mb-3 h-12 w-12 text-gray-200" />
-                                <p class="text-sm font-medium">Belum ada topik emerging terdeteksi.</p>
+                                <p class="text-sm font-medium">Belum ada topik meningkat terdeteksi.</p>
                             </div>
                         @endif
                     </div>
@@ -254,7 +254,7 @@
                                 <x-app.icon name="arrow-trending-down" class="h-4 w-4 text-unsoed-blue-700" />
                             </div>
                             <div>
-                                <h2 class="text-lg font-semibold text-gray-900">Topic Declining</h2>
+                                <h2 class="text-lg font-semibold text-gray-900">Topik Menurun</h2>
                                 <p class="text-xs text-gray-500">Topik dengan penurunan proporsi tertinggi.</p>
                             </div>
                         </div>
@@ -267,7 +267,7 @@
                         @else
                             <div class="flex h-[16rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[20rem]">
                                 <x-app.icon name="arrow-trending-down" class="mb-3 h-12 w-12 text-gray-200" />
-                                <p class="text-sm font-medium">Belum ada topik declining terdeteksi.</p>
+                                <p class="text-sm font-medium">Belum ada topik menurun terdeteksi.</p>
                             </div>
                         @endif
                     </div>
@@ -279,8 +279,8 @@
                             <x-app.icon name="table-cells" class="h-4 w-4 text-unsoed-blue-700" />
                         </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Mapping Skripsi ke Topik</h2>
-                            <p class="text-xs text-gray-500">Cek assignment topik untuk setiap skripsi pada run aktif.</p>
+                            <h2 class="text-lg font-semibold text-gray-900">Pemetaan Skripsi ke Topik</h2>
+                            <p class="text-xs text-gray-500">Cek penetapan topik untuk setiap skripsi pada run aktif.</p>
                         </div>
                     </div>
 
@@ -298,7 +298,7 @@
                     @if (!empty($skripsiMapping['rows']))
                         <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
                             <span class="inline-flex items-center rounded-full border border-unsoed-blue-200 bg-unsoed-blue-50 px-2.5 py-1 font-medium text-unsoed-blue-700">
-                                {{ number_format((int) ($skripsiMapping['displayed_rows'] ?? 0)) }} dari {{ number_format((int) ($skripsiMapping['total_rows'] ?? 0)) }} mapping
+                                {{ number_format((int) ($skripsiMapping['displayed_rows'] ?? 0)) }} dari {{ number_format((int) ($skripsiMapping['total_rows'] ?? 0)) }} pemetaan
                             </span>
                             @if (!empty($skripsiMapping['is_truncated']))
                                 <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
@@ -371,14 +371,14 @@
                     @else
                         <div class="flex h-[18rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400">
                             <x-app.icon name="table-cells" class="mb-3 h-12 w-12 text-gray-200" />
-                            <p class="text-sm font-medium">Data mapping skripsi belum tersedia.</p>
+                            <p class="text-sm font-medium">Data pemetaan skripsi belum tersedia.</p>
                             <p class="mt-1 text-xs">{{ $skripsiMapping['missing_reason'] ?? 'Belum ada relasi dokumen-topik pada run ini.' }}</p>
                         </div>
                     @endif
                 </div>
             </div>
 
-            {{-- List Topic --}}
+            {{-- Daftar Topik --}}
             <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                     <div class="flex items-center gap-2.5">
@@ -386,7 +386,7 @@
                             <x-app.icon name="list-bullet" class="h-4 w-4 text-unsoed-blue-700" />
                         </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">List Topic</h2>
+                            <h2 class="text-lg font-semibold text-gray-900">Daftar Topik</h2>
                             <p class="text-xs text-gray-500">Daftar topik berdasarkan jumlah dokumen.</p>
                         </div>
                     </div>
@@ -476,7 +476,7 @@
             </div>
         @else
             <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-800 shadow-sm sm:px-5">
-                Belum ada run completed yang bisa divisualisasikan. Jalankan training terlebih dahulu pada menu Topic Modeling.
+                Belum ada run selesai yang bisa divisualisasikan. Jalankan training terlebih dahulu pada menu Analisis Topik.
             </div>
         @endif
     </div>
@@ -1207,7 +1207,7 @@
                                         },
                                         title: {
                                             display: true,
-                                            text: isDeclining ? 'Magnitude Penurunan (%)' : 'Kenaikan (%)',
+                                            text: isDeclining ? 'Besaran Penurunan (%)' : 'Kenaikan (%)',
                                             color: chartTextColor,
                                         },
                                     },

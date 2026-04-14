@@ -64,7 +64,7 @@
         @endif
     @else
         <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-800 shadow-sm">
-            Belum ada run BERTopic completed yang bisa dipakai untuk rekomendasi judul.
+            Belum ada run BERTopic selesai yang bisa dipakai untuk rekomendasi judul.
         </div>
     @endif
 </div>

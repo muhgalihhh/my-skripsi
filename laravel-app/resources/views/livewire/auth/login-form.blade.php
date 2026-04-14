@@ -6,9 +6,9 @@
             <div class="inline-flex items-center justify-center w-16 h-16 bg-unsoed-blue-600 rounded-2xl mb-4">
                 <x-app.icon name="academic-cap" class="w-8 h-8 text-unsoed-gold-400" />
             </div>
-            <h1 class="text-2xl font-bold text-gray-900">TopicModeling</h1>
+            <h1 class="text-2xl font-bold text-gray-900">Portal Skripsi Informatika</h1>
             <p class="mt-2 text-sm text-gray-500">
-                Sistem Analisis Evolusi Topik Riset Skripsi
+                Platform layanan data, insight, dan rekomendasi skripsi
             </p>
             <p class="mt-1 text-xs text-gray-400">
                 S1 Teknik Informatika — UNSOED
@@ -139,7 +139,7 @@
         {{-- Footer --}}
         <div class="mt-6 text-center">
             <p class="text-xs text-gray-400">
-                &copy; {{ date('Y') }} TopicModeling — Muhamad Galih
+                &copy; {{ date('Y') }} Informatika Universitas Jenderal Soedirman
             </p>
         </div>
     </div>

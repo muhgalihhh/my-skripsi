@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', 'Dashboard Mahasiswa') - {{ config('app.name') }}</title>
+    <title>@yield('title', 'Dashboard Mahasiswa') - Informatika Universitas Jenderal Soedirman</title>
+    <link rel="icon" type="image/png" href="{{ asset('logo-unsoed.png') }}">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700" rel="stylesheet" />
@@ -172,7 +173,7 @@
 
         <footer class="border-t border-gray-200 bg-white px-4 py-4 sm:px-6 lg:px-8">
             <p class="text-center text-xs text-gray-400">
-                &copy; {{ date('Y') }} TopicModeling — Mahasiswa S1 Teknik Informatika UNSOED
+                &copy; {{ date('Y') }} Informatika Universitas Jenderal Soedirman
             </p>
         </footer>
     </div>

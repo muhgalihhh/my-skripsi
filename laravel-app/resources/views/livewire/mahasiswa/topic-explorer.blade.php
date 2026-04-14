@@ -5,7 +5,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Dashboard Mahasiswa</h1>
-                <p class="mt-1 text-sm text-gray-500">Eksplorasi topik skripsi, wordcloud, tren tahunan, dan smart search.</p>
+                <p class="mt-1 text-sm text-gray-500">Eksplorasi topik skripsi, wordcloud, tren tahunan, dan pencarian cerdas.</p>
             </div>
             <div class="text-right">
                 <p class="text-xs text-gray-400">Terakhir diperbarui</p>
@@ -67,7 +67,7 @@
 
             @if (!$activeRun)
                 <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Model BERTopic belum tersedia untuk inferensi. Minta admin Jurusan menjalankan preprocessing dan training terlebih dahulu.
+                    Model BERTopic belum tersedia untuk inferensi. Minta admin Jurusan menjalankan preprocessing dan pelatihan terlebih dahulu.
                 </div>
             @endif
 
@@ -87,7 +87,7 @@
                     @if (!empty($clusterCheckResult['predicted_topic']))
                         <div class="rounded-xl border border-unsoed-blue-200 bg-unsoed-blue-50 px-3.5 py-3 text-xs text-unsoed-blue-800">
                             <p class="font-semibold">Klaster Prediksi: {{ $clusterCheckResult['predicted_topic']['topic_label'] ?? '-' }}</p>
-                            <p class="mt-1">Similarity: {{ number_format((float) ($clusterCheckResult['predicted_topic']['similarity'] ?? 0), 4) }}</p>
+                            <p class="mt-1">Kemiripan: {{ number_format((float) ($clusterCheckResult['predicted_topic']['similarity'] ?? 0), 4) }}</p>
                             @if (!empty($clusterCheckResult['predicted_topic']['top_words']))
                                 <div class="mt-2 flex flex-wrap gap-1.5">
                                     @foreach ($clusterCheckResult['predicted_topic']['top_words'] as $word)
@@ -130,7 +130,7 @@
                             ? 'border-unsoed-blue-700 bg-unsoed-blue-700 text-white'
                             : 'border-gray-200 bg-white text-gray-600 hover:border-unsoed-blue-300 hover:text-unsoed-blue-700'"
                         class="rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition">
-                        Mapping Skripsi
+                        Pemetaan Skripsi
                     </button>
 
                     <button type="button" role="tab" @click="setTab('topics')"
@@ -148,8 +148,8 @@
             @if (($smartSearchResult['status'] ?? 'idle') !== 'idle')
                 <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3">
-                        <h2 class="text-lg font-semibold text-gray-900">Hasil Smart Search</h2>
-                        <p class="text-xs text-gray-500">Hasil pencarian dari input Smart Search di topbar.</p>
+                        <h2 class="text-lg font-semibold text-gray-900">Hasil Pencarian Cerdas</h2>
+                        <p class="text-xs text-gray-500">Hasil pencarian dari input Pencarian Cerdas di topbar.</p>
                     </div>
 
                     <div class="space-y-3">
@@ -162,7 +162,7 @@
                         @if (!empty($smartSearchResult['predicted_topic']))
                             <div class="rounded-xl border border-unsoed-blue-200 bg-unsoed-blue-50 px-3.5 py-3 text-xs text-unsoed-blue-800">
                                 <p class="font-semibold">Prediksi Topik Utama: {{ $smartSearchResult['predicted_topic']['topic_label'] ?? '-' }}</p>
-                                <p class="mt-1">Similarity: {{ number_format((float) ($smartSearchResult['predicted_topic']['similarity'] ?? 0), 4) }}</p>
+                                <p class="mt-1">Kemiripan: {{ number_format((float) ($smartSearchResult['predicted_topic']['similarity'] ?? 0), 4) }}</p>
                                 @if (!empty($smartSearchResult['predicted_topic']['top_words']))
                                     <div class="mt-2 flex flex-wrap gap-1.5">
                                         @foreach ($smartSearchResult['predicted_topic']['top_words'] as $word)
@@ -258,7 +258,7 @@
                 <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3">
                         <h2 class="text-lg font-semibold text-gray-900">Tren Topik per Tahun</h2>
-                        <p class="text-xs text-gray-500">Proporsi topik per tahun berdasarkan mapping dokumen.</p>
+                        <p class="text-xs text-gray-500">Proporsi topik per tahun berdasarkan pemetaan dokumen.</p>
                     </div>
 
                     @if (!empty($chartPayload['dtm']['series']))
@@ -312,8 +312,8 @@
 
             <div x-show="isTab('mapping')" x-cloak x-transition.opacity.duration.150ms class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
                 <div class="mb-4">
-                    <h2 class="text-lg font-semibold text-gray-900">Mapping Skripsi per Topik</h2>
-                    <p class="text-xs text-gray-500">Daftar topik beserta tombol untuk membuka detail list skripsi di modal.</p>
+                    <h2 class="text-lg font-semibold text-gray-900">Pemetaan Skripsi per Topik</h2>
+                    <p class="text-xs text-gray-500">Daftar topik beserta tombol untuk membuka daftar detail skripsi di modal.</p>
                 </div>
 
                 @if (!empty($topicCards))
@@ -354,7 +354,7 @@
                     </div>
                 @else
                     <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500">
-                        Data mapping topik belum tersedia pada run ini.
+                        Data pemetaan topik belum tersedia pada run ini.
                     </div>
                 @endif
             </div>
@@ -376,7 +376,7 @@
                                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
                                             <x-app.icon variant="s" name="book-open" class="h-4 w-4 text-white" />
                                         </div>
-                                        <h3 class="text-base font-bold text-white" x-text="mappingModalTopic?.topic_label ?? 'Detail Mapping Topik'"></h3>
+                                        <h3 class="text-base font-bold text-white" x-text="mappingModalTopic?.topic_label ?? 'Detail Pemetaan Topik'"></h3>
                                     </div>
                                     <div class="mt-2 flex flex-wrap gap-1.5" x-show="Array.isArray(mappingModalTopic?.top_words) && mappingModalTopic.top_words.length > 0">
                                         <template x-for="word in (mappingModalTopic?.top_words ?? []).slice(0, 15)" :key="word">
@@ -395,7 +395,7 @@
                         <div class="max-h-[70vh] overflow-auto px-4 py-4 sm:px-6 sm:py-5">
                             <template x-if="!mappingModalTopic || !Array.isArray(mappingModalTopic.documents) || mappingModalTopic.documents.length === 0">
                                 <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-                                    Belum ada dokumen yang ter-mapping untuk topik ini.
+                                    Belum ada dokumen yang termapping untuk topik ini.
                                 </div>
                             </template>
 
@@ -489,7 +489,7 @@
             </div>
         @else
             <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-800 shadow-sm sm:px-5">
-                Belum ada run BERTopic completed yang bisa ditampilkan untuk mahasiswa.
+                Belum ada run BERTopic selesai yang bisa ditampilkan untuk mahasiswa.
             </div>
         @endif
     </div>

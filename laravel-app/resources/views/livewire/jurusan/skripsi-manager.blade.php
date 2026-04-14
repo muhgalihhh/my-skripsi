@@ -15,7 +15,7 @@
             </div>
         </div>
 
-        {{-- ── Search & Filter ──────────────────────────────── --}}
+        {{-- ── Pencarian & Filter ───────────────────────────── --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div class="sm:col-span-2 relative">
@@ -46,14 +46,14 @@
                     <x-ui.button variant="ghost-primary" size="sm" wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv"
                         class="!border !border-emerald-200 !bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100 disabled:opacity-60 transition">
                         <x-app.icon name="arrow-down-tray" class="mr-1.5 h-3.5 w-3.5" />
-                        <span wire:loading.remove wire:target="exportCsv">Export CSV</span>
+                        <span wire:loading.remove wire:target="exportCsv">Ekspor CSV</span>
                         <span wire:loading wire:target="exportCsv">Menyiapkan...</span>
                     </x-ui.button>
 
                     <x-ui.button variant="ghost-primary" size="sm" wire:click="exportExcel" wire:loading.attr="disabled" wire:target="exportExcel"
                         class="!border !border-blue-200 !bg-blue-50 !text-blue-700 hover:!bg-blue-100 disabled:opacity-60 transition">
                         <x-app.icon name="arrow-down-tray" class="mr-1.5 h-3.5 w-3.5" />
-                        <span wire:loading.remove wire:target="exportExcel">Export Excel</span>
+                        <span wire:loading.remove wire:target="exportExcel">Ekspor Excel</span>
                         <span wire:loading wire:target="exportExcel">Menyiapkan...</span>
                     </x-ui.button>
                 </div>
@@ -209,7 +209,7 @@
                         <p class="text-xs mt-1">Jalankan scraping untuk mengambil data dari Repository UNSOED</p>
                         <a href="{{ route('jurusan.scraping.index') }}"
                             class="mt-4 px-4 py-2 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-medium rounded-lg transition">
-                            Ke Halaman Scraping
+                            Ke Halaman Pengambilan Data
                         </a>
                     @endif
                 </div>
@@ -281,7 +281,7 @@
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
-                        @foreach ([['Penulis', $selectedSkripsi['author'] ?? '-'], ['ID Code', $selectedSkripsi['id_code'] ?? '-'], ['Divisions', $selectedSkripsi['divisions'] ?? '-'], ['Subjects', $selectedSkripsi['subjects'] ?? '-'], ['Tanggal Deposit', $selectedSkripsi['deposit_date'] ?? '-'], ['Tanggal Modifikasi', $selectedSkripsi['modified_date'] ?? '-']] as [$label, $value])
+                        @foreach ([['Penulis', $selectedSkripsi['author'] ?? '-'], ['Kode ID', $selectedSkripsi['id_code'] ?? '-'], ['Divisi', $selectedSkripsi['divisions'] ?? '-'], ['Subjek', $selectedSkripsi['subjects'] ?? '-'], ['Tanggal Deposit', $selectedSkripsi['deposit_date'] ?? '-'], ['Tanggal Modifikasi', $selectedSkripsi['modified_date'] ?? '-']] as [$label, $value])
                             <div class="bg-gray-50 rounded-xl p-3">
                                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
                                     {{ $label }}</p>
@@ -320,7 +320,7 @@
                                 Kesimpulan
                                 @if ($selectedSkripsi['conclusion_source'] ?? null)
                                     <span
-                                        class="text-gray-300 normal-case font-normal">({{ $selectedSkripsi['conclusion_source'] }})</span>
+                                        class="text-gray-300 normal-case font-normal">({{ $selectedSkripsi['conclusion_source'] === 'model' ? 'Model' : $selectedSkripsi['conclusion_source'] }})</span>
                                 @endif
                             </p>
                             <div
@@ -461,7 +461,7 @@
                             <div>
                                 <label
                                     class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">ID
-                                    Code</label>
+                                    ID</label>
                                 <input wire:model="editIdCode" type="text"
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
                             </div>
@@ -476,13 +476,13 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label
-                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Subjects</label>
+                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Subjek</label>
                                 <input wire:model="editSubjects" type="text"
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
                             </div>
                             <div>
                                 <label
-                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Divisions</label>
+                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Divisi</label>
                                 <input wire:model="editDivisions" type="text"
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
                             </div>

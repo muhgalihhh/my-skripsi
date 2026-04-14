@@ -7,9 +7,9 @@
         <div class="w-full max-w-md px-8 py-10 bg-white rounded-2xl shadow-xl">
             {{-- Header --}}
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-gray-900">📊 TopicModeling</h1>
+                <h1 class="text-3xl font-bold text-gray-900">Portal Skripsi Informatika</h1>
                 <p class="mt-2 text-sm text-gray-500">
-                    Sistem Analisis Evolusi Topik Riset Skripsi
+                    Platform layanan data, insight, dan rekomendasi skripsi
                 </p>
                 <p class="mt-1 text-xs text-gray-400">
                     S1 Teknik Informatika - UNSOED

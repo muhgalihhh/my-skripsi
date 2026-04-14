@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', 'Dashboard Jurusan') - {{ config('app.name') }}</title>
+    <title>@yield('title', 'Dashboard Jurusan') - Informatika Universitas Jenderal Soedirman</title>
+    <link rel="icon" type="image/png" href="{{ asset('logo-unsoed.png') }}">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -55,7 +56,7 @@
                     <div class="w-8 h-8 bg-unsoed-gold-400 rounded-lg flex items-center justify-center flex-shrink-0">
                         <x-app.icon variant="o" name="home" class="w-4.5 h-4.5 text-unsoed-blue-800" />
                     </div>
-                    <span class="text-lg font-bold text-white">TopicModeling</span>
+                    <span class="text-lg font-bold text-white">Informatika UNSOED</span>
                 </a>
                 <button @click="sidebarOpen = false" class="lg:hidden text-unsoed-blue-300 hover:text-white">
                     <x-app.icon name="x-mark" class="w-6 h-6" />
@@ -101,7 +102,7 @@
                     class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                           {{ request()->routeIs('jurusan.topic-modeling') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="light-bulb" class="w-5 h-5 mr-3 {{ request()->routeIs('jurusan.topic-modeling') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Topic Modeling
+                    Analisis Topik
                 </a>
 
                 <a href="{{ route('jurusan.topic-curation') }}"
@@ -243,7 +244,7 @@
         {{-- Footer --}}
         <footer class="border-t border-gray-200 bg-white px-4 sm:px-6 lg:px-8 py-4">
             <p class="text-xs text-gray-400 text-center">
-                &copy; {{ date('Y') }} TopicModeling — S1 Teknik Informatika UNSOED
+                &copy; {{ date('Y') }} Informatika Universitas Jenderal Soedirman
             </p>
         </footer>
     </div>

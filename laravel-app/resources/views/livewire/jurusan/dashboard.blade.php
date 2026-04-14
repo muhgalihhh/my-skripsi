@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Dashboard Jurusan</h1>
-                <p class="mt-1 text-sm text-gray-500">Overview data skripsi dan aktivitas scraping</p>
+                <p class="mt-1 text-sm text-gray-500">Ringkasan data skripsi dan aktivitas scraping</p>
             </div>
             <div class="text-right">
                 <p class="text-xs text-gray-400">Terakhir diperbarui</p>
@@ -88,13 +88,13 @@
 
         {{-- Quick Action + Distribution --}}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {{-- Quick Scraping --}}
+            {{-- Aksi Cepat Scraping --}}
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div class="flex items-center mb-4">
                     <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
                         <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-unsoed-blue-600" />
                     </div>
-                    <h2 class="text-lg font-semibold text-gray-900">Quick Scraping</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Scraping Cepat</h2>
                 </div>
                 <p class="text-sm text-gray-500 mb-4">
                     Jalankan scraping data skripsi dari Repository UNSOED secara manual.
@@ -102,11 +102,11 @@
                 <a href="{{ route('jurusan.scraping.index') }}"
                     class="inline-flex items-center w-full justify-center py-2.5 px-4 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white font-medium rounded-lg text-sm transition">
                     <x-app.icon name="cloud-arrow-down" class="w-4 h-4 mr-2" />
-                    Buka Halaman Scraping
+                    Buka Halaman Pengambilan Data
                 </a>
             </div>
 
-            {{-- Distribution per Year --}}
+            {{-- Distribusi per Tahun --}}
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div class="flex items-center mb-4">
                     <div class="bg-unsoed-gold-100 rounded-lg p-2 mr-3">
@@ -142,7 +142,7 @@
             </div>
         </div>
 
-        {{-- Recent Scraping Logs --}}
+        {{-- Riwayat Log Scraping --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center">
@@ -164,11 +164,11 @@
                         <thead>
                             <tr class="border-b border-gray-200">
                                 <th class="text-left py-3 px-3 font-medium text-gray-500">Tanggal</th>
-                                <th class="text-left py-3 px-3 font-medium text-gray-500">Trigger</th>
+                                <th class="text-left py-3 px-3 font-medium text-gray-500">Pemicu</th>
                                 <th class="text-left py-3 px-3 font-medium text-gray-500">Status</th>
                                 <th class="text-right py-3 px-3 font-medium text-gray-500">Baru</th>
                                 <th class="text-right py-3 px-3 font-medium text-gray-500">Duplikat</th>
-                                <th class="text-left py-3 px-3 font-medium text-gray-500">User</th>
+                                <th class="text-left py-3 px-3 font-medium text-gray-500">Pengguna</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -181,7 +181,7 @@
                                         <span
                                             class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                             {{ $log->trigger_type === 'manual' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700' }}">
-                                            {{ ucfirst($log->trigger_type) }}
+                                            {{ $log->trigger_type === 'manual' ? 'Manual' : ($log->trigger_type === 'scheduled' ? 'Terjadwal' : ucfirst($log->trigger_type)) }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-3">
@@ -194,7 +194,13 @@
                                             @if ($log->status === 'running')
                                                 <x-app.icon name="arrow-path" class="animate-spin -ml-0.5 mr-1 h-3 w-3" />
                                             @endif
-                                            {{ ucfirst($log->status) }}
+                                            {{ $log->status === 'completed'
+                                                ? 'Selesai'
+                                                : ($log->status === 'failed'
+                                                    ? 'Gagal'
+                                                    : ($log->status === 'running'
+                                                        ? 'Berjalan'
+                                                        : ($log->status === 'pending' ? 'Menunggu' : ucfirst($log->status)))) }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-3 text-right font-medium text-green-600">+{{ $log->new_added }}

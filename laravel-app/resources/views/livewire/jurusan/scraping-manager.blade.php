@@ -31,23 +31,23 @@
                                 class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                         </span>
-                        <span class="text-sm text-green-700 font-medium">FastAPI Service Online</span>
+                        <span class="text-sm text-green-700 font-medium">Layanan FastAPI Aktif</span>
                         <span class="text-xs text-gray-400">{{ $apiStatus['app_name'] ?? '' }}
                             v{{ $apiStatus['version'] ?? '' }}</span>
                     @else
                         <span class="relative flex h-3 w-3">
                             <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                         </span>
-                        <span class="text-sm text-red-700 font-medium">FastAPI Service Offline</span>
+                        <span class="text-sm text-red-700 font-medium">Layanan FastAPI Tidak Aktif</span>
                         <span
-                            class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke FastAPI service.' }}</span>
+                            class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke layanan FastAPI.' }}</span>
                     @endif
                 </div>
                 <x-ui.button variant="ghost-primary" size="sm" wire:click="checkApiStatus"
                     class="font-medium flex items-center transition !px-2"
                     wire:loading.class="opacity-50" wire:target="checkApiStatus">
                     <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus" />
-                    Refresh Status
+                    Perbarui Status
                 </x-ui.button>
             </div>
         </div>
@@ -62,7 +62,7 @@
                         </div>
                         <div>
                             <h2 class="text-lg font-semibold text-gray-900">Scraping Sedang Berjalan</h2>
-                            <p class="text-xs text-gray-400">Job ID: {{ $activeJobId }}</p>
+                            <p class="text-xs text-gray-400">ID Job: {{ $activeJobId }}</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -82,7 +82,7 @@
                 {{-- Progress Bar --}}
                 <div class="mb-3">
                     <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600 font-medium">Progress</span>
+                        <span class="text-gray-600 font-medium">Progres</span>
                         <span class="text-unsoed-blue-600 font-bold">{{ $jobProgress }}%</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
@@ -209,7 +209,7 @@
                     <div
                         class="flex items-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                         <x-app.icon name="exclamation-triangle" class="w-4 h-4 mr-1.5 flex-shrink-0" />
-                        FastAPI service tidak aktif. Pastikan container <code
+                        Layanan FastAPI tidak aktif. Pastikan container <code
                             class="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono">skripsi-fastapi</code>
                         berjalan.
                     </div>
@@ -270,7 +270,7 @@
                                     Tanggal</th>
                                 <th
                                     class="text-left py-3 px-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
-                                    Trigger</th>
+                                    Pemicu</th>
                                 <th
                                     class="text-left py-3 px-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
                                     Status</th>
@@ -285,10 +285,10 @@
                                     Diperbarui</th>
                                 <th
                                     class="text-left py-3 px-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
-                                    User</th>
+                                    Pengguna</th>
                                 <th
                                     class="text-left py-3 px-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
-                                    Error</th>
+                                    Galat</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -307,7 +307,7 @@
                                         <span
                                             class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                             {{ $log->trigger_type === 'manual' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700' }}">
-                                            {{ ucfirst($log->trigger_type) }}
+                                            {{ $log->trigger_type === 'manual' ? 'Manual' : ($log->trigger_type === 'scheduled' ? 'Terjadwal' : ucfirst($log->trigger_type)) }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-3">
@@ -320,7 +320,13 @@
                                             @if ($log->status === 'running')
                                                 <x-app.icon name="arrow-path" class="animate-spin -ml-0.5 mr-1 h-3 w-3" />
                                             @endif
-                                            {{ ucfirst($log->status) }}
+                                            {{ $log->status === 'completed'
+                                                ? 'Selesai'
+                                                : ($log->status === 'failed'
+                                                    ? 'Gagal'
+                                                    : ($log->status === 'running'
+                                                        ? 'Berjalan'
+                                                        : ($log->status === 'pending' ? 'Menunggu' : ucfirst($log->status)))) }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-3 text-right font-medium text-gray-700">
@@ -378,7 +384,7 @@
          Confirm: Mulai Scraping
     ═════════════════════════════════════════════════════ --}}
     <x-confirm-modal wireModel="showStartScrapingConfirm" type="warning" title="Mulai Scraping Sekarang?"
-        message="Proses scraping dapat memakan waktu dan resource server yang cukup besar. Lanjutkan menjalankan scraping dengan rentang tahun yang dipilih?"
+        message="Proses scraping dapat memakan waktu dan sumber daya server yang cukup besar. Lanjutkan menjalankan scraping dengan rentang tahun yang dipilih?"
         confirmLabel="Ya, Mulai Scraping" confirmWire="startScraping" closeWire="closeStartScrapingConfirm" />
 
     {{-- ════════════════════════════════════════════════════

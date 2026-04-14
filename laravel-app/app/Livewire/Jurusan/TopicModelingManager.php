@@ -213,7 +213,7 @@ class TopicModelingManager extends Component
             $this->activeRun->refresh();
         }
 
-        $this->dispatch('toast', type: 'success', message: 'Parameter training tersimpan di database.');
+        $this->dispatch('toast', type: 'success', message: 'Best parameter training tersimpan di database.');
     }
 
     public function resetTrainingParamsToNotebookBest(): void

@@ -1,14 +1,14 @@
 <div>
-    @section('page-title', 'Topic Modeling')
+    @section('page-title', 'Analisis Topik')
 
-    <div class="space-y-5 sm:space-y-6" x-data="{ activeTab: 'overview', activePreviewTab: 'final', activePreviewIdx: 0 }">
+    <div class="space-y-5 sm:space-y-6" x-data="{ activeTab: 'overview', activePreviewTab: 'final', activePreviewIdx: 0, showParameterInfoModal: false }">
 
         {{-- ── Page Header ──────────────────────────────────── --}}
         <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div class="max-w-3xl">
                     <span class="inline-flex items-center rounded-full bg-unsoed-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-unsoed-blue-700">FastAPI Pipeline</span>
-                    <h1 class="mt-2 text-2xl font-bold text-gray-900">Topic Modeling</h1>
+                    <h1 class="mt-2 text-2xl font-bold text-gray-900">Analisis Topik</h1>
                     <p class="mt-1.5 text-sm text-gray-500">
                         Pipeline FastAPI-Laravel untuk BERTopic & LDA (preprocessing + training) pada analisis topik skripsi UNSOED.
                     </p>
@@ -16,7 +16,7 @@
                 <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2 sm:p-2.5 xl:w-auto">
                     <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap xl:w-auto">
                         <div class="w-full sm:w-[200px]">
-                            <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Model Training</label>
+                            <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Model Pelatihan</label>
                             <select
                                 class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                                 wire:model.live="modelType"
@@ -27,7 +27,7 @@
                         </div>
                         <x-ui.button wire:click="buildPreview" wire:loading.attr="disabled" variant="secondary" class="w-full sm:w-auto">
                             <x-app.icon name="arrow-path" class="h-4 w-4" />
-                            Refresh preview
+                            Muat Ulang Pratinjau
                         </x-ui.button>
                         <x-ui.button wire:click="openRunPreprocessingConfirm" wire:loading.attr="disabled" variant="primary"
                             :disabled="(($apiStatus['status'] ?? '') !== 'ok')" class="w-full sm:w-auto">
@@ -39,8 +39,8 @@
                             :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed']))"
                             class="w-full sm:w-auto">
                             <x-app.icon name="play-circle" class="h-4 w-4" />
-                            <span wire:loading.remove wire:target="startTraining">Start Training {{ strtoupper($modelType) }}</span>
-                            <span wire:loading wire:target="startTraining">Starting…</span>
+                            <span wire:loading.remove wire:target="startTraining">Mulai Pelatihan {{ strtoupper($modelType) }}</span>
+                            <span wire:loading wire:target="startTraining">Memulai…</span>
                         </x-ui.button>
                     </div>
                 </div>
@@ -52,9 +52,9 @@
             <div class="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 @php
                     $tabs = [
-                        'overview' => 'Overview',
-                        'preview' => 'Preview',
-                        'database' => 'Database',
+                        'overview' => 'Ringkasan',
+                        'preview' => 'Pratinjau',
+                        'database' => 'Basis Data',
                         'hasil' => 'Hasil',
                         'pengaturan' => 'Pengaturan',
                     ];
@@ -74,7 +74,7 @@
             <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 <x-app.icon variant="o" name="exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <div>
-                    FastAPI service tidak aktif. Pastikan container <code
+                    Layanan FastAPI tidak aktif. Pastikan container <code
                         class="mx-1 rounded bg-amber-100 px-1.5 py-0.5 font-mono">skripsi-fastapi</code>
                     berjalan.
                 </div>
@@ -96,16 +96,16 @@
                                     class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                 <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                             </span>
-                            <span class="text-sm text-green-700 font-medium">FastAPI Service Online</span>
+                            <span class="text-sm text-green-700 font-medium">Layanan FastAPI Aktif</span>
                             <span class="text-xs text-gray-400">{{ $apiStatus['app_name'] ?? '' }}
                                 v{{ $apiStatus['version'] ?? '' }}</span>
                         @else
                             <span class="relative flex h-3 w-3">
                                 <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                             </span>
-                            <span class="text-sm text-red-700 font-medium">FastAPI Service Offline</span>
+                            <span class="text-sm text-red-700 font-medium">Layanan FastAPI Tidak Aktif</span>
                             <span
-                                class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke FastAPI service.' }}</span>
+                                class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke layanan FastAPI.' }}</span>
                         @endif
                     </div>
 
@@ -113,7 +113,7 @@
                         class="self-start font-medium flex items-center transition sm:self-auto !px-2"
                         wire:loading.class="opacity-50" wire:target="checkApiStatus">
                         <x-app.icon name="arrow-path" class="w-4 h-4 mr-1" wire:loading.class="animate-spin" wire:target="checkApiStatus" />
-                        Refresh Status
+                        Muat Ulang Status
                     </x-ui.button>
                 </div>
             </div>
@@ -142,7 +142,7 @@
                             <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['source_total'] ?? $datasetSummary['total'] ?? 0) }}</p>
                         </div>
                         <div class="rounded-lg border border-gray-200 bg-white p-2.5">
-                            <p class="text-xs text-gray-500">Dataset Training</p>
+                            <p class="text-xs text-gray-500">Dataset Pelatihan</p>
                             <p class="text-lg font-bold text-gray-800">{{ (int) ($datasetSummary['dataset_total'] ?? 0) }}</p>
                         </div>
                         <div class="rounded-lg border border-unsoed-blue-200 bg-unsoed-blue-50/80 p-2.5">
@@ -187,15 +187,15 @@
                     @endif
                 @elseif(($datasetSummary['status'] ?? '') === 'unreachable')
                     <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        {{ $datasetSummary['message'] ?? 'FastAPI tidak dapat dihubungi. Summary dataset belum bisa ditampilkan.' }}
+                        {{ $datasetSummary['message'] ?? 'FastAPI tidak dapat dihubungi. Ringkasan dataset belum bisa ditampilkan.' }}
                     </div>
                 @elseif(($datasetSummary['status'] ?? '') === 'error')
                     <div class="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                        {{ $datasetSummary['message'] ?? 'Gagal mengambil summary dataset.' }}
+                        {{ $datasetSummary['message'] ?? 'Gagal mengambil ringkasan dataset.' }}
                     </div>
                 @else
                     <div class="mt-3 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                        Summary dataset belum tersedia. Klik <strong>Refresh</strong> untuk memuat ulang.
+                        Ringkasan dataset belum tersedia. Klik <strong>Refresh</strong> untuk memuat ulang.
                     </div>
                 @endif
             </div>
@@ -208,9 +208,9 @@
                     $dropTotal = (int) ($preprocessingDroppedReport['dropped_records_total'] ?? 0);
                     $dropJobId = $preprocessingDroppedReport['job_id'] ?? ($activeRun->fastapi_preprocessing_job_id ?? '-');
                     $reasonLabels = [
-                        'dropna_abstract' => 'Abstract kosong/null',
-                        'short_abstract' => 'Abstract terlalu pendek',
-                        'duplicate_abstract' => 'Duplikat abstract',
+                        'dropna_abstract' => 'Abstrak kosong/null',
+                        'short_abstract' => 'Abstrak terlalu pendek',
+                        'duplicate_abstract' => 'Duplikat abstrak',
                         'year_out_of_range' => 'Tahun di luar rentang',
                         'empty_after_preprocessing' => 'Kosong setelah preprocessing',
                     ];
@@ -257,9 +257,9 @@
                                         <tr>
                                             <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">ID</th>
                                             <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Tahun</th>
-                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Reason</th>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Alasan</th>
                                             <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Judul</th>
-                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Abstract Preview</th>
+                                            <th class="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">Pratinjau Abstrak</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-100 bg-white">
@@ -278,7 +278,7 @@
 
                             @if (count($dropSamples) > 25)
                                 <div class="mt-2 text-xs text-gray-500">
-                                    Menampilkan 25 sample pertama dari total sample yang tersimpan di FastAPI.
+                                    Menampilkan 25 sampel pertama dari total sampel yang tersimpan di FastAPI.
                                 </div>
                             @endif
                         @endif
@@ -342,13 +342,13 @@
             <x-ui.card no-padding>
                 <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold text-gray-900">Preview Preprocessing Pipeline</h2>
+                        <h2 class="text-sm font-semibold text-gray-900">Pratinjau Pipeline Preprocessing</h2>
                         <p class="mt-0.5 text-xs text-gray-500">
                             5 sampel abstrak dari tabel <code class="font-mono">topic_model_datasets</code> — menampilkan setiap langkah pipeline secara transparan.
                         </p>
                     </div>
                     <div class="flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-                        @foreach (['final' => 'BERTopic Input', 'lda' => 'LDA Input', 'raw' => 'Raw', 'cleaned' => 'Cleaned', 'tokens' => 'Tokens'] as $tab => $label)
+                        @foreach (['final' => 'Input BERTopic', 'lda' => 'Input LDA', 'raw' => 'Asli', 'cleaned' => 'Bersih', 'tokens' => 'Token'] as $tab => $label)
                             <button type="button" @click="activePreviewTab = '{{ $tab }}'"
                                 :class="activePreviewTab === '{{ $tab }}'
                                     ?
@@ -514,7 +514,7 @@
                             <button wire:click="loadMoreDbPreprocessedRows" wire:loading.attr="disabled"
                                 class="px-3 py-1.5 bg-unsoed-blue-50 hover:bg-unsoed-blue-100 text-unsoed-blue-600 text-xs font-medium rounded-lg border border-unsoed-blue-200 transition"
                                 wire:loading.class="opacity-50" wire:target="loadMoreDbPreprocessedRows">
-                                Load more
+                                Muat lebih banyak
                             </button>
                         @endif
                     </div>
@@ -532,20 +532,20 @@
         {{-- ========================== TAB: HASIL ========================== --}}
         <div x-show="activeTab === 'hasil'" x-cloak class="space-y-6">
 
-            <x-ui.card title="Hasil Topic Modeling" description="Run aktif — topik tersimpan di database.">
+            <x-ui.card title="Hasil Analisis Topik" description="Run aktif — topik tersimpan di database.">
                 @if ($activeRun && $activeRun->status === 'completed')
                     {{-- Model actions (FastAPI artifacts) --}}
                     @if ($activeRun->fastapi_training_job_id)
                         <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                             <x-ui.button wire:click="downloadModel" wire:loading.attr="disabled" variant="secondary">
                                 <x-app.icon name="arrow-down-tray" class="h-4 w-4" />
-                                Download Model
+                                Unduh Model
                             </x-ui.button>
                             @if (($activeRun->model_type ?? '') === 'bertopic')
                                 <x-ui.button wire:click="openTestModelWithDatasetConfirm" wire:loading.attr="disabled" variant="secondary">
                                     <x-app.icon name="beaker" class="h-4 w-4" />
-                                    <span wire:loading.remove wire:target="testModelWithDataset">Test Model (Dataset)</span>
-                                    <span wire:loading wire:target="testModelWithDataset">Testing…</span>
+                                    <span wire:loading.remove wire:target="testModelWithDataset">Uji Model (Dataset)</span>
+                                    <span wire:loading wire:target="testModelWithDataset">Menguji…</span>
                                 </x-ui.button>
                             @endif
                             <div class="text-xs text-gray-500 sm:ml-auto">Job ID: {{ $activeRun->fastapi_training_job_id }}</div>
@@ -570,22 +570,22 @@
                                 </div>
                                 <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
                                     <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
-                                        <div class="font-semibold text-gray-700">Training (stored)</div>
+                                        <div class="font-semibold text-gray-700">Training (tersimpan)</div>
                                         <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $stored['coherence_cv'] ?? '-' }}</span></div>
-                                        <div class="text-gray-600">Diversity: <span class="font-mono">{{ $stored['topic_diversity'] ?? '-' }}</span></div>
+                                        <div class="text-gray-600">Keragaman: <span class="font-mono">{{ $stored['topic_diversity'] ?? '-' }}</span></div>
                                         <div class="text-gray-600">#Topik: <span class="font-mono">{{ $stored['num_topics'] ?? '-' }}</span></div>
                                     </div>
                                     <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
-                                        <div class="font-semibold text-gray-700">Re-test (dataset sekarang)</div>
+                                        <div class="font-semibold text-gray-700">Uji Ulang (dataset sekarang)</div>
                                         <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $retest['coherence_cv'] ?? '-' }}</span></div>
-                                        <div class="text-gray-600">Diversity: <span class="font-mono">{{ $retest['topic_diversity'] ?? '-' }}</span></div>
+                                        <div class="text-gray-600">Keragaman: <span class="font-mono">{{ $retest['topic_diversity'] ?? '-' }}</span></div>
                                         <div class="text-gray-600">#Topik: <span class="font-mono">{{ $retest['num_topics'] ?? '-' }}</span></div>
                                     </div>
                                     <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
                                         <div class="font-semibold text-gray-700">Kecocokan</div>
-                                        <div class="mt-1 text-gray-600">Coherence match: <span class="font-mono">{{ ($same['coherence_cv'] ?? null) === true ? 'yes' : 'no' }}</span></div>
-                                        <div class="text-gray-600">Diversity match: <span class="font-mono">{{ ($same['topic_diversity'] ?? null) === true ? 'yes' : 'no' }}</span></div>
-                                        <div class="text-gray-600">Keyword match: <span class="font-mono">{{ isset($same['keyword_match_ratio']) ? round(((float) $same['keyword_match_ratio']) * 100) . '%' : '-' }}</span></div>
+                                        <div class="mt-1 text-gray-600">Coherence cocok: <span class="font-mono">{{ ($same['coherence_cv'] ?? null) === true ? 'ya' : 'tidak' }}</span></div>
+                                        <div class="text-gray-600">Keragaman cocok: <span class="font-mono">{{ ($same['topic_diversity'] ?? null) === true ? 'ya' : 'tidak' }}</span></div>
+                                        <div class="text-gray-600">Kata kunci cocok: <span class="font-mono">{{ isset($same['keyword_match_ratio']) ? round(((float) $same['keyword_match_ratio']) * 100) . '%' : '-' }}</span></div>
                                     </div>
                                 </div>
                                 <div class="mt-2 text-xs text-gray-500">
@@ -620,7 +620,7 @@
                                     'tone' => 'success',
                                 ],
                                 [
-                                    'label' => 'Topic Diversity',
+                                    'label' => 'Keragaman Topik',
                                     'value' => $activeRun->topic_diversity !== null ? number_format((float) $activeRun->topic_diversity, 4) : '-',
                                     'tone' => 'default',
                                 ],
@@ -678,7 +678,7 @@
                                         Skripsi Terkait</th>
                                     <th
                                         class="w-28 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-4">
-                                        Mapping</th>
+                                        Pemetaan</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 bg-white">
@@ -714,7 +714,7 @@
                                         </td>
                                         <td class="px-3 py-3 sm:px-4">
                                             @if ($linkedDocs->isEmpty())
-                                                <div class="text-xs text-gray-400">Belum ada mapping dokumen</div>
+                                                <div class="text-xs text-gray-400">Belum ada pemetaan dokumen</div>
                                             @else
                                                 <div class="space-y-1">
                                                     @foreach ($linkedDocs as $link)
@@ -754,19 +754,19 @@
                         <div
                             class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-unsoed-blue-800">
                         </div>
-                        <div class="text-sm font-medium text-gray-700">Training sedang berjalan…</div>
+                        <div class="text-sm font-medium text-gray-700">Pelatihan sedang berjalan…</div>
                         <div class="mt-1 text-xs text-gray-500">{{ $trainingMessage }}</div>
                     </div>
                 @elseif($activeRun && $activeRun->status === 'failed')
                     <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                        <div class="font-semibold">Training gagal</div>
+                        <div class="font-semibold">Pelatihan gagal</div>
                         <div class="mt-1 text-xs">{{ $activeRun->error_message }}</div>
                     </div>
                 @else
                     <div class="flex flex-col items-center py-10 text-center">
                         <x-app.icon name="funnel" class="mb-3 h-12 w-12 text-gray-200" />
-                        <div class="text-sm font-medium text-gray-500">Belum ada hasil training</div>
-                        <div class="mt-1 text-xs text-gray-400">Jalankan Preprocessing → Start Training untuk
+                        <div class="text-sm font-medium text-gray-500">Belum ada hasil pelatihan</div>
+                        <div class="mt-1 text-xs text-gray-400">Jalankan Preprocessing → Mulai Pelatihan untuk
                             memulai.</div>
                     </div>
                 @endif
@@ -787,23 +787,125 @@
                                 'failed' => 'error',
                                 default => 'default',
                             };
+                            $statusLabel = match ($r->status) {
+                                'completed' => 'Selesai',
+                                'training' => 'Pelatihan',
+                                'preprocessing' => 'Preprocessing',
+                                'failed' => 'Gagal',
+                                default => ucfirst($r->status),
+                            };
+
+                            $isLdaRun = ($r->model_type ?? 'bertopic') === 'lda';
+                            $params = $isLdaRun
+                                ? (is_array($r->lda_params) ? $r->lda_params : [])
+                                : (is_array($r->bertopic_params) ? $r->bertopic_params : []);
+
+                            $coreParams = $isLdaRun
+                                ? [
+                                    'num_topics' => $params['num_topics'] ?? null,
+                                    'passes' => $params['passes'] ?? null,
+                                    'iterations' => $params['iterations'] ?? null,
+                                    'chunksize' => $params['chunksize'] ?? null,
+                                    'alpha' => $params['alpha'] ?? null,
+                                    'eta' => $params['eta'] ?? null,
+                                    'no_below' => $params['no_below'] ?? null,
+                                    'no_above' => $params['no_above'] ?? null,
+                                    'random_state' => $params['random_state'] ?? null,
+                                ]
+                                : [
+                                    'embedding_model' => $params['embedding_model'] ?? null,
+                                    'min_topic_size' => $params['min_topic_size'] ?? null,
+                                    'nr_topics' => $params['nr_topics'] ?? null,
+                                    'top_n_words' => $params['top_n_words'] ?? null,
+                                    'n_gram_range' => is_array($params['n_gram_range'] ?? null)
+                                        ? implode('-', $params['n_gram_range'])
+                                        : ($params['n_gram_range'] ?? null),
+                                    'vectorizer_min_df' => $params['vectorizer_min_df'] ?? null,
+                                    'vectorizer_max_df' => $params['vectorizer_max_df'] ?? null,
+                                    'seed' => $params['seed'] ?? null,
+                                ];
+
+                            $umapParams = !$isLdaRun && is_array($params['umap_params'] ?? null)
+                                ? $params['umap_params']
+                                : [];
+                            $hdbscanParams = !$isLdaRun && is_array($params['hdbscan_params'] ?? null)
+                                ? $params['hdbscan_params']
+                                : [];
                         @endphp
-                        <div class="flex items-center justify-between gap-3 px-5 py-3">
-                            <div>
-                                <div class="text-xs font-semibold text-gray-800">Run #{{ $r->id }}</div>
-                                <div class="text-xs text-gray-400">{{ $r->created_at?->format('d/m/Y H:i') }}
+                        <div class="px-5 py-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <div class="text-xs font-semibold text-gray-800">Run #{{ $r->id }}</div>
+                                    <div class="text-xs text-gray-400">{{ $r->created_at?->format('d/m/Y H:i') }}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        Model {{ strtoupper($r->model_type ?? 'bertopic') }}
+                                        | {{ $r->num_topics ?? 0 }} topik
+                                        | C_v: {{ $r->coherence_cv !== null ? number_format((float) $r->coherence_cv, 4) : '-' }}
+                                        | TD: {{ $r->topic_diversity !== null ? number_format((float) $r->topic_diversity, 4) : '-' }}
+                                    </div>
                                 </div>
-                                <div class="text-xs text-gray-500">
-                                    {{ $r->num_topics ?? 0 }} topik | C_v:
-                                    {{ $r->coherence_cv !== null ? number_format((float) $r->coherence_cv, 4) : '-' }}
-                                    | TD:
-                                    {{ $r->topic_diversity !== null ? number_format((float) $r->topic_diversity, 4) : '-' }}
+                                <div class="flex flex-col items-end gap-1">
+                                    <x-ui.badge type="{{ $badgeType }}">{{ $statusLabel }}</x-ui.badge>
+                                    <div class="text-xs text-gray-400">{{ $r->topics_count }} topik</div>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-end gap-1">
-                                <x-ui.badge type="{{ $badgeType }}">{{ ucfirst($r->status) }}</x-ui.badge>
-                                <div class="text-xs text-gray-400">{{ $r->topics_count }} topik</div>
-                            </div>
+
+                            @if (!empty($params))
+                                <details class="mt-2 rounded-lg border border-gray-200 bg-gray-50/70 p-2.5">
+                                    <summary class="cursor-pointer text-xs font-semibold text-unsoed-blue-700">
+                                        Lihat Detail Parameter Run
+                                    </summary>
+
+                                    <div class="mt-2 space-y-2">
+                                        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                            @foreach ($coreParams as $paramKey => $paramValue)
+                                                @if ($paramValue !== null && $paramValue !== '')
+                                                    <div class="rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                                                        <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                                            {{ $paramKey }}
+                                                        </div>
+                                                        <div class="mt-0.5 break-words text-xs text-gray-800">
+                                                            {{ is_bool($paramValue) ? ($paramValue ? 'true' : 'false') : $paramValue }}
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            @endforeach
+                                        </div>
+
+                                        @if (!$isLdaRun && (!empty($umapParams) || !empty($hdbscanParams)))
+                                            <div class="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                                                @if (!empty($umapParams))
+                                                    <div class="rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                                                        <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">umap_params</div>
+                                                        <div class="mt-1 text-xs text-gray-700">
+                                                            n_neighbors={{ $umapParams['n_neighbors'] ?? '-' }} |
+                                                            n_components={{ $umapParams['n_components'] ?? '-' }} |
+                                                            min_dist={{ $umapParams['min_dist'] ?? '-' }} |
+                                                            metric={{ $umapParams['metric'] ?? '-' }} |
+                                                            random_state={{ $umapParams['random_state'] ?? '-' }}
+                                                        </div>
+                                                    </div>
+                                                @endif
+
+                                                @if (!empty($hdbscanParams))
+                                                    <div class="rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                                                        <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">hdbscan_params</div>
+                                                        <div class="mt-1 text-xs text-gray-700">
+                                                            min_cluster_size={{ $hdbscanParams['min_cluster_size'] ?? '-' }} |
+                                                            min_samples={{ $hdbscanParams['min_samples'] ?? '-' }} |
+                                                            metric={{ $hdbscanParams['metric'] ?? '-' }} |
+                                                            cluster_selection_method={{ $hdbscanParams['cluster_selection_method'] ?? '-' }}
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                </details>
+                            @else
+                                <div class="mt-2 text-[11px] text-gray-400">Parameter run tidak tersedia pada data ini.</div>
+                            @endif
                         </div>
                     @empty
                         <div class="px-5 py-6 text-center text-xs text-gray-400">Belum ada riwayat run.</div>
@@ -812,17 +914,34 @@
             </x-ui.card>
         </div>
 {{-- ========================== TAB: PENGATURAN ========================== --}}
-<div x-show="activeTab === 'pengaturan'" x-cloak class="space-y-6">
+<div x-show="activeTab === 'pengaturan'" x-cloak x-data="{ selectedModel: @entangle('modelType').live }" class="space-y-6">
+
+    <div class="rounded-xl border border-unsoed-blue-200 bg-unsoed-blue-50/70 px-4 py-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-sm font-semibold text-unsoed-blue-900">Butuh Panduan Parameter?</h2>
+                <p class="mt-0.5 text-xs text-unsoed-blue-700">
+                    Buka info untuk melihat fungsi tiap parameter sebelum menyimpan atau menjalankan pelatihan.
+                </p>
+            </div>
+            <x-ui.button type="button" variant="ghost-primary" size="sm" x-on:click="showParameterInfoModal = true"
+                class="!border !border-unsoed-blue-200 !bg-white !text-unsoed-blue-700 hover:!bg-unsoed-blue-100">
+                <x-app.icon name="information-circle" class="h-4 w-4" />
+                Info Parameter
+            </x-ui.button>
+        </div>
+    </div>
 
     {{-- ---- BERTopic Settings ---- --}}
+    <div x-show="selectedModel === 'bertopic'" x-cloak>
     <x-ui.card no-padding>
         <div class="border-b border-gray-200 px-5 py-4">
             <h2 class="text-sm font-semibold text-gray-900">Konfigurasi BERTopic</h2>
-            <p class="mt-0.5 text-xs text-gray-500">Disederhanakan mengikuti rekomendasi official BERTopic parameter tuning.</p>
+            <p class="mt-0.5 text-xs text-gray-500">Disederhanakan mengikuti rekomendasi resmi parameter tuning BERTopic.</p>
         </div>
         <div class="space-y-5 px-5 py-4">
             <x-ui.alert type="info">
-                Parameter tuning yang aktif mengikuti halaman official BERTopic: <strong>top_n_words</strong>,
+                Parameter tuning yang aktif mengikuti rekomendasi resmi BERTopic: <strong>top_n_words</strong>,
                 <strong>n_gram_range</strong>, <strong>min_topic_size</strong>, <strong>nr_topics</strong>,
                 UMAP (<strong>n_neighbors</strong>, <strong>n_components</strong>, <strong>metric</strong>),
                 dan HDBSCAN (<strong>min_cluster_size</strong>, <strong>min_samples</strong>, <strong>metric</strong>).
@@ -913,7 +1032,7 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
-                <div class="text-xs text-gray-400">Simpan sebagai default di database (BERTopic per akun).</div>
+                <div class="text-xs text-gray-400">Simpan sebagai bawaan di basis data (BERTopic per akun).</div>
                 <div class="flex items-center gap-2">
                     <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
@@ -923,8 +1042,8 @@
 
                     <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="bookmark-square" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
-                        <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
+                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan sebagai Best</span>
+                        <span wire:loading wire:target="saveTrainingParams">Menyimpan Best…</span>
                     </x-ui.button>
                 </div>
             </div>
@@ -932,9 +1051,9 @@
             <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Upload JSON Params</div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Unggah Parameter JSON</div>
                         <div class="mt-1 text-xs text-gray-500">
-                            Upload JSON untuk update default BERTopic di database (tanpa menjalankan training).
+                            Unggah JSON untuk memperbarui bawaan BERTopic di basis data (tanpa menjalankan pelatihan).
                         </div>
                     </div>
                     <a
@@ -944,7 +1063,7 @@
                         rel="noopener noreferrer"
                     >
                         <x-app.icon name="arrow-down-tray" class="h-4 w-4" />
-                        Download Template JSON
+                        Unduh Template JSON
                     </a>
                 </div>
                 <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -956,23 +1075,25 @@
                     />
                     <x-ui.button wire:click="uploadBertopicParamsJson" wire:loading.attr="disabled" variant="primary" class="sm:w-auto">
                         <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="uploadBertopicParamsJson">Upload JSON</span>
+                        <span wire:loading.remove wire:target="uploadBertopicParamsJson">Unggah JSON</span>
                         <span wire:loading wire:target="uploadBertopicParamsJson">Mengunggah...</span>
                     </x-ui.button>
                 </div>
             </div>
         </div>
     </x-ui.card>
+    </div>
 
     {{-- ---- LDA Settings ---- --}}
+    <div x-show="selectedModel === 'lda'" x-cloak>
     <x-ui.card no-padding>
         <div class="border-b border-gray-200 px-5 py-4">
             <h2 class="text-sm font-semibold text-gray-900">Konfigurasi LDA</h2>
-            <p class="mt-0.5 text-xs text-gray-500">Parameter dasar LDA (Gensim) untuk training topik.</p>
+            <p class="mt-0.5 text-xs text-gray-500">Parameter dasar LDA (Gensim) untuk pelatihan topik.</p>
         </div>
         <div class="space-y-5 px-5 py-4">
             <x-ui.alert type="info">
-                Pastikan preprocessing menghasilkan <strong>processed_text</strong> sebelum training LDA.
+                Pastikan preprocessing menghasilkan <strong>processed_text</strong> sebelum pelatihan LDA.
             </x-ui.alert>
 
             <div>
@@ -1036,7 +1157,7 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
-                <div class="text-xs text-gray-400">Simpan sebagai default di database (LDA per akun).</div>
+                <div class="text-xs text-gray-400">Simpan sebagai bawaan di basis data (LDA per akun).</div>
                 <div class="flex items-center gap-2">
                     <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
@@ -1046,23 +1167,93 @@
 
                     <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="bookmark-square" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan Parameter</span>
-                        <span wire:loading wire:target="saveTrainingParams">Menyimpan…</span>
+                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan sebagai Best</span>
+                        <span wire:loading wire:target="saveTrainingParams">Menyimpan Best…</span>
                     </x-ui.button>
                 </div>
             </div>
         </div>
     </x-ui.card>
+    </div>
 
     {{-- ---- Preprocessing Note ---- --}}
     <x-ui.alert type="warning">
         <div class="font-semibold">Strategi preprocessing:</div>
         <ul class="mt-1 space-y-0.5 text-amber-700">
             <li>• <strong>BERTopic:</strong> soft clean — tidak hapus stopword, tidak stemming</li>
-            <li>• <strong>LDA:</strong> tokenized + stopword removal + stemming (di FastAPI preprocessing)</li>
+            <li>• <strong>LDA:</strong> tokenisasi + stopword removal + stemming (di FastAPI preprocessing)</li>
         </ul>
     </x-ui.alert>
 
+</div>
+
+<div x-show="showParameterInfoModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" role="dialog"
+    aria-modal="true" @keydown.escape.window="showParameterInfoModal = false">
+
+    <div x-show="showParameterInfoModal" x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-150"
+        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="showParameterInfoModal = false">
+    </div>
+
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div x-show="showParameterInfoModal" x-transition:enter="ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="ease-in duration-150" x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden" @click.stop>
+
+            <div class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-6 py-4 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                        <x-app.icon variant="s" name="information-circle" class="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Info Parameter Analisis Topik</h3>
+                        <p class="text-xs text-white/75">Versi ringkas fungsi parameter utama.</p>
+                    </div>
+                </div>
+                <button type="button" x-on:click="showParameterInfoModal = false"
+                    class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition"
+                    aria-label="Tutup modal info parameter">
+                    <x-app.icon name="x-mark" class="w-4 h-4" />
+                </button>
+            </div>
+
+            <div class="px-6 py-5 overflow-y-auto flex-1 space-y-4">
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
+                    Tips: ubah parameter sedikit demi sedikit, lalu bandingkan coherence dan topic diversity.
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-3.5">
+                    <h4 class="text-sm font-semibold text-gray-900">BERTopic</h4>
+                    <p class="mt-1 text-xs text-gray-600">min_topic_size mengatur ukuran minimum topik, nr_topics mengatur jumlah topik akhir, top_n_words menentukan banyak kata representatif, dan n_gram_range mengatur frasa kata.</p>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-3.5">
+                    <h4 class="text-sm font-semibold text-gray-900">UMAP</h4>
+                    <p class="mt-1 text-xs text-gray-600">n_neighbors menyeimbangkan pola lokal/global, n_components menentukan dimensi reduksi, dan metric menentukan cara hitung jarak antar dokumen.</p>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-3.5">
+                    <h4 class="text-sm font-semibold text-gray-900">HDBSCAN</h4>
+                    <p class="mt-1 text-xs text-gray-600">min_cluster_size menentukan ukuran minimum cluster, min_samples menentukan ketatnya deteksi noise, dan metric menentukan jarak saat clustering.</p>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-3.5">
+                    <h4 class="text-sm font-semibold text-gray-900">LDA</h4>
+                    <p class="mt-1 text-xs text-gray-600">num_topics menentukan jumlah topik, passes/iterations memengaruhi kualitas dan durasi training, alpha/eta mengatur sebaran topik-kata, no_below/no_above menyaring kosakata, dan random_state untuk replikasi hasil.</p>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex justify-end items-center flex-shrink-0">
+                <x-ui.button variant="light" size="md" type="button" x-on:click="showParameterInfoModal = false"
+                    class="!rounded-xl">
+                    Tutup
+                </x-ui.button>
+            </div>
+        </div>
+    </div>
 </div>
 
 {{-- ========================== STICKY JOB STATUS (only when running) ========================== --}}
@@ -1206,7 +1397,7 @@
                             <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
                                 <x-app.icon variant="s" name="book-open" class="h-4 w-4 text-white" />
                             </div>
-                            <h3 class="text-base font-bold text-white">Mapping Skripsi Topik {{ $selectedTopicModalTopicId }}</h3>
+                            <h3 class="text-base font-bold text-white">Pemetaan Skripsi Topik {{ $selectedTopicModalTopicId }}</h3>
                         </div>
                         <div class="mt-2 flex flex-wrap gap-1.5">
                             @foreach ($selectedTopicModalTopWords as $word)
@@ -1228,7 +1419,7 @@
             <div class="max-h-[65vh] overflow-auto px-4 py-4 sm:px-6 sm:py-5">
                 @if (count($selectedTopicModalDocs) === 0)
                     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-                        Belum ada dokumen yang ter-mapping untuk topik ini.
+                        Belum ada dokumen yang termapping untuk topik ini.
                     </div>
                 @else
                     <div class="mb-3 text-xs text-gray-500">Total dokumen: <span class="font-semibold text-gray-700">{{ count($selectedTopicModalDocs) }}</span></div>
@@ -1273,11 +1464,11 @@
     confirmLabel="Ya, Mulai Training" confirmWire="startTraining" closeWire="closeStartTrainingConfirm" />
 
 {{-- ════════════════════════════════════════════════════
-     Confirm: Test Model Dataset
+    Confirm: Uji Model Dataset
 ═════════════════════════════════════════════════════ --}}
-<x-confirm-modal wireModel="showTestModelWithDatasetConfirm" type="warning" title="Jalankan Test Model Dataset?"
+<x-confirm-modal wireModel="showTestModelWithDatasetConfirm" type="warning" title="Jalankan Uji Model pada Dataset?"
     message="Pengujian model terhadap dataset akan menambah beban komputasi sementara. Lanjutkan pengujian sekarang?"
-    confirmLabel="Ya, Jalankan Test" confirmWire="testModelWithDataset" closeWire="closeTestModelWithDatasetConfirm" />
+    confirmLabel="Ya, Jalankan Uji" confirmWire="testModelWithDataset" closeWire="closeTestModelWithDatasetConfirm" />
 
 {{-- ════════════════════════════════════════════════════
      Confirm: Batalkan Preprocessing

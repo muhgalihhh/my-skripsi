@@ -4,7 +4,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Detail Rekomendasi Judul Skripsi</h1>
-            <p class="mt-1 text-sm text-gray-500">Gunakan konteks topik, mapping skripsi, dan prompt terarah untuk menghasilkan rekomendasi judul.</p>
+            <p class="mt-1 text-sm text-gray-500">Gunakan konteks topik, pemetaan skripsi, dan prompt terarah untuk menghasilkan rekomendasi judul.</p>
         </div>
 
         <a href="{{ route('mahasiswa.rekomendasi-judul.index') }}"
@@ -31,7 +31,7 @@
 
     <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
         <div class="mb-4">
-            <h2 class="text-lg font-semibold text-gray-900">Generate Rekomendasi Judul</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Buat Rekomendasi Judul</h2>
             <p class="text-xs text-gray-500">Prompt akan dicek dulu agar tetap berada dalam konteks topik skripsi.</p>
         </div>
 
@@ -68,7 +68,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
                     </svg>
-                    Generate dengan Gemini
+                    Buat dengan Gemini
                 </x-ui.button>
             </div>
         </form>
@@ -107,7 +107,7 @@
 
     <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
         <div class="mb-3 flex items-center justify-between gap-2">
-            <h2 class="text-lg font-semibold text-gray-900">Mapping Skripsi Pada Topik</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Pemetaan Skripsi pada Topik</h2>
             <span class="text-xs text-gray-500">Menampilkan {{ count($mappedSkripsi) }} dokumen</span>
         </div>
 
@@ -148,7 +148,7 @@
             </div>
         @else
             <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500">
-                Belum ada dokumen skripsi yang ter-mapping pada topik ini.
+                Belum ada dokumen skripsi yang termapping pada topik ini.
             </div>
         @endif
     </div>
