@@ -30,7 +30,7 @@ class TopicModelingManager extends Component
     // FastAPI status (align with ScrapingManager UX)
     public array $apiStatus = [];
 
-    // BERTopic/LDA params (sumber runtime: DB topic_model_settings)
+    // BERTopic/LDA params (sumber runtime: request payload -> schema defaults)
     public array $bertopicParams = [];
     public array $ldaParams = [];
     public string $modelType = 'bertopic';
@@ -95,8 +95,8 @@ class TopicModelingManager extends Component
     /**
      * Load BERTopic training params with precedence:
      * 1) active draft run snapshot (pending/preprocessing/training/failed)
-     * 2) user default setting (topic_model_settings.bertopic_params)
-      * 3) schema default
+     * 2) user default setting (topic_model_settings)
+     * 3) schema default
      */
     protected function loadTrainingParams(): void
     {
@@ -131,14 +131,15 @@ class TopicModelingManager extends Component
         $userId = Auth::id();
 
         // 2) User default setting
-        if ($userId !== null) {
+        if ($userId !== null && (!$hasBerTopicParams || !$hasLdaParams)) {
             $setting = TopicModelSetting::query()->where('user_id', $userId)->first();
-            if (!$hasBerTopicParams && $setting && is_array($setting->bertopic_params) && !empty($setting->bertopic_params)) {
+
+            if (!$hasBerTopicParams && is_array($setting?->bertopic_params) && !empty($setting->bertopic_params)) {
                 $this->bertopicParams = $setting->bertopic_params;
                 $hasBerTopicParams = true;
             }
 
-            if (!$hasLdaParams && $setting && is_array($setting->lda_params) && !empty($setting->lda_params)) {
+            if (!$hasLdaParams && is_array($setting?->lda_params) && !empty($setting->lda_params)) {
                 $this->ldaParams = $setting->lda_params;
                 $hasLdaParams = true;
             }
@@ -171,32 +172,29 @@ class TopicModelingManager extends Component
     }
 
     /**
-     * Persist current BERTopic params as user's default in DB.
+     * Keep current BERTopic/LDA params in current run snapshot and form state.
      */
     public function saveTrainingParams(): void
     {
-        /** @var int|null $userId */
-        $userId = Auth::id();
-        if ($userId === null) {
-            $this->dispatch('toast', type: 'error', message: 'Silakan login terlebih dahulu.');
-            return;
-        }
-
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
 
-        TopicModelSetting::query()->updateOrCreate(
-            ['user_id' => $userId],
-            [
-                'bertopic_params' => $bertopicParamsForStorage ?: null,
-                'lda_params' => $ldaParamsForStorage ?: null,
-            ],
-        );
+        /** @var int|null $userId */
+        $userId = Auth::id();
+        if ($userId !== null) {
+            TopicModelSetting::query()->updateOrCreate(
+                ['user_id' => $userId],
+                [
+                    'bertopic_params' => $bertopicParamsForStorage ?: null,
+                    'lda_params' => $ldaParamsForStorage ?: null,
+                ],
+            );
+        }
 
-        // If there is an active run that hasn't finished, keep its snapshot in sync
-        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'failed'])) {
+        // Keep active draft/in-progress run snapshot in sync.
+        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'training', 'failed'], true)) {
             $this->activeRun->update([
                 'bertopic_params' => $bertopicParamsForStorage ?: null,
                 'lda_params' => $ldaParamsForStorage ?: null,
@@ -205,18 +203,11 @@ class TopicModelingManager extends Component
             $this->activeRun->refresh();
         }
 
-        $this->dispatch('toast', type: 'success', message: 'Best parameter training tersimpan di database.');
+        $this->dispatch('toast', type: 'success', message: 'Parameter training disimpan sebagai Best (persisten) dan disinkronkan ke run aktif.');
     }
 
     public function uploadBertopicParamsJson(): void
     {
-        /** @var int|null $userId */
-        $userId = Auth::id();
-        if ($userId === null) {
-            $this->dispatch('toast', type: 'error', message: 'Silakan login terlebih dahulu.');
-            return;
-        }
-
         if (!$this->bertopicParamsJsonFile) {
             $this->dispatch('toast', type: 'error', message: 'Pilih file JSON terlebih dahulu.');
             return;
@@ -234,18 +225,100 @@ class TopicModelingManager extends Component
             return;
         }
 
-        $fastApi = app(FastApiService::class);
-        $response = $fastApi->uploadBertopicSettingsJson($path, $filename, (int) $userId);
+        try {
+            $raw = file_get_contents($path);
+        } catch (\Throwable $e) {
+            $raw = false;
+        }
 
-        if (($response['status'] ?? '') !== 'ok') {
-            $message = (string) ($response['message'] ?? 'Gagal mengunggah JSON ke FastAPI.');
-            $this->dispatch('toast', type: 'error', message: $message);
+        if (!is_string($raw) || trim($raw) === '') {
+            $this->dispatch('toast', type: 'error', message: 'File JSON kosong atau tidak bisa dibaca.');
             return;
         }
 
+        try {
+            $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            $this->dispatch('toast', type: 'error', message: 'JSON tidak valid: ' . $e->getMessage());
+            return;
+        }
+
+        if (!is_array($payload)) {
+            $this->dispatch('toast', type: 'error', message: 'Format JSON harus object/dict.');
+            return;
+        }
+
+        try {
+            $paramsPayload = $this->extractBertopicParamsPayload($payload);
+            $this->bertopicParams = $this->normalizeBertopicParams($paramsPayload);
+        } catch (\InvalidArgumentException $e) {
+            $this->dispatch('toast', type: 'error', message: $e->getMessage());
+            return;
+        }
+
+        $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
+
+        /** @var int|null $userId */
+        $userId = Auth::id();
+        if ($userId !== null) {
+            TopicModelSetting::query()->updateOrCreate(
+                ['user_id' => $userId],
+                ['bertopic_params' => $bertopicParamsForStorage ?: null],
+            );
+        }
+
+        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'training', 'failed'], true)) {
+            $this->activeRun->update([
+                'bertopic_params' => $bertopicParamsForStorage ?: null,
+                'model_type' => 'bertopic',
+            ]);
+            $this->activeRun->refresh();
+        }
+
         $this->bertopicParamsJsonFile = null;
-        $this->loadTrainingParams();
-        $this->dispatch('toast', type: 'success', message: 'BERTopic params berhasil di-update dari JSON.');
+        $this->dispatch('toast', type: 'success', message: 'BERTopic params berhasil dimuat dari JSON.');
+    }
+
+    /**
+     * Extract BERTopic params payload from supported JSON structures.
+     */
+    protected function extractBertopicParamsPayload(array $payload): array
+    {
+        $candidates = [];
+
+        if (is_array($payload['best_bertopic'] ?? null)) {
+            $bestBlock = $payload['best_bertopic'];
+            if (is_array($bestBlock['params'] ?? null)) {
+                $candidates[] = $bestBlock['params'];
+            } elseif (is_array($bestBlock['hyperparameters'] ?? null)) {
+                $candidates[] = $bestBlock['hyperparameters'];
+            }
+        }
+
+        if (is_array($payload['bertopic_params'] ?? null)) {
+            $candidates[] = $payload['bertopic_params'];
+        }
+
+        if (is_array($payload['params'] ?? null)) {
+            $candidates[] = $payload['params'];
+        }
+
+        if (is_array($payload['bertopic'] ?? null)) {
+            $candidates[] = $payload['bertopic'];
+        }
+
+        if (empty($candidates)) {
+            throw new \InvalidArgumentException(
+                'JSON tidak berisi params BERTopic. Gunakan kunci: best_bertopic.params, bertopic_params, params, atau bertopic.'
+            );
+        }
+
+        $paramsPayload = $candidates[0];
+        if (!is_array($paramsPayload)) {
+            throw new \InvalidArgumentException('Format params BERTopic harus object/dict.');
+        }
+
+        return $paramsPayload;
     }
 
     public function loadDbPreprocessedRows(): void
@@ -1367,15 +1440,6 @@ class TopicModelingManager extends Component
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
 
-        // Selalu sinkronkan parameter terbaru ke topic_model_settings agar FastAPI membaca dari DB.
-        TopicModelSetting::query()->updateOrCreate(
-            ['user_id' => $userId],
-            [
-                'bertopic_params' => $bertopicParamsForStorage ?: null,
-                'lda_params' => $ldaParamsForStorage ?: null,
-            ],
-        );
-
         $this->activeRun->update([
             'model_type' => $modelType,
             'bertopic_params' => $bertopicParamsForStorage ?: null,
@@ -1386,16 +1450,16 @@ class TopicModelingManager extends Component
         if ($modelType === 'lda') {
             $this->statusMessage = 'Memulai training LDA...';
             $resp = $fastApi->startLdaTraining(
-                ldaParams: [],
+                ldaParams: $ldaParamsForStorage ?: [],
                 description: 'LDA run dari dashboard Jurusan',
-                userId: $userId,
+                userId: null,
             );
         } else {
             $this->statusMessage = 'Memulai training BERTopic...';
             $resp = $fastApi->startBerTopicTraining(
-                bertopicParams: [],
+                bertopicParams: $bertopicParamsForStorage ?: [],
                 description: 'BERTopic run dari dashboard Jurusan',
-                userId: $userId,
+                userId: null,
             );
         }
 

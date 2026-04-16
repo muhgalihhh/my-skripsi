@@ -231,52 +231,27 @@ def _coerce_lda_params(payload: dict, source: str) -> Optional[LDAHyperparameter
 
 
 def _resolve_bertopic_params_for_start(request: TrainingRequest) -> tuple[BERTopicHyperparameters, str]:
-    if request.user_id is not None:
-        source = f"topic_model_settings(user_id={int(request.user_id)})"
-        try:
-            settings = database.get_topic_model_settings(int(request.user_id))
-        except Exception as exc:
-            logger.warning("Failed to load {}: {}", source, str(exc))
-            settings = None
-
-        from_settings = _coerce_bertopic_params(
-            (settings or {}).get("bertopic_params") or {},
-            source,
-        )
-        if from_settings is not None:
-            if request.bertopic_params is not None:
-                logger.info("Ignoring request BERTopic params; using DB params from {}", source)
-            return from_settings, source
-
-        logger.warning("No valid BERTopic params found in {}. Falling back to schema defaults", source)
-        return BERTopicHyperparameters(), "schema_default"
-
     if request.bertopic_params is not None:
         return request.bertopic_params, "request"
+
+    if request.user_id is not None:
+        logger.info(
+            "Ignoring user_id={} for BERTopic params source; using request/schema_default only",
+            int(request.user_id),
+        )
 
     return BERTopicHyperparameters(), "schema_default"
 
 
 def _resolve_lda_params_for_start(request: TrainingRequest) -> tuple[LDAHyperparameters, str]:
-    if request.user_id is not None:
-        source = f"topic_model_settings(user_id={int(request.user_id)})"
-        try:
-            settings = database.get_topic_model_settings(int(request.user_id))
-        except Exception as exc:
-            logger.warning("Failed to load {}: {}", source, str(exc))
-            settings = None
-
-        from_settings = _coerce_lda_params((settings or {}).get("lda_params") or {}, source)
-        if from_settings is not None:
-            if request.lda_params is not None:
-                logger.info("Ignoring request LDA params; using DB params from {}", source)
-            return from_settings, source
-
-        logger.warning("No valid LDA params found in {}. Falling back to schema defaults", source)
-        return LDAHyperparameters(), "schema_default"
-
     if request.lda_params is not None:
         return request.lda_params, "request"
+
+    if request.user_id is not None:
+        logger.info(
+            "Ignoring user_id={} for LDA params source; using request/schema_default only",
+            int(request.user_id),
+        )
 
     return LDAHyperparameters(), "schema_default"
 
@@ -453,15 +428,6 @@ async def start_training(
     - Returns a job_id to track progress
     """
 
-    if request.user_id is None:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "user_id wajib diisi. Runtime training hanya mengambil parameter dari "
-                "DB topic_model_settings."
-            ),
-        )
-
     if request.model_type == ModelType.BERTOPIC:
         resolved_bertopic_params, params_source = _resolve_bertopic_params_for_start(request)
         resolved_lda_params = request.lda_params
@@ -501,10 +467,10 @@ async def start_training(
 
 @router.post("/settings/upload")
 async def upload_bertopic_settings(
-    user_id: int = Form(...),
+    user_id: Optional[int] = Form(None),
     config_file: UploadFile = File(...),
 ):
-    """Upload BERTopic JSON params and update topic_model_settings in DB."""
+    """Upload BERTopic JSON params and return validated payload."""
     filename = (config_file.filename or "").strip()
     if filename and not filename.lower().endswith(".json"):
         raise HTTPException(status_code=400, detail="File harus berformat .json")
@@ -531,24 +497,20 @@ async def upload_bertopic_settings(
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Invalid BERTopic params: {exc}")
 
-    try:
-        database.upsert_topic_model_settings(
-            user_id=int(user_id),
-            bertopic_params=bertopic_params.model_dump(),
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Gagal update DB: {exc}")
-
-    return {
+    response_payload = {
         "status": "ok",
-        "user_id": int(user_id),
         "bertopic_params": bertopic_params.model_dump(),
     }
+
+    if user_id is not None:
+        response_payload["user_id"] = int(user_id)
+
+    return response_payload
 
 
 @router.post("/start-from-json")
 async def upload_bertopic_settings_legacy(
-    user_id: int = Form(...),
+    user_id: Optional[int] = Form(None),
     config_file: UploadFile = File(...),
 ):
     """Deprecated alias for /training/settings/upload."""

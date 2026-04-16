@@ -165,7 +165,7 @@ class TrainingRequest(BaseModel):
     user_id: Optional[int] = Field(
         None,
         ge=1,
-        description="Optional user id to resolve saved params from topic_model_settings",
+        description="Optional user id for audit/client context. Not used as training params source.",
     )
     bertopic_params: Optional[BERTopicHyperparameters] = None
     lda_params: Optional[LDAHyperparameters] = None

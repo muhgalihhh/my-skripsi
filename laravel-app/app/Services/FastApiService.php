@@ -373,9 +373,9 @@ class FastApiService
   }
 
   /**
-   * Upload BERTopic params JSON and persist it into DB via FastAPI.
+   * Upload BERTopic params JSON to FastAPI for parsing/validation.
    */
-  public function uploadBertopicSettingsJson(string $filePath, string $filename, int $userId): array
+  public function uploadBertopicSettingsJson(string $filePath, string $filename, ?int $userId = null): array
   {
     try {
       if (!is_file($filePath)) {
@@ -383,15 +383,20 @@ class FastApiService
       }
 
       /** @var \Illuminate\Http\Client\Response $response */
-      $response = $this->fastApiRequest(30)
+      $request = $this->fastApiRequest(30)
         ->attach(
           'config_file',
           file_get_contents($filePath),
           $filename !== '' ? $filename : 'bertopic_params.json'
-        )
-        ->post("{$this->baseUrl}/api/v1/training/settings/upload", [
-          'user_id' => $userId,
-        ]);
+        );
+
+      $formPayload = [];
+      if ($userId !== null) {
+        $formPayload['user_id'] = $userId;
+      }
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = $request->post("{$this->baseUrl}/api/v1/training/settings/upload", $formPayload);
 
       if ($response->successful()) {
         return $response->json();
