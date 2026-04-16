@@ -173,9 +173,15 @@ def _load_latest_best_config_payload() -> Optional[dict]:
     if artifacts_dir.exists() and artifacts_dir.is_dir():
         candidates.extend(artifacts_dir.glob("best_config_*.json"))
 
-    notebook_root = results_dir / "notebook_tuning_web_form"
-    if notebook_root.exists() and notebook_root.is_dir():
-        candidates.extend(notebook_root.glob("run_*/best_config.json"))
+    # Current notebook output path.
+    notebook_topic_models_root = results_dir / "notebook_tuning_topic_models"
+    if notebook_topic_models_root.exists() and notebook_topic_models_root.is_dir():
+        candidates.extend(notebook_topic_models_root.glob("run_*/best_config.json"))
+
+    # Legacy path kept for backward compatibility.
+    notebook_web_form_root = results_dir / "notebook_tuning_web_form"
+    if notebook_web_form_root.exists() and notebook_web_form_root.is_dir():
+        candidates.extend(notebook_web_form_root.glob("run_*/best_config.json"))
 
     if not candidates:
         return None
@@ -289,7 +295,7 @@ def _resolve_bertopic_params_for_start(request: TrainingRequest) -> tuple[BERTop
 
     loaded = _load_latest_best_config_payload()
     if loaded is not None and isinstance(loaded.get("payload"), dict):
-        source = f"artifacts_tuning/{loaded['file']}"
+        source = f"best_config/{loaded['file']}"
         payload = loaded["payload"]
 
         candidates: List[dict] = []
@@ -329,7 +335,7 @@ def _resolve_lda_params_for_start(request: TrainingRequest) -> tuple[LDAHyperpar
 
     loaded = _load_latest_best_config_payload()
     if loaded is not None and isinstance(loaded.get("payload"), dict):
-        source = f"artifacts_tuning/{loaded['file']}"
+        source = f"best_config/{loaded['file']}"
         payload = loaded["payload"]
 
         candidates: List[dict] = []
@@ -1348,14 +1354,17 @@ async def get_latest_tuning_best_config():
             status_code=404,
             detail={
                 "status": "not_found",
-                "message": "Best config artifact tidak ditemukan di FastAPI results/artifacts_tuning",
+                "message": (
+                    "Best config artifact tidak ditemukan di FastAPI results/artifacts_tuning "
+                    "atau results/notebook_tuning_topic_models"
+                ),
             },
         )
 
     payload = loaded["payload"]
     return {
         "status": "ok",
-        "source": "fastapi_artifacts_tuning",
+        "source": "fastapi_best_config",
         "file": loaded["file"],
         "best_bertopic": payload.get("best_bertopic"),
         "best_lda": payload.get("best_lda"),

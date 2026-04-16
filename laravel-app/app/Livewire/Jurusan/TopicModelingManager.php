@@ -755,6 +755,7 @@ class TopicModelingManager extends Component
         // Source lokal: artifacts_tuning dan output run notebook terbaru.
         $localBestConfigPatterns = [
             base_path('../fastapi/data/results/artifacts_tuning/best_config_*.json'),
+            base_path('../fastapi/data/results/notebook_tuning_topic_models/run_*/best_config.json'),
             base_path('../fastapi/data/results/notebook_tuning_web_form/run_*/best_config.json'),
         ];
 

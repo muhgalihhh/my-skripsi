@@ -211,6 +211,7 @@ class BERTopicTrainer:
             metric=p.metric,
             random_state=p.random_state,
             transform_seed=int(self.params.seed),
+            n_jobs=1,  # Memastikan deterministik saat menggunakan random_state
         )
 
     def _build_hdbscan_model(self):

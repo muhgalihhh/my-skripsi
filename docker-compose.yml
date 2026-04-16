@@ -69,6 +69,8 @@ services:
     volumes:
       - fastapi-data:/app/data
       - ./fastapi/data/results/artifacts_tuning:/app/data/results/artifacts_tuning
+      - ./fastapi/data/results/notebook_tuning_topic_models:/app/data/results/notebook_tuning_topic_models
+      - ./fastapi/data/results/notebook_tuning_web_form:/app/data/results/notebook_tuning_web_form
       - fastapi-models:/app/app/ml/trained_models
       - fastapi-logs:/app/logs
     env_file:

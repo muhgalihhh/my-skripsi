@@ -1,0 +1,48 @@
+Help on function save in module bertopic._bertopic:
+
+save(self, path, serialization: Literal['safetensors', 'pickle', 'pytorch'] = 'pickle', save_embedding_model: Union[bool, str] = True, save_ctfidf: bool = False)
+    Saves the model to the specified path or folder.
+    
+    When saving the model, make sure to also keep track of the versions
+    of dependencies and Python used. Loading and saving the model should
+    be done using the same dependencies and Python. Moreover, models
+    saved in one version of BERTopic should not be loaded in other versions.
+    
+    Arguments:
+        path: If `serialization` is 'safetensors' or `pytorch`, this is a directory.
+              If `serialization` is `pickle`, then this is a file.
+        serialization: If `pickle`, the entire model will be pickled. If `safetensors`
+                       or `pytorch` the model will be saved without the embedding,
+                       dimensionality reduction, and clustering algorithms.
+                       This is a very efficient format and typically advised.
+        save_embedding_model: If serialization is `pickle`, then you can choose to skip
+                              saving the embedding model. If serialization is `safetensors`
+                              or `pytorch`, this variable can be used as a string pointing
+                              towards a huggingface model.
+        save_ctfidf: Whether to save c-TF-IDF information if serialization is `safetensors`
+                     or `pytorch`
+    
+    Examples:
+    To save the model in an efficient and safe format (safetensors) with c-TF-IDF information:
+    
+    ```python
+    topic_model.save("model_dir", serialization="safetensors", save_ctfidf=True)
+    ```
+    
+    If you wish to also add a pointer to the embedding model, which will be downloaded from
+    HuggingFace upon loading:
+    
+    ```python
+    embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+    topic_model.save("model_dir", serialization="safetensors", save_embedding_model=embedding_model)
+    ```
+    
+    or if you want save the full model with pickle:
+    
+    ```python
+    topic_model.save("my_model")
+    ```
+    
+    NOTE: Pickle can run arbitrary code and is generally considered to be less safe than
+    safetensors.
+
