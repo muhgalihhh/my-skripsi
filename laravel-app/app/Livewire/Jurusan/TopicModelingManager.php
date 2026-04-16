@@ -10,7 +10,6 @@ use App\Models\TopicModelDataset;
 use App\Models\TopicModelTopicDocument;
 use App\Services\FastApiService;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -31,7 +30,7 @@ class TopicModelingManager extends Component
     // FastAPI status (align with ScrapingManager UX)
     public array $apiStatus = [];
 
-    // BERTopic params (default mengikuti hasil tuning terbaik terbaru)
+    // BERTopic/LDA params (sumber runtime: DB topic_model_settings)
     public array $bertopicParams = [];
     public array $ldaParams = [];
     public string $modelType = 'bertopic';
@@ -97,7 +96,7 @@ class TopicModelingManager extends Component
      * Load BERTopic training params with precedence:
      * 1) active draft run snapshot (pending/preprocessing/training/failed)
      * 2) user default setting (topic_model_settings.bertopic_params)
-     * 3) metadata.json from analysis output / fallback default
+      * 3) schema default
      */
     protected function loadTrainingParams(): void
     {
@@ -145,19 +144,12 @@ class TopicModelingManager extends Component
             }
         }
 
-        // 3) Notebook artifacts/default
-        if (!$hasBerTopicParams || !$hasLdaParams) {
-            $existingBertopic = $this->bertopicParams;
-            $existingLda = $this->ldaParams;
-
-            $this->loadBestParamsFromMetadata();
-
-            if ($hasBerTopicParams) {
-                $this->bertopicParams = $existingBertopic;
-            }
-            if ($hasLdaParams) {
-                $this->ldaParams = $existingLda;
-            }
+        // 3) Schema defaults
+        if (!$hasBerTopicParams) {
+            $this->bertopicParams = $this->getDefaultBertopicParams();
+        }
+        if (!$hasLdaParams) {
+            $this->ldaParams = $this->getDefaultLdaParams();
         }
 
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
@@ -214,67 +206,6 @@ class TopicModelingManager extends Component
         }
 
         $this->dispatch('toast', type: 'success', message: 'Best parameter training tersimpan di database.');
-    }
-
-    public function resetTrainingParamsToNotebookBest(): void
-    {
-        $loadedFromArtifact = $this->loadBestParamsFromMetadata();
-        $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
-        $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
-        $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
-        $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
-
-        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'failed'])) {
-            $this->activeRun->update([
-                'bertopic_params' => $bertopicParamsForStorage ?: null,
-                'lda_params' => $ldaParamsForStorage ?: null,
-                'model_type' => $this->modelType,
-            ]);
-            $this->activeRun->refresh();
-        }
-
-        if ($loadedFromArtifact) {
-            $this->dispatch('toast', type: 'success', message: 'Parameter di-reset ke best params eksperimen terbaru.');
-            return;
-        }
-
-        $this->dispatch(
-            'toast',
-            type: 'warning',
-            message: 'Artifact best params notebook tidak ditemukan. Parameter menggunakan fallback default/riwayat run.',
-        );
-    }
-
-    public function resetTrainingParamsToBestCompletedTraining(): void
-    {
-        if ($this->modelType === 'lda') {
-            $this->ldaParams = $this->getDefaultLdaParams();
-        } else {
-            $this->bertopicParams = $this->getDefaultBertopicParams();
-        }
-
-        if (!$this->loadBestParamsFromCompletedRuns($this->modelType)) {
-            $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
-            $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
-            $this->dispatch('toast', type: 'warning', message: 'Belum ada run completed yang bisa dijadikan best config training.');
-            return;
-        }
-
-        $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
-        $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
-        $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
-        $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
-
-        if ($this->activeRun && in_array($this->activeRun->status, ['pending', 'preprocessing', 'failed'])) {
-            $this->activeRun->update([
-                'bertopic_params' => $bertopicParamsForStorage ?: null,
-                'lda_params' => $ldaParamsForStorage ?: null,
-                'model_type' => $this->modelType,
-            ]);
-            $this->activeRun->refresh();
-        }
-
-        $this->dispatch('toast', type: 'success', message: 'Parameter di-reset dari best run training (completed).');
     }
 
     public function uploadBertopicParamsJson(): void
@@ -579,414 +510,6 @@ class TopicModelingManager extends Component
             'dropped_records_total' => (int) ($report['dropped_records_total'] ?? 0),
             'dropped_records_sample' => is_array($report['dropped_records_sample'] ?? null) ? $report['dropped_records_sample'] : [],
         ];
-    }
-
-    protected function loadBestParamsFromMetadata(): bool
-    {
-        $defaults = $this->getDefaultBertopicParams();
-        $this->bertopicParams = $defaults;
-        $this->ldaParams = $this->getDefaultLdaParams();
-
-        // Prioritas utama: payload tuning terbaru dari notebook baru.
-        if ($this->loadBestParamsFromNotebookPayloads()) {
-            return true;
-        }
-
-        // Fallback lama: output clean notebook.
-        $bestParamsCsv = base_path('../analysis/output_clean/csv/step6_best_params.csv');
-        if (File::exists($bestParamsCsv)) {
-            try {
-                $rows = array_map('str_getcsv', file($bestParamsCsv));
-                if (count($rows) > 1) {
-                    $header = array_map('trim', $rows[0]);
-                    $dataRows = array_slice($rows, 1);
-
-                    foreach ($dataRows as $cols) {
-                        if (count($cols) < 3) {
-                            continue;
-                        }
-
-                        $row = array_combine($header, $cols);
-                        $model = trim((string) ($row['model'] ?? ''));
-                        $param = trim((string) ($row['param'] ?? ''));
-                        $rawValue = $row['value'] ?? null;
-                        $value = $this->parseBestParamValue($rawValue);
-
-                        if ($model === 'BERTopic') {
-                            if ($param === 'umap_n_neighbors') {
-                                $this->bertopicParams['umap_params']['n_neighbors'] = (int) $value;
-                            } elseif ($param === 'umap_n_components') {
-                                $this->bertopicParams['umap_params']['n_components'] = (int) $value;
-                            } elseif ($param === 'umap_min_dist') {
-                                $this->bertopicParams['umap_params']['min_dist'] = (float) $value;
-                            } elseif ($param === 'umap_metric') {
-                                $this->bertopicParams['umap_params']['metric'] = (string) $value;
-                            } elseif ($param === 'hdbscan_min_cluster_size') {
-                                $this->bertopicParams['hdbscan_params']['min_cluster_size'] = (int) $value;
-                            } elseif ($param === 'hdbscan_min_samples') {
-                                $this->bertopicParams['hdbscan_params']['min_samples'] = (int) $value;
-                            } elseif ($param === 'hdbscan_metric') {
-                                $this->bertopicParams['hdbscan_params']['metric'] = (string) $value;
-                            } elseif ($param === 'hdbscan_method') {
-                                $this->bertopicParams['hdbscan_params']['cluster_selection_method'] = (string) $value;
-                            } elseif ($param === 'min_topic_size') {
-                                $this->bertopicParams['min_topic_size'] = (int) $value;
-                            } elseif ($param === 'nr_topics') {
-                                $this->bertopicParams['nr_topics'] = $value;
-                            } elseif ($param === 'vectorizer_ngram_range' && is_array($value)) {
-                                $this->bertopicParams['n_gram_range'] = $value;
-                            } elseif ($param === 'vectorizer_min_df') {
-                                $this->bertopicParams['vectorizer_min_df'] = is_int($value) || is_float($value)
-                                    ? $value
-                                    : (float) $value;
-                            } elseif ($param === 'vectorizer_max_df') {
-                                $this->bertopicParams['vectorizer_max_df'] = is_int($value) || is_float($value)
-                                    ? $value
-                                    : (float) $value;
-                            }
-                        } elseif ($model === 'LDA') {
-                            if ($param === 'num_topics') {
-                                $this->ldaParams['num_topics'] = (int) $value;
-                            } elseif ($param === 'passes') {
-                                $this->ldaParams['passes'] = (int) $value;
-                            } elseif ($param === 'iterations') {
-                                $this->ldaParams['iterations'] = (int) $value;
-                            } elseif ($param === 'chunksize') {
-                                $this->ldaParams['chunksize'] = (int) $value;
-                            } elseif ($param === 'random_state') {
-                                $this->ldaParams['random_state'] = (int) $value;
-                            } elseif ($param === 'alpha') {
-                                $this->ldaParams['alpha'] = $value;
-                            } elseif ($param === 'eta') {
-                                $this->ldaParams['eta'] = $value;
-                            } elseif ($param === 'no_below') {
-                                $this->ldaParams['no_below'] = (int) $value;
-                            } elseif ($param === 'no_above') {
-                                $this->ldaParams['no_above'] = (float) $value;
-                            }
-                        }
-
-                    }
-                }
-
-                return true;
-            } catch (\Throwable $e) {
-                Log::warning('Failed to parse step6_best_params.csv, fallback to defaults', ['error' => $e->getMessage()]);
-            }
-        }
-
-        // Fallback lama: metadata file jika masih dipakai.
-        $legacyPath = base_path('../analysis/output/models/bertopic_best_model/metadata.json');
-        if (!File::exists($legacyPath)) {
-            return false;
-        }
-
-        try {
-            $json = json_decode(File::get($legacyPath), true);
-            $best = $json['best_params'] ?? [];
-
-            $this->bertopicParams['embedding_model'] = $json['embedding_model'] ?? $defaults['embedding_model'];
-            $this->bertopicParams['min_topic_size'] = $best['min_topic_size'] ?? $defaults['min_topic_size'];
-            $this->bertopicParams['nr_topics'] = $best['nr_topics'] ?? $defaults['nr_topics'];
-
-            $this->bertopicParams['umap_params']['n_neighbors'] = $best['umap_n_neighbors'] ?? $defaults['umap_params']['n_neighbors'];
-            $this->bertopicParams['umap_params']['n_components'] = $best['umap_n_components'] ?? $defaults['umap_params']['n_components'];
-            $this->bertopicParams['umap_params']['min_dist'] = $best['umap_min_dist'] ?? $defaults['umap_params']['min_dist'];
-
-            $this->bertopicParams['hdbscan_params']['min_cluster_size'] = $best['hdbscan_min_cluster_size'] ?? $defaults['hdbscan_params']['min_cluster_size'];
-            $this->bertopicParams['hdbscan_params']['min_samples'] = $best['hdbscan_min_samples'] ?? $defaults['hdbscan_params']['min_samples'];
-
-            $bestVectorizer = is_array($best['vectorizer'] ?? null) ? $best['vectorizer'] : [];
-            $this->bertopicParams['n_gram_range'] = $bestVectorizer['ngram_range'] ?? $defaults['n_gram_range'];
-            $this->bertopicParams['vectorizer_min_df'] = $bestVectorizer['min_df'] ?? $defaults['vectorizer_min_df'];
-            $this->bertopicParams['vectorizer_max_df'] = $bestVectorizer['max_df'] ?? $defaults['vectorizer_max_df'];
-
-            return true;
-        } catch (\Throwable $e) {
-            $this->bertopicParams = $this->getDefaultBertopicParams();
-            $this->ldaParams = $this->getDefaultLdaParams();
-
-            return false;
-        }
-    }
-
-    /**
-     * Load best params from latest notebook tuning artifacts.
-     */
-    protected function loadBestParamsFromNotebookPayloads(): bool
-    {
-        $hasLoaded = false;
-        $targetModel = $this->modelType ?: 'bertopic';
-        $loadedBertopic = false;
-        $loadedLda = false;
-
-        // Source utama lintas-container: minta artifact best-config dari FastAPI API.
-        try {
-            $fastApi = app(FastApiService::class);
-            $apiPayload = $fastApi->getLatestTrainingBestConfig();
-
-            if (($apiPayload['status'] ?? '') === 'ok') {
-                $bertopicPayload = $apiPayload['best_bertopic']['params'] ?? ($apiPayload['best_bertopic'] ?? null);
-                if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
-                    $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
-                    $loadedBertopic = true;
-                    if ($targetModel === 'bertopic') {
-                        $hasLoaded = true;
-                    }
-                }
-
-                $ldaPayload = $apiPayload['best_lda']['params'] ?? ($apiPayload['best_lda'] ?? null);
-                if (is_array($ldaPayload) && !empty($ldaPayload)) {
-                    $this->ldaParams = array_replace_recursive($this->ldaParams, $ldaPayload);
-                    $loadedLda = true;
-                    if ($targetModel === 'lda') {
-                        $hasLoaded = true;
-                    }
-                }
-
-                if ($hasLoaded) {
-                    return true;
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Failed to load best config from FastAPI API', ['error' => $e->getMessage()]);
-        }
-
-        // Source lokal: artifacts_tuning dan output run notebook terbaru.
-        $localBestConfigPatterns = [
-            base_path('../fastapi/data/results/artifacts_tuning/best_config_*.json'),
-            base_path('../fastapi/data/results/notebook_tuning_topic_models/run_*/best_config.json'),
-            base_path('../fastapi/data/results/notebook_tuning_web_form/run_*/best_config.json'),
-        ];
-
-        foreach ($localBestConfigPatterns as $pattern) {
-            $bestConfigPayload = $this->loadLatestJsonArtifact($pattern);
-            if (!is_array($bestConfigPayload)) {
-                continue;
-            }
-
-            $bertopicPayload = $bestConfigPayload['best_bertopic']['params'] ?? ($bestConfigPayload['best_bertopic'] ?? null);
-            if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
-                $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
-                $loadedBertopic = true;
-                if ($targetModel === 'bertopic') {
-                    $hasLoaded = true;
-                }
-            }
-
-            $ldaPayload = $bestConfigPayload['best_lda']['params'] ?? ($bestConfigPayload['best_lda'] ?? null);
-            if (is_array($ldaPayload) && !empty($ldaPayload)) {
-                $this->ldaParams = array_replace_recursive($this->ldaParams, $ldaPayload);
-                $loadedLda = true;
-                if ($targetModel === 'lda') {
-                    $hasLoaded = true;
-                }
-            }
-
-            if ($hasLoaded) {
-                return true;
-            }
-        }
-
-        if ($hasLoaded) {
-            return true;
-        }
-
-        // Fallback menengah: run training completed terbaik per model (dari DB Laravel).
-        if ($this->loadBestParamsFromCompletedRuns($targetModel)) {
-            return true;
-        }
-
-        // Fallback legacy: artifact tuning lama dari pipeline analysis/output.
-        $legacyArtifactDir = base_path('../analysis/output/bertopic_tuning');
-        if (!File::isDirectory($legacyArtifactDir)) {
-            return false;
-        }
-
-        $bertopicPayload = null;
-        $summaryPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/bertopic_tuning_summary_*.json');
-        if (is_array($summaryPayload['best_laravel_payload'] ?? null)) {
-            $bertopicPayload = $summaryPayload['best_laravel_payload'];
-        }
-
-        if (!is_array($bertopicPayload) || empty($bertopicPayload)) {
-            $bertopicPayload = $this->loadLatestJsonArtifact($legacyArtifactDir . '/bertopic_laravel_payload_*.json');
-        }
-
-        if (is_array($bertopicPayload) && !empty($bertopicPayload)) {
-            $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bertopicPayload);
-            $hasLoaded = true;
-        }
-
-        return $hasLoaded;
-    }
-
-    /**
-     * Load best params from completed BERTopic runs in DB.
-     *
-     * Score sederhana: 0.7 * coherence_cv + 0.3 * topic_diversity,
-     * lalu tie-break by run id terbaru.
-     */
-    protected function loadBestParamsFromCompletedRuns(?string $modelType = null): bool
-    {
-        /** @var int|null $userId */
-        $userId = Auth::id();
-        if ($userId === null) {
-            return false;
-        }
-
-        $targetModel = $modelType ?: $this->modelType;
-
-        if ($targetModel === 'lda') {
-            $runs = TopicModelRun::query()
-                ->where('user_id', $userId)
-                ->where('status', 'completed')
-                ->where('model_type', 'lda')
-                ->whereNotNull('lda_params')
-                ->orderByDesc('id')
-                ->get([
-                    'id',
-                    'model_type',
-                    'lda_params',
-                    'coherence_cv',
-                    'topic_diversity',
-                ]);
-
-            if ($runs->isEmpty()) {
-                return false;
-            }
-
-            $bestLda = null;
-            $bestLdaScore = null;
-
-            foreach ($runs as $run) {
-                $coherence = is_numeric($run->coherence_cv) ? (float) $run->coherence_cv : 0.0;
-                $diversity = is_numeric($run->topic_diversity) ? (float) $run->topic_diversity : 0.0;
-                $score = (0.7 * $coherence) + (0.3 * $diversity);
-
-                if (
-                    is_array($run->lda_params)
-                    && !empty($run->lda_params)
-                    && ($bestLdaScore === null || $score > $bestLdaScore)
-                ) {
-                    $bestLda = $run->lda_params;
-                    $bestLdaScore = $score;
-                }
-            }
-
-            if (is_array($bestLda) && !empty($bestLda)) {
-                $this->ldaParams = array_replace_recursive($this->ldaParams, $bestLda);
-                return true;
-            }
-
-            return false;
-        }
-
-        $runs = TopicModelRun::query()
-            ->where('user_id', $userId)
-            ->where('status', 'completed')
-            ->where('model_type', 'bertopic')
-            ->whereNotNull('bertopic_params')
-            ->orderByDesc('id')
-            ->get([
-                'id',
-                'model_type',
-                'bertopic_params',
-                'coherence_cv',
-                'topic_diversity',
-            ]);
-
-        if ($runs->isEmpty()) {
-            return false;
-        }
-
-        $bestBertopic = null;
-        $bestBertopicScore = null;
-
-        foreach ($runs as $run) {
-            $coherence = is_numeric($run->coherence_cv) ? (float) $run->coherence_cv : 0.0;
-            $diversity = is_numeric($run->topic_diversity) ? (float) $run->topic_diversity : 0.0;
-            $score = (0.7 * $coherence) + (0.3 * $diversity);
-
-            if (
-                is_array($run->bertopic_params)
-                && !empty($run->bertopic_params)
-                && ($bestBertopicScore === null || $score > $bestBertopicScore)
-            ) {
-                $bestBertopic = $run->bertopic_params;
-                $bestBertopicScore = $score;
-            }
-        }
-
-        if (is_array($bestBertopic) && !empty($bestBertopic)) {
-            $this->bertopicParams = array_replace_recursive($this->bertopicParams, $bestBertopic);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Load latest JSON artifact by glob pattern (descending filename order).
-     */
-    protected function loadLatestJsonArtifact(string $pattern): ?array
-    {
-        $files = File::glob($pattern);
-        if (!is_array($files) || empty($files)) {
-            return null;
-        }
-
-        usort($files, static fn(string $a, string $b): int => strcmp(basename($b), basename($a)));
-
-        foreach ($files as $path) {
-            if (!is_string($path) || $path === '') {
-                continue;
-            }
-
-            try {
-                $decoded = json_decode(File::get($path), true);
-                if (is_array($decoded) && !empty($decoded)) {
-                    return $decoded;
-                }
-            } catch (\Throwable $e) {
-                continue;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Parse value from legacy step6_best_params.csv into scalar/array/null.
-     */
-    protected function parseBestParamValue(mixed $value): mixed
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        $text = trim((string) $value);
-        $lower = strtolower($text);
-
-        if ($lower === 'none' || $lower === 'null' || $text === '') {
-            return null;
-        }
-
-        if ($lower === 'auto') {
-            return 'auto';
-        }
-
-        if (preg_match('/^\(\s*\d+\s*,\s*\d+\s*\)$/', $text) === 1) {
-            $clean = trim($text, '() ');
-            $parts = array_map('trim', explode(',', $clean));
-            return [intval($parts[0]), intval($parts[1])];
-        }
-
-        if (is_numeric($text)) {
-            return str_contains($text, '.') ? (float) $text : (int) $text;
-        }
-
-        return $text;
     }
 
     /**
@@ -1813,6 +1336,11 @@ class TopicModelingManager extends Component
 
         /** @var int|null $userId */
         $userId = Auth::id();
+        if ($userId === null) {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Silakan login terlebih dahulu.';
+            return;
+        }
 
         if (!$this->activeRun) {
             $this->statusType = 'error';
@@ -1839,6 +1367,15 @@ class TopicModelingManager extends Component
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
 
+        // Selalu sinkronkan parameter terbaru ke topic_model_settings agar FastAPI membaca dari DB.
+        TopicModelSetting::query()->updateOrCreate(
+            ['user_id' => $userId],
+            [
+                'bertopic_params' => $bertopicParamsForStorage ?: null,
+                'lda_params' => $ldaParamsForStorage ?: null,
+            ],
+        );
+
         $this->activeRun->update([
             'model_type' => $modelType,
             'bertopic_params' => $bertopicParamsForStorage ?: null,
@@ -1849,14 +1386,14 @@ class TopicModelingManager extends Component
         if ($modelType === 'lda') {
             $this->statusMessage = 'Memulai training LDA...';
             $resp = $fastApi->startLdaTraining(
-                ldaParams: $this->ldaParams,
+                ldaParams: [],
                 description: 'LDA run dari dashboard Jurusan',
                 userId: $userId,
             );
         } else {
             $this->statusMessage = 'Memulai training BERTopic...';
             $resp = $fastApi->startBerTopicTraining(
-                bertopicParams: $this->bertopicParams,
+                bertopicParams: [],
                 description: 'BERTopic run dari dashboard Jurusan',
                 userId: $userId,
             );

@@ -1034,12 +1034,6 @@
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
                 <div class="text-xs text-gray-400">Simpan sebagai bawaan di basis data (BERTopic per akun).</div>
                 <div class="flex items-center gap-2">
-                    <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
-                        <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="resetTrainingParamsToNotebookBest">Reset ke Best Eksperimen</span>
-                        <span wire:loading wire:target="resetTrainingParamsToNotebookBest">Reset…</span>
-                    </x-ui.button>
-
                     <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="bookmark-square" class="h-4 w-4" />
                         <span wire:loading.remove wire:target="saveTrainingParams">Simpan sebagai Best</span>
@@ -1159,12 +1153,6 @@
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
                 <div class="text-xs text-gray-400">Simpan sebagai bawaan di basis data (LDA per akun).</div>
                 <div class="flex items-center gap-2">
-                    <x-ui.button wire:click="resetTrainingParamsToNotebookBest" wire:loading.attr="disabled" variant="secondary">
-                        <x-app.icon name="arrow-uturn-left" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="resetTrainingParamsToNotebookBest">Reset ke Best Eksperimen</span>
-                        <span wire:loading wire:target="resetTrainingParamsToNotebookBest">Reset…</span>
-                    </x-ui.button>
-
                     <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="bookmark-square" class="h-4 w-4" />
                         <span wire:loading.remove wire:target="saveTrainingParams">Simpan sebagai Best</span>

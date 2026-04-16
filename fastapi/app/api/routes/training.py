@@ -164,50 +164,6 @@ def _resolve_bertopic_job_for_inference(requested_job_id: Optional[str]) -> Tupl
     )
 
 
-def _load_latest_best_config_payload() -> Optional[dict]:
-    """Load newest best-config payload from artifacts_tuning or notebook runs."""
-    results_dir = path_settings.get_results_dir()
-    candidates: List[Path] = []
-
-    artifacts_dir = results_dir / "artifacts_tuning"
-    if artifacts_dir.exists() and artifacts_dir.is_dir():
-        candidates.extend(artifacts_dir.glob("best_config_*.json"))
-
-    # Current notebook output path.
-    notebook_topic_models_root = results_dir / "notebook_tuning_topic_models"
-    if notebook_topic_models_root.exists() and notebook_topic_models_root.is_dir():
-        candidates.extend(notebook_topic_models_root.glob("run_*/best_config.json"))
-
-    # Legacy path kept for backward compatibility.
-    notebook_web_form_root = results_dir / "notebook_tuning_web_form"
-    if notebook_web_form_root.exists() and notebook_web_form_root.is_dir():
-        candidates.extend(notebook_web_form_root.glob("run_*/best_config.json"))
-
-    if not candidates:
-        return None
-
-    def _safe_mtime(path: Path) -> float:
-        try:
-            return path.stat().st_mtime
-        except Exception:
-            return 0.0
-
-    best_file = max(candidates, key=_safe_mtime)
-    try:
-        payload = json.loads(best_file.read_text(encoding="utf-8"))
-        try:
-            file_ref = str(best_file.relative_to(results_dir))
-        except Exception:
-            file_ref = best_file.name
-
-        return {
-            "file": file_ref,
-            "payload": payload,
-        }
-    except Exception:
-        return None
-
-
 def _extract_bertopic_params_payload(payload: dict) -> dict:
     if not isinstance(payload, dict):
         raise HTTPException(
@@ -275,9 +231,6 @@ def _coerce_lda_params(payload: dict, source: str) -> Optional[LDAHyperparameter
 
 
 def _resolve_bertopic_params_for_start(request: TrainingRequest) -> tuple[BERTopicHyperparameters, str]:
-    if request.bertopic_params is not None:
-        return request.bertopic_params, "request"
-
     if request.user_id is not None:
         source = f"topic_model_settings(user_id={int(request.user_id)})"
         try:
@@ -291,36 +244,20 @@ def _resolve_bertopic_params_for_start(request: TrainingRequest) -> tuple[BERTop
             source,
         )
         if from_settings is not None:
+            if request.bertopic_params is not None:
+                logger.info("Ignoring request BERTopic params; using DB params from {}", source)
             return from_settings, source
 
-    loaded = _load_latest_best_config_payload()
-    if loaded is not None and isinstance(loaded.get("payload"), dict):
-        source = f"best_config/{loaded['file']}"
-        payload = loaded["payload"]
+        logger.warning("No valid BERTopic params found in {}. Falling back to schema defaults", source)
+        return BERTopicHyperparameters(), "schema_default"
 
-        candidates: List[dict] = []
-        best_block = payload.get("best_bertopic")
-        if isinstance(best_block, dict):
-            if isinstance(best_block.get("params"), dict):
-                candidates.append(best_block.get("params") or {})
-            if isinstance(best_block.get("hyperparameters"), dict):
-                candidates.append(best_block.get("hyperparameters") or {})
-
-        if isinstance(payload.get("bertopic_params"), dict):
-            candidates.append(payload.get("bertopic_params") or {})
-
-        for candidate in candidates:
-            from_artifact = _coerce_bertopic_params(candidate, source)
-            if from_artifact is not None:
-                return from_artifact, source
+    if request.bertopic_params is not None:
+        return request.bertopic_params, "request"
 
     return BERTopicHyperparameters(), "schema_default"
 
 
 def _resolve_lda_params_for_start(request: TrainingRequest) -> tuple[LDAHyperparameters, str]:
-    if request.lda_params is not None:
-        return request.lda_params, "request"
-
     if request.user_id is not None:
         source = f"topic_model_settings(user_id={int(request.user_id)})"
         try:
@@ -331,28 +268,15 @@ def _resolve_lda_params_for_start(request: TrainingRequest) -> tuple[LDAHyperpar
 
         from_settings = _coerce_lda_params((settings or {}).get("lda_params") or {}, source)
         if from_settings is not None:
+            if request.lda_params is not None:
+                logger.info("Ignoring request LDA params; using DB params from {}", source)
             return from_settings, source
 
-    loaded = _load_latest_best_config_payload()
-    if loaded is not None and isinstance(loaded.get("payload"), dict):
-        source = f"best_config/{loaded['file']}"
-        payload = loaded["payload"]
+        logger.warning("No valid LDA params found in {}. Falling back to schema defaults", source)
+        return LDAHyperparameters(), "schema_default"
 
-        candidates: List[dict] = []
-        best_block = payload.get("best_lda")
-        if isinstance(best_block, dict):
-            if isinstance(best_block.get("params"), dict):
-                candidates.append(best_block.get("params") or {})
-            if isinstance(best_block.get("hyperparameters"), dict):
-                candidates.append(best_block.get("hyperparameters") or {})
-
-        if isinstance(payload.get("lda_params"), dict):
-            candidates.append(payload.get("lda_params") or {})
-
-        for candidate in candidates:
-            from_artifact = _coerce_lda_params(candidate, source)
-            if from_artifact is not None:
-                return from_artifact, source
+    if request.lda_params is not None:
+        return request.lda_params, "request"
 
     return LDAHyperparameters(), "schema_default"
 
@@ -528,6 +452,15 @@ async def start_training(
     - Optionally provide custom hyperparameters sesuai model
     - Returns a job_id to track progress
     """
+
+    if request.user_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "user_id wajib diisi. Runtime training hanya mengambil parameter dari "
+                "DB topic_model_settings."
+            ),
+        )
 
     if request.model_type == ModelType.BERTOPIC:
         resolved_bertopic_params, params_source = _resolve_bertopic_params_for_start(request)
@@ -1343,32 +1276,6 @@ async def get_training_dataset_summary():
     - year range
     """
     return pipeline_service.summarize_training_dataset()
-
-
-@router.get("/tuning/best-config")
-async def get_latest_tuning_best_config():
-    """Return latest notebook tuning best config (BERTopic + LDA)."""
-    loaded = _load_latest_best_config_payload()
-    if loaded is None:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "status": "not_found",
-                "message": (
-                    "Best config artifact tidak ditemukan di FastAPI results/artifacts_tuning "
-                    "atau results/notebook_tuning_topic_models"
-                ),
-            },
-        )
-
-    payload = loaded["payload"]
-    return {
-        "status": "ok",
-        "source": "fastapi_best_config",
-        "file": loaded["file"],
-        "best_bertopic": payload.get("best_bertopic"),
-        "best_lda": payload.get("best_lda"),
-    }
 
 
 @router.post("/topic-curation/generate", response_model=TopicCurationSuggestionResponse)

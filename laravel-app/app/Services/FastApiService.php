@@ -299,39 +299,6 @@ class FastApiService
   }
 
   /**
-   * Get latest notebook best-config artifact from FastAPI results.
-   */
-  public function getLatestTrainingBestConfig(): array
-  {
-    try {
-      /** @var \Illuminate\Http\Client\Response $response */
-      $response = $this->fastApiRequest(15)
-        ->get("{$this->baseUrl}/api/v1/training/tuning/best-config");
-
-      if ($response->successful()) {
-        return $response->json();
-      }
-
-      if ($response->status() === 404) {
-        $detail = $response->json('detail');
-        if (is_array($detail)) {
-          return [
-            'status' => 'not_found',
-            'message' => (string) ($detail['message'] ?? 'Best config artifact tidak ditemukan'),
-          ];
-        }
-
-        return ['status' => 'not_found', 'message' => 'Best config artifact tidak ditemukan'];
-      }
-
-      return ['status' => 'error', 'message' => 'Gagal mengambil best config training dari FastAPI'];
-    } catch (\Exception $e) {
-      Log::warning('FastAPI latest best-config fetch failed: ' . $e->getMessage());
-      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
-    }
-  }
-
-  /**
    * Start BERTopic training job.
    *
    * Payload shape follows TrainingRequest schema in FastAPI.
