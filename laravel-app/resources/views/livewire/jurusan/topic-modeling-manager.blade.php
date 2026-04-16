@@ -1095,31 +1095,6 @@
                 </div>
             </div>
 
-            <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Import Dataset CSV (Training Snapshot)</div>
-                        <div class="mt-1 text-xs text-gray-500">
-                            Sinkronisasi <span class="font-mono">topic_model_datasets</span> dari hasil notebook agar training server konsisten.
-                            Kolom wajib: <span class="font-mono">skripsi_id/id</span>, <span class="font-mono">cleaned_text</span>, <span class="font-mono">processed_text</span>.
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <input
-                        type="file"
-                        accept=".csv,text/csv"
-                        class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                        wire:model="datasetCsvFile"
-                    />
-                    <x-ui.button wire:click="importDatasetCsv" wire:loading.attr="disabled" variant="primary" class="sm:w-auto">
-                        <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="importDatasetCsv">Import CSV</span>
-                        <span wire:loading wire:target="importDatasetCsv">Mengimpor...</span>
-                    </x-ui.button>
-                </div>
-            </div>
-
         </div>
     </x-ui.card>
     </div>
