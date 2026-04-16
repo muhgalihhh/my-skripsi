@@ -62,8 +62,9 @@
             <div class="mt-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Import Data Skripsi CSV</div>
                 <p class="mt-1 text-xs text-gray-500">
-                    Upload CSV ke tabel skripsi.
-                    Kolom minimum: <span class="font-mono">id/skripsi_id</span> dan <span class="font-mono">title/judul</span>.
+                    Upload CSV ke tabel skripsi dengan header mengikuti format raw_data.csv
+                    (ID, Judul, Penulis, Tahun, Tipe, ID Code, Kata Kunci, Subjects, Divisions, Abstrak,
+                    Kesimpulan, Sumber Kesimpulan, URL, Tanggal Deposit, Tanggal Modifikasi).
                 </p>
                 <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input

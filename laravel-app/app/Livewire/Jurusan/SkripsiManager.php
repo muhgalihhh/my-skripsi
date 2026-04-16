@@ -396,35 +396,58 @@ class SkripsiManager extends Component
         }
       }
 
-      $idIdx = $this->findCsvColumnIndex($headerMap, ['id', 'skripsi_id']);
-      $titleIdx = $this->findCsvColumnIndex($headerMap, ['title', 'judul']);
+      $requiredRawDataHeaders = [
+        'id' => 'ID',
+        'judul' => 'Judul',
+        'penulis' => 'Penulis',
+        'tahun' => 'Tahun',
+        'tipe' => 'Tipe',
+        'id_code' => 'ID Code',
+        'kata_kunci' => 'Kata Kunci',
+        'subjects' => 'Subjects',
+        'divisions' => 'Divisions',
+        'abstrak' => 'Abstrak',
+        'kesimpulan' => 'Kesimpulan',
+        'sumber_kesimpulan' => 'Sumber Kesimpulan',
+        'url' => 'URL',
+        'tanggal_deposit' => 'Tanggal Deposit',
+        'tanggal_modifikasi' => 'Tanggal Modifikasi',
+      ];
 
-      if ($idIdx === null || $titleIdx === null) {
+      $missingHeaders = [];
+      foreach ($requiredRawDataHeaders as $normalized => $displayName) {
+        if (!array_key_exists($normalized, $headerMap)) {
+          $missingHeaders[] = $displayName;
+        }
+      }
+
+      if ($missingHeaders !== []) {
         $this->dispatch(
           'toast',
           type: 'error',
-          message: 'CSV data skripsi wajib punya kolom: id/skripsi_id dan title/judul.'
+          message: 'Header CSV harus mengikuti raw_data.csv. Kolom yang belum ada: ' . implode(', ', $missingHeaders)
         );
         return;
       }
 
-      $authorIdx = $this->findCsvColumnIndex($headerMap, ['author', 'penulis']);
-      $yearIdx = $this->findCsvColumnIndex($headerMap, ['year', 'tahun']);
-      $abstractIdx = $this->findCsvColumnIndex($headerMap, ['abstract', 'abstrak']);
-      $conclusionIdx = $this->findCsvColumnIndex($headerMap, ['conclusion', 'kesimpulan']);
-      $keywordsIdx = $this->findCsvColumnIndex($headerMap, ['keywords', 'kata_kunci']);
-      $subjectsIdx = $this->findCsvColumnIndex($headerMap, ['subjects']);
-      $divisionsIdx = $this->findCsvColumnIndex($headerMap, ['divisions']);
-      $typeIdx = $this->findCsvColumnIndex($headerMap, ['type', 'tipe']);
-      $idCodeIdx = $this->findCsvColumnIndex($headerMap, ['id_code', 'idcode']);
-      $urlIdx = $this->findCsvColumnIndex($headerMap, ['url']);
-      $uriIdx = $this->findCsvColumnIndex($headerMap, ['uri']);
-      $conclusionSourceIdx = $this->findCsvColumnIndex($headerMap, ['conclusion_source', 'sumber_kesimpulan']);
-      $depositDateIdx = $this->findCsvColumnIndex($headerMap, ['deposit_date', 'tanggal_deposit']);
-      $modifiedDateIdx = $this->findCsvColumnIndex($headerMap, ['modified_date', 'tanggal_modifikasi']);
-      $repositoryOrderIdx = $this->findCsvColumnIndex($headerMap, ['repository_order']);
-      $cleanedIdx = $this->findCsvColumnIndex($headerMap, ['cleaned_text']);
-      $processedIdx = $this->findCsvColumnIndex($headerMap, ['processed_text']);
+      $idIdx = (int) $headerMap['id'];
+      $titleIdx = (int) $headerMap['judul'];
+      $authorIdx = (int) $headerMap['penulis'];
+      $yearIdx = (int) $headerMap['tahun'];
+      $abstractIdx = (int) $headerMap['abstrak'];
+      $conclusionIdx = (int) $headerMap['kesimpulan'];
+      $keywordsIdx = (int) $headerMap['kata_kunci'];
+      $subjectsIdx = (int) $headerMap['subjects'];
+      $divisionsIdx = (int) $headerMap['divisions'];
+      $typeIdx = (int) $headerMap['tipe'];
+      $idCodeIdx = (int) $headerMap['id_code'];
+      $urlIdx = (int) $headerMap['url'];
+      $conclusionSourceIdx = (int) $headerMap['sumber_kesimpulan'];
+      $depositDateIdx = (int) $headerMap['tanggal_deposit'];
+      $modifiedDateIdx = (int) $headerMap['tanggal_modifikasi'];
+      $repositoryOrderIdx = array_key_exists('repository_order', $headerMap) ? (int) $headerMap['repository_order'] : null;
+      $cleanedIdx = array_key_exists('cleaned_text', $headerMap) ? (int) $headerMap['cleaned_text'] : null;
+      $processedIdx = array_key_exists('processed_text', $headerMap) ? (int) $headerMap['processed_text'] : null;
 
       $rows = [];
       $validCount = 0;
@@ -455,9 +478,6 @@ class SkripsiManager extends Component
 
         $url = $this->csvCell($data, $urlIdx);
         if ($url === '') {
-          $url = $this->csvCell($data, $uriIdx);
-        }
-        if ($url === '') {
           $url = sprintf('imported://skripsi/%d', $skripsiId);
         }
 
@@ -480,7 +500,7 @@ class SkripsiManager extends Component
           'author' => $this->csvCell($data, $authorIdx) ?: null,
           'deposit_date' => $this->csvCell($data, $depositDateIdx) ?: null,
           'modified_date' => $this->csvCell($data, $modifiedDateIdx) ?: null,
-          'uri' => $this->csvCell($data, $uriIdx) ?: null,
+          'uri' => $url,
           'year' => $this->csvIntOrNull($this->csvCell($data, $yearIdx)),
           'repository_order' => $repositoryOrder,
           'url' => $url,
