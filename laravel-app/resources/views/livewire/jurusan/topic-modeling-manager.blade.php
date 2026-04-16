@@ -36,7 +36,7 @@
                             <span wire:loading wire:target="runPreprocessing">Processing…</span>
                         </x-ui.button>
                         <x-ui.button type="button" wire:click="openStartTrainingConfirm" wire:loading.attr="disabled" variant="success"
-                            :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed']))"
+                            :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed'])) || ((($modelType ?? 'bertopic') === 'bertopic') ? (($bertopicParamsSource ?? 'schema_default') === 'schema_default') : (($ldaParamsSource ?? 'schema_default') === 'schema_default'))"
                             class="w-full sm:w-auto">
                             <x-app.icon name="play-circle" class="h-4 w-4" />
                             <span wire:loading.remove wire:target="startTraining">Mulai Pelatihan {{ strtoupper($modelType) }}</span>
@@ -46,6 +46,26 @@
                 </div>
             </div>
         </div>
+
+        @if (($modelType ?? 'bertopic') === 'bertopic' && (($bertopicParamsSource ?? 'schema_default') === 'schema_default'))
+            <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <x-app.icon variant="o" name="exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <div>
+                    Training BERTopic dikunci karena parameter masih default.
+                    Unggah JSON tuning notebook atau simpan parameter hasil tuning terlebih dahulu.
+                </div>
+            </div>
+        @endif
+
+        @if (($modelType ?? 'bertopic') === 'lda' && (($ldaParamsSource ?? 'schema_default') === 'schema_default'))
+            <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <x-app.icon variant="o" name="exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <div>
+                    Training LDA dikunci karena parameter masih default.
+                    Simpan parameter tuning terlebih dahulu sebelum memulai training.
+                </div>
+            </div>
+        @endif
 
         {{-- ── Tabs (reduce scrolling) ─────────────────────────────── --}}
         <div class="rounded-2xl border border-gray-200 bg-white p-2.5 shadow-sm">
@@ -1074,6 +1094,32 @@
                     </x-ui.button>
                 </div>
             </div>
+
+            <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Import Dataset CSV (Training Snapshot)</div>
+                        <div class="mt-1 text-xs text-gray-500">
+                            Sinkronisasi <span class="font-mono">topic_model_datasets</span> dari hasil notebook agar training server konsisten.
+                            Kolom wajib: <span class="font-mono">skripsi_id/id</span>, <span class="font-mono">cleaned_text</span>, <span class="font-mono">processed_text</span>.
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model="datasetCsvFile"
+                    />
+                    <x-ui.button wire:click="importDatasetCsv" wire:loading.attr="disabled" variant="primary" class="sm:w-auto">
+                        <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="importDatasetCsv">Import CSV</span>
+                        <span wire:loading wire:target="importDatasetCsv">Mengimpor...</span>
+                    </x-ui.button>
+                </div>
+            </div>
+
         </div>
     </x-ui.card>
     </div>

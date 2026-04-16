@@ -231,29 +231,29 @@ def _coerce_lda_params(payload: dict, source: str) -> Optional[LDAHyperparameter
 
 
 def _resolve_bertopic_params_for_start(request: TrainingRequest) -> tuple[BERTopicHyperparameters, str]:
-    if request.bertopic_params is not None:
-        return request.bertopic_params, "request"
-
-    if request.user_id is not None:
-        logger.info(
-            "Ignoring user_id={} for BERTopic params source; using request/schema_default only",
-            int(request.user_id),
+    if request.bertopic_params is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "bertopic_params wajib dikirim saat start training BERTopic. "
+                "Unggah/simpan parameter tuning terlebih dahulu dari dashboard."
+            ),
         )
 
-    return BERTopicHyperparameters(), "schema_default"
+    return request.bertopic_params, "request"
 
 
 def _resolve_lda_params_for_start(request: TrainingRequest) -> tuple[LDAHyperparameters, str]:
-    if request.lda_params is not None:
-        return request.lda_params, "request"
-
-    if request.user_id is not None:
-        logger.info(
-            "Ignoring user_id={} for LDA params source; using request/schema_default only",
-            int(request.user_id),
+    if request.lda_params is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "lda_params wajib dikirim saat start training LDA. "
+                "Simpan parameter tuning terlebih dahulu dari dashboard."
+            ),
         )
 
-    return LDAHyperparameters(), "schema_default"
+    return request.lda_params, "request"
 
 
 def _tokenize_query_for_keyword_fallback(text: str) -> List[str]:
@@ -424,7 +424,7 @@ async def start_training(
     Start a model training job (runs in background).
 
     - Model yang didukung: 'bertopic' dan 'lda'
-    - Optionally provide custom hyperparameters sesuai model
+    - Hyperparameters wajib dikirim sesuai model
     - Returns a job_id to track progress
     """
 

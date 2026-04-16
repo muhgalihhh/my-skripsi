@@ -4,10 +4,13 @@ namespace App\Livewire\Jurusan;
 
 use App\Models\Skripsi;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -16,6 +19,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class SkripsiManager extends Component
 {
   use WithPagination;
+  use WithFileUploads;
 
   #[Url]
   public string $search = '';
@@ -30,6 +34,8 @@ class SkripsiManager extends Component
   public string $sortDirection = 'desc';
 
   public int $perPage = 15;
+
+  public $skripsiCsvFile;
 
   // Detail modal
   public bool $showDetailModal = false;
@@ -344,6 +350,234 @@ class SkripsiManager extends Component
     }, $filename, [
       'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
     ]);
+  }
+
+  public function importSkripsiCsv(): void
+  {
+    if (!$this->skripsiCsvFile) {
+      $this->dispatch('toast', type: 'error', message: 'Pilih file CSV data skripsi terlebih dahulu.');
+      return;
+    }
+
+    $filename = (string) ($this->skripsiCsvFile->getClientOriginalName() ?? '');
+    if ($filename !== '' && !str_ends_with(strtolower($filename), '.csv')) {
+      $this->dispatch('toast', type: 'error', message: 'File data skripsi harus berformat .csv');
+      return;
+    }
+
+    $path = $this->skripsiCsvFile->getRealPath();
+    if (!$path) {
+      $this->dispatch('toast', type: 'error', message: 'File upload CSV data skripsi tidak bisa dibaca.');
+      return;
+    }
+
+    $handle = @fopen($path, 'r');
+    if ($handle === false) {
+      $this->dispatch('toast', type: 'error', message: 'Gagal membuka file CSV data skripsi.');
+      return;
+    }
+
+    try {
+      $header = fgetcsv($handle);
+      if (!is_array($header) || empty($header)) {
+        $this->dispatch('toast', type: 'error', message: 'Header CSV data skripsi tidak valid atau kosong.');
+        return;
+      }
+
+      $headerMap = [];
+      foreach ($header as $idx => $rawName) {
+        $normalized = $this->normalizeCsvHeader((string) $rawName);
+        if ($normalized === '') {
+          continue;
+        }
+
+        if (!array_key_exists($normalized, $headerMap)) {
+          $headerMap[$normalized] = (int) $idx;
+        }
+      }
+
+      $idIdx = $this->findCsvColumnIndex($headerMap, ['id', 'skripsi_id']);
+      $titleIdx = $this->findCsvColumnIndex($headerMap, ['title', 'judul']);
+
+      if ($idIdx === null || $titleIdx === null) {
+        $this->dispatch(
+          'toast',
+          type: 'error',
+          message: 'CSV data skripsi wajib punya kolom: id/skripsi_id dan title/judul.'
+        );
+        return;
+      }
+
+      $authorIdx = $this->findCsvColumnIndex($headerMap, ['author', 'penulis']);
+      $yearIdx = $this->findCsvColumnIndex($headerMap, ['year', 'tahun']);
+      $abstractIdx = $this->findCsvColumnIndex($headerMap, ['abstract', 'abstrak']);
+      $conclusionIdx = $this->findCsvColumnIndex($headerMap, ['conclusion', 'kesimpulan']);
+      $keywordsIdx = $this->findCsvColumnIndex($headerMap, ['keywords', 'kata_kunci']);
+      $subjectsIdx = $this->findCsvColumnIndex($headerMap, ['subjects']);
+      $divisionsIdx = $this->findCsvColumnIndex($headerMap, ['divisions']);
+      $typeIdx = $this->findCsvColumnIndex($headerMap, ['type', 'tipe']);
+      $idCodeIdx = $this->findCsvColumnIndex($headerMap, ['id_code', 'idcode']);
+      $urlIdx = $this->findCsvColumnIndex($headerMap, ['url']);
+      $uriIdx = $this->findCsvColumnIndex($headerMap, ['uri']);
+      $conclusionSourceIdx = $this->findCsvColumnIndex($headerMap, ['conclusion_source', 'sumber_kesimpulan']);
+      $depositDateIdx = $this->findCsvColumnIndex($headerMap, ['deposit_date', 'tanggal_deposit']);
+      $modifiedDateIdx = $this->findCsvColumnIndex($headerMap, ['modified_date', 'tanggal_modifikasi']);
+      $repositoryOrderIdx = $this->findCsvColumnIndex($headerMap, ['repository_order']);
+      $cleanedIdx = $this->findCsvColumnIndex($headerMap, ['cleaned_text']);
+      $processedIdx = $this->findCsvColumnIndex($headerMap, ['processed_text']);
+
+      $rows = [];
+      $validCount = 0;
+      $skippedCount = 0;
+      $lineOrder = 0;
+      $now = now();
+
+      while (($data = fgetcsv($handle)) !== false) {
+        if (!is_array($data) || $data === [null]) {
+          continue;
+        }
+
+        $lineOrder++;
+
+        $idRaw = $this->csvCell($data, $idIdx);
+        $title = $this->csvCell($data, $titleIdx);
+
+        if ($idRaw === '' || !is_numeric($idRaw) || $title === '') {
+          $skippedCount++;
+          continue;
+        }
+
+        $skripsiId = (int) round((float) $idRaw);
+        if ($skripsiId <= 0) {
+          $skippedCount++;
+          continue;
+        }
+
+        $url = $this->csvCell($data, $urlIdx);
+        if ($url === '') {
+          $url = $this->csvCell($data, $uriIdx);
+        }
+        if ($url === '') {
+          $url = sprintf('imported://skripsi/%d', $skripsiId);
+        }
+
+        $repositoryOrder = $this->csvIntOrNull($this->csvCell($data, $repositoryOrderIdx));
+        if ($repositoryOrder === null || $repositoryOrder <= 0) {
+          $repositoryOrder = $lineOrder;
+        }
+
+        $rows[] = [
+          'id' => $skripsiId,
+          'title' => $title,
+          'abstract' => $this->csvCell($data, $abstractIdx) ?: null,
+          'cleaned_text' => $this->csvCell($data, $cleanedIdx) ?: null,
+          'processed_text' => $this->csvCell($data, $processedIdx) ?: null,
+          'type' => $this->csvCell($data, $typeIdx) ?: null,
+          'id_code' => $this->csvCell($data, $idCodeIdx) ?: null,
+          'keywords' => $this->csvCell($data, $keywordsIdx) ?: null,
+          'subjects' => $this->csvCell($data, $subjectsIdx) ?: null,
+          'divisions' => $this->csvCell($data, $divisionsIdx) ?: null,
+          'author' => $this->csvCell($data, $authorIdx) ?: null,
+          'deposit_date' => $this->csvCell($data, $depositDateIdx) ?: null,
+          'modified_date' => $this->csvCell($data, $modifiedDateIdx) ?: null,
+          'uri' => $this->csvCell($data, $uriIdx) ?: null,
+          'year' => $this->csvIntOrNull($this->csvCell($data, $yearIdx)),
+          'repository_order' => $repositoryOrder,
+          'url' => $url,
+          'conclusion' => $this->csvCell($data, $conclusionIdx) ?: null,
+          'conclusion_source' => $this->csvCell($data, $conclusionSourceIdx) ?: null,
+          'updated_at' => $now,
+          'created_at' => $now,
+        ];
+        $validCount++;
+      }
+
+      if ($validCount <= 0) {
+        $this->dispatch('toast', type: 'error', message: 'Tidak ada baris valid data skripsi untuk diimpor dari CSV.');
+        return;
+      }
+
+      DB::transaction(function () use ($rows): void {
+        foreach (array_chunk($rows, 300) as $chunk) {
+          Skripsi::query()->upsert(
+            $chunk,
+            ['id'],
+            [
+              'title',
+              'abstract',
+              'cleaned_text',
+              'processed_text',
+              'type',
+              'id_code',
+              'keywords',
+              'subjects',
+              'divisions',
+              'author',
+              'deposit_date',
+              'modified_date',
+              'uri',
+              'year',
+              'repository_order',
+              'url',
+              'conclusion',
+              'conclusion_source',
+              'updated_at',
+            ]
+          );
+        }
+      });
+
+      $this->skripsiCsvFile = null;
+      $this->resetPage();
+
+      $this->dispatch(
+        'toast',
+        type: 'success',
+        message: sprintf('Import CSV data skripsi selesai. %d baris valid diproses, %d baris dilewati.', $validCount, $skippedCount)
+      );
+    } catch (\Throwable $e) {
+      Log::error('CSV import to skripsi failed', ['error' => $e->getMessage()]);
+      $this->dispatch('toast', type: 'error', message: 'Gagal import CSV data skripsi: ' . $e->getMessage());
+    } finally {
+      fclose($handle);
+    }
+  }
+
+  protected function normalizeCsvHeader(string $header): string
+  {
+    $normalized = strtolower(trim($header));
+    $normalized = str_replace(['-', '/', '.', '(', ')'], '_', $normalized);
+    $normalized = preg_replace('/\s+/', '_', $normalized) ?? $normalized;
+    return trim($normalized, '_');
+  }
+
+  protected function findCsvColumnIndex(array $headerMap, array $candidates): ?int
+  {
+    foreach ($candidates as $candidate) {
+      if (array_key_exists($candidate, $headerMap)) {
+        return (int) $headerMap[$candidate];
+      }
+    }
+
+    return null;
+  }
+
+  protected function csvCell(array $row, ?int $index): string
+  {
+    if ($index === null) {
+      return '';
+    }
+
+    return trim((string) ($row[$index] ?? ''));
+  }
+
+  protected function csvIntOrNull(string $value): ?int
+  {
+    if ($value === '' || !is_numeric($value)) {
+      return null;
+    }
+
+    return (int) round((float) $value);
   }
 
   protected function getFilteredQuery(): Builder

@@ -11,6 +11,7 @@ use App\Models\TopicModelTopicDocument;
 use App\Services\FastApiService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -34,6 +35,8 @@ class TopicModelingManager extends Component
     public array $bertopicParams = [];
     public array $ldaParams = [];
     public string $modelType = 'bertopic';
+    public string $bertopicParamsSource = 'schema_default';
+    public string $ldaParamsSource = 'schema_default';
 
     // Current run (DB)
     public ?int $activeRunId = null;
@@ -56,6 +59,7 @@ class TopicModelingManager extends Component
     public array $datasetSummary = [];
 
     public $bertopicParamsJsonFile;
+    public $datasetCsvFile;
 
     // Model utilities (download + test)
     public bool $modelTestLoading = false;
@@ -102,6 +106,8 @@ class TopicModelingManager extends Component
     {
         $hasBerTopicParams = false;
         $hasLdaParams = false;
+        $bertopicSource = 'schema_default';
+        $ldaSource = 'schema_default';
 
         $modelType = $this->modelType ?: 'bertopic';
 
@@ -113,11 +119,13 @@ class TopicModelingManager extends Component
             if (is_array($this->activeRun->bertopic_params) && !empty($this->activeRun->bertopic_params)) {
                 $this->bertopicParams = $this->activeRun->bertopic_params;
                 $hasBerTopicParams = true;
+                $bertopicSource = 'active_run';
             }
 
             if (is_array($this->activeRun->lda_params) && !empty($this->activeRun->lda_params)) {
                 $this->ldaParams = $this->activeRun->lda_params;
                 $hasLdaParams = true;
+                $ldaSource = 'active_run';
             }
         }
 
@@ -137,24 +145,30 @@ class TopicModelingManager extends Component
             if (!$hasBerTopicParams && is_array($setting?->bertopic_params) && !empty($setting->bertopic_params)) {
                 $this->bertopicParams = $setting->bertopic_params;
                 $hasBerTopicParams = true;
+                $bertopicSource = 'user_setting';
             }
 
             if (!$hasLdaParams && is_array($setting?->lda_params) && !empty($setting->lda_params)) {
                 $this->ldaParams = $setting->lda_params;
                 $hasLdaParams = true;
+                $ldaSource = 'user_setting';
             }
         }
 
         // 3) Schema defaults
         if (!$hasBerTopicParams) {
             $this->bertopicParams = $this->getDefaultBertopicParams();
+            $bertopicSource = 'schema_default';
         }
         if (!$hasLdaParams) {
             $this->ldaParams = $this->getDefaultLdaParams();
+            $ldaSource = 'schema_default';
         }
 
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
+        $this->bertopicParamsSource = $bertopicSource;
+        $this->ldaParamsSource = $ldaSource;
     }
 
     public function updatedModelType(): void
@@ -202,6 +216,9 @@ class TopicModelingManager extends Component
             ]);
             $this->activeRun->refresh();
         }
+
+        $this->bertopicParamsSource = 'user_setting';
+        $this->ldaParamsSource = 'user_setting';
 
         $this->dispatch('toast', type: 'success', message: 'Parameter training disimpan sebagai Best (persisten) dan disinkronkan ke run aktif.');
     }
@@ -275,6 +292,7 @@ class TopicModelingManager extends Component
             $this->activeRun->refresh();
         }
 
+        $this->bertopicParamsSource = 'uploaded_json';
         $this->bertopicParamsJsonFile = null;
         $this->dispatch('toast', type: 'success', message: 'BERTopic params berhasil dimuat dari JSON.');
     }
@@ -319,6 +337,183 @@ class TopicModelingManager extends Component
         }
 
         return $paramsPayload;
+    }
+
+    public function importDatasetCsv(): void
+    {
+        if (!$this->datasetCsvFile) {
+            $this->dispatch('toast', type: 'error', message: 'Pilih file CSV terlebih dahulu.');
+            return;
+        }
+
+        $filename = (string) ($this->datasetCsvFile->getClientOriginalName() ?? '');
+        if ($filename !== '' && !str_ends_with(strtolower($filename), '.csv')) {
+            $this->dispatch('toast', type: 'error', message: 'File harus berformat .csv');
+            return;
+        }
+
+        $path = $this->datasetCsvFile->getRealPath();
+        if (!$path) {
+            $this->dispatch('toast', type: 'error', message: 'File upload CSV tidak bisa dibaca.');
+            return;
+        }
+
+        $handle = @fopen($path, 'r');
+        if ($handle === false) {
+            $this->dispatch('toast', type: 'error', message: 'Gagal membuka file CSV.');
+            return;
+        }
+
+        try {
+            $header = fgetcsv($handle);
+            if (!is_array($header) || empty($header)) {
+                $this->dispatch('toast', type: 'error', message: 'Header CSV tidak valid atau kosong.');
+                return;
+            }
+
+            $headerMap = [];
+            foreach ($header as $idx => $rawName) {
+                $normalized = $this->normalizeCsvHeader((string) $rawName);
+                if ($normalized === '') {
+                    continue;
+                }
+
+                if (!array_key_exists($normalized, $headerMap)) {
+                    $headerMap[$normalized] = (int) $idx;
+                }
+            }
+
+            $idIdx = $this->findCsvColumnIndex($headerMap, ['skripsi_id', 'id']);
+            $cleanedIdx = $this->findCsvColumnIndex($headerMap, ['cleaned_text']);
+            $processedIdx = $this->findCsvColumnIndex($headerMap, ['processed_text']);
+
+            if ($idIdx === null || $cleanedIdx === null || $processedIdx === null) {
+                $this->dispatch(
+                    'toast',
+                    type: 'error',
+                    message: 'CSV wajib punya kolom: skripsi_id/id, cleaned_text, processed_text.'
+                );
+                return;
+            }
+
+            $titleIdx = $this->findCsvColumnIndex($headerMap, ['title', 'judul']);
+            $abstractIdx = $this->findCsvColumnIndex($headerMap, ['abstract', 'abstrak']);
+            $conclusionIdx = $this->findCsvColumnIndex($headerMap, ['conclusion', 'kesimpulan']);
+            $yearIdx = $this->findCsvColumnIndex($headerMap, ['year', 'tahun']);
+
+            $rows = [];
+            $validCount = 0;
+            $skippedCount = 0;
+            $now = now();
+
+            while (($data = fgetcsv($handle)) !== false) {
+                if (!is_array($data) || $data === [null]) {
+                    continue;
+                }
+
+                $idRaw = $this->csvCell($data, $idIdx);
+                if ($idRaw === '' || !is_numeric($idRaw)) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $skripsiId = (int) round((float) $idRaw);
+                if ($skripsiId <= 0) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $cleanedText = $this->csvCell($data, $cleanedIdx);
+                $processedText = $this->csvCell($data, $processedIdx);
+
+                if ($cleanedText === '' || $processedText === '') {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $yearValue = $this->csvIntOrNull($this->csvCell($data, $yearIdx));
+
+                $rows[] = [
+                    'skripsi_id' => $skripsiId,
+                    'title' => $this->csvCell($data, $titleIdx) ?: null,
+                    'abstract' => $this->csvCell($data, $abstractIdx) ?: null,
+                    'conclusion' => $this->csvCell($data, $conclusionIdx) ?: null,
+                    'year' => $yearValue,
+                    'cleaned_text' => $cleanedText,
+                    'processed_text' => $processedText,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $validCount++;
+            }
+
+            if ($validCount <= 0) {
+                $this->dispatch('toast', type: 'error', message: 'Tidak ada baris valid untuk diimpor dari CSV.');
+                return;
+            }
+
+            DB::transaction(function () use ($rows): void {
+                foreach (array_chunk($rows, 500) as $chunk) {
+                    TopicModelDataset::query()->upsert(
+                        $chunk,
+                        ['skripsi_id'],
+                        ['title', 'abstract', 'conclusion', 'year', 'cleaned_text', 'processed_text', 'updated_at']
+                    );
+                }
+            });
+
+            $this->datasetCsvFile = null;
+            $this->loadDatasetSummary();
+            $this->loadDbPreprocessedRows();
+
+            $this->dispatch(
+                'toast',
+                type: 'success',
+                message: sprintf('Import CSV selesai. %d baris valid diproses, %d baris dilewati.', $validCount, $skippedCount)
+            );
+        } catch (\Throwable $e) {
+            Log::error('CSV import to topic_model_datasets failed', ['error' => $e->getMessage()]);
+            $this->dispatch('toast', type: 'error', message: 'Gagal import CSV: ' . $e->getMessage());
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    protected function normalizeCsvHeader(string $header): string
+    {
+        $normalized = strtolower(trim($header));
+        $normalized = str_replace(['-', '/', '.', '(', ')'], '_', $normalized);
+        $normalized = preg_replace('/\s+/', '_', $normalized) ?? $normalized;
+        return trim($normalized, '_');
+    }
+
+    protected function findCsvColumnIndex(array $headerMap, array $candidates): ?int
+    {
+        foreach ($candidates as $candidate) {
+            if (array_key_exists($candidate, $headerMap)) {
+                return (int) $headerMap[$candidate];
+            }
+        }
+
+        return null;
+    }
+
+    protected function csvCell(array $row, ?int $index): string
+    {
+        if ($index === null) {
+            return '';
+        }
+
+        return trim((string) ($row[$index] ?? ''));
+    }
+
+    protected function csvIntOrNull(string $value): ?int
+    {
+        if ($value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        return (int) round((float) $value);
     }
 
     public function loadDbPreprocessedRows(): void
@@ -1038,6 +1233,18 @@ class TopicModelingManager extends Component
         return $fallback;
     }
 
+    protected function isBertopicParamsDefaultSnapshot(array $params): bool
+    {
+        return $this->compactBertopicParamsForStorage($params)
+            == $this->compactBertopicParamsForStorage($this->getDefaultBertopicParams());
+    }
+
+    protected function isLdaParamsDefaultSnapshot(array $params): bool
+    {
+        return $this->compactLdaParamsForStorage($params)
+            == $this->compactLdaParamsForStorage($this->getDefaultLdaParams());
+    }
+
     protected function loadLatestRun(): void
     {
         /** @var int|null $userId */
@@ -1139,6 +1346,16 @@ class TopicModelingManager extends Component
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
+
+        // Hindari menyimpan snapshot default agar training tidak diam-diam kembali ke schema default.
+        if ($this->isBertopicParamsDefaultSnapshot($this->bertopicParams)) {
+            $bertopicParamsForStorage = [];
+            $this->bertopicParamsSource = 'schema_default';
+        }
+        if ($this->isLdaParamsDefaultSnapshot($this->ldaParams)) {
+            $ldaParamsForStorage = [];
+            $this->ldaParamsSource = 'schema_default';
+        }
 
         $modelType = in_array($this->modelType, ['bertopic', 'lda'], true)
             ? $this->modelType
@@ -1437,6 +1654,21 @@ class TopicModelingManager extends Component
 
         $this->bertopicParams = $this->normalizeBertopicParams($this->bertopicParams);
         $this->ldaParams = $this->normalizeLdaParams($this->ldaParams);
+
+        if ($modelType === 'bertopic' && $this->isBertopicParamsDefaultSnapshot($this->bertopicParams)) {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Training BERTopic ditolak: parameter masih default. Unggah JSON tuning notebook lalu simpan sebagai Best.';
+            $this->isProcessing = false;
+            return;
+        }
+
+        if ($modelType === 'lda' && $this->isLdaParamsDefaultSnapshot($this->ldaParams)) {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Training LDA ditolak: parameter masih default. Simpan parameter tuning terlebih dahulu.';
+            $this->isProcessing = false;
+            return;
+        }
+
         $bertopicParamsForStorage = $this->compactBertopicParamsForStorage($this->bertopicParams);
         $ldaParamsForStorage = $this->compactLdaParamsForStorage($this->ldaParams);
 

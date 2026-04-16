@@ -58,6 +58,27 @@
                     </x-ui.button>
                 </div>
             </div>
+
+            <div class="mt-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Import Data Skripsi CSV</div>
+                <p class="mt-1 text-xs text-gray-500">
+                    Upload CSV ke tabel skripsi.
+                    Kolom minimum: <span class="font-mono">id/skripsi_id</span> dan <span class="font-mono">title/judul</span>.
+                </p>
+                <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model="skripsiCsvFile"
+                    />
+                    <x-ui.button variant="primary" size="sm" wire:click="importSkripsiCsv" wire:loading.attr="disabled" class="sm:w-auto">
+                        <x-app.icon name="arrow-up-tray" class="mr-1.5 h-3.5 w-3.5" />
+                        <span wire:loading.remove wire:target="importSkripsiCsv">Import CSV</span>
+                        <span wire:loading wire:target="importSkripsiCsv">Mengimpor...</span>
+                    </x-ui.button>
+                </div>
+            </div>
         </div>
 
         {{-- ── Bulk Action Bar ──────────────────────────────── --}}
