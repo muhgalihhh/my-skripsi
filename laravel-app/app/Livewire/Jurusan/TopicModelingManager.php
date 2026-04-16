@@ -674,7 +674,7 @@ class TopicModelingManager extends Component
         // Official BERTopic parameters to tune: top_n_words, n_gram_range, min_topic_size, nr_topics.
         $params['min_topic_size'] = $this->toInt($params['min_topic_size'] ?? null, 2, null, $defaults['min_topic_size']);
         $params['nr_topics'] = $this->normalizeNrTopics($params['nr_topics'] ?? null, $defaults['nr_topics']);
-        $params['top_n_words'] = $this->toInt($params['top_n_words'] ?? null, 15, null, $defaults['top_n_words']);
+        $params['top_n_words'] = $this->toInt($params['top_n_words'] ?? null, 1, null, $defaults['top_n_words']);
 
         $nGramRange = is_array($params['n_gram_range'] ?? null) ? $params['n_gram_range'] : $defaults['n_gram_range'];
         $nGramMin = $this->toInt($nGramRange[0] ?? null, 1, null, $defaults['n_gram_range'][0]);

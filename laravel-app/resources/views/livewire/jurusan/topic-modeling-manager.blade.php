@@ -964,7 +964,7 @@
                     </div>
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">top_n_words</label>
-                        <input type="number" min="15"
+                        <input type="number" min="1"
                             class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                             wire:model.live="bertopicParams.top_n_words" />
                     </div>
