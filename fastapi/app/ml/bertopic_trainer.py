@@ -641,6 +641,7 @@ class BERTopicTrainer:
             raise FileNotFoundError(f"Model not found: {model_dir}")
 
         self.model = BERTopic.load(model_path)
+        self.vectorizer_model = getattr(self.model, "vectorizer_model", None)
 
         # Load embeddings jika ada
         embeddings_path = model_dir / "embeddings.npy"
