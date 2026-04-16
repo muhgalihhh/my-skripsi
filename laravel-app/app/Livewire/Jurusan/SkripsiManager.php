@@ -565,6 +565,9 @@ class SkripsiManager extends Component
 
   protected function normalizeCsvHeader(string $header): string
   {
+    // Handle UTF-8 BOM / zero-width markers that often appear in CSV exports.
+    $header = str_replace(["\xEF\xBB\xBF", "\u{FEFF}", "\u{200B}"], '', $header);
+
     $normalized = strtolower(trim($header));
     $normalized = str_replace(['-', '/', '.', '(', ')'], '_', $normalized);
     $normalized = preg_replace('/\s+/', '_', $normalized) ?? $normalized;
