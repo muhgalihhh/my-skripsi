@@ -223,54 +223,30 @@
                     @endif
                 </div>
 
-                <div x-show="activeVizTab === 'trend'" x-cloak class="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2">
-                    <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                        <div class="mb-4 flex items-center gap-2.5">
-                            <div class="rounded-lg bg-unsoed-blue-100 p-2">
-                                <x-app.icon name="arrow-trending-up" class="h-4 w-4 text-unsoed-blue-700" />
-                            </div>
-                            <div>
-                                <h2 class="text-lg font-semibold text-gray-900">Topik Meningkat</h2>
-                                <p class="text-xs text-gray-500">Topik dengan kenaikan proporsi tertinggi.</p>
-                            </div>
+                <div x-show="activeVizTab === 'trend'" x-cloak class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div class="mb-4 flex items-center gap-2.5">
+                        <div class="rounded-lg bg-unsoed-blue-100 p-2">
+                            <x-app.icon name="arrows-right-left" class="h-4 w-4 text-unsoed-blue-700" />
                         </div>
-
-                        @if (!empty($chartPayload['trend']['emerging']))
-                            <div class="overflow-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
-                                <canvas x-ref="emergingChartCanvas" class="block h-[16rem] w-full max-w-full !transform-none sm:h-[20rem]"></canvas>
-                            </div>
-                            <p x-show="emergingRenderError" class="mt-2 text-xs text-red-600" x-text="emergingRenderError"></p>
-                        @else
-                            <div class="flex h-[16rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[20rem]">
-                                <x-app.icon name="arrow-trending-up" class="mb-3 h-12 w-12 text-gray-200" />
-                                <p class="text-sm font-medium">Belum ada topik meningkat terdeteksi.</p>
-                            </div>
-                        @endif
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-900">Dynamic Topic Analysis (DTA)</h2>
+                            <p class="text-xs text-gray-500">Nilai bar ke kanan menandakan topik menguat (Emerging), ke kiri melemah (Declining). Garis tengah (0) adalah keseimbangan relatif.</p>
+                        </div>
                     </div>
 
-                    <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                        <div class="mb-4 flex items-center gap-2.5">
-                            <div class="rounded-lg bg-unsoed-blue-100 p-2">
-                                <x-app.icon name="arrow-trending-down" class="h-4 w-4 text-unsoed-blue-700" />
-                            </div>
-                            <div>
-                                <h2 class="text-lg font-semibold text-gray-900">Topik Menurun</h2>
-                                <p class="text-xs text-gray-500">Topik dengan penurunan proporsi tertinggi.</p>
+                    @if (!empty($chartPayload['trend']))
+                        <div class="overflow-x-auto overflow-y-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
+                            <div class="min-w-[600px]">
+                                <canvas x-ref="trendChartCanvas" class="block h-[24rem] w-full max-w-full !transform-none sm:h-[30rem]"></canvas>
                             </div>
                         </div>
-
-                        @if (!empty($chartPayload['trend']['declining']))
-                            <div class="overflow-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
-                                <canvas x-ref="decliningChartCanvas" class="block h-[16rem] w-full max-w-full !transform-none sm:h-[20rem]"></canvas>
-                            </div>
-                            <p x-show="decliningRenderError" class="mt-2 text-xs text-red-600" x-text="decliningRenderError"></p>
-                        @else
-                            <div class="flex h-[16rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[20rem]">
-                                <x-app.icon name="arrow-trending-down" class="mb-3 h-12 w-12 text-gray-200" />
-                                <p class="text-sm font-medium">Belum ada topik menurun terdeteksi.</p>
-                            </div>
-                        @endif
-                    </div>
+                        <p x-show="trendRenderError" class="mt-2 text-xs text-red-600" x-text="trendRenderError"></p>
+                    @else
+                        <div class="flex h-[16rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[20rem]">
+                            <x-app.icon name="arrows-right-left" class="mb-3 h-12 w-12 text-gray-200" />
+                            <p class="text-sm font-medium">Belum ada data trend terdeteksi.</p>
+                        </div>
+                    @endif
                 </div>
 
                 <div x-show="activeVizTab === 'mapping'" x-cloak class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
@@ -495,8 +471,7 @@
                     payload,
                     mappingPayload,
                     dtmChart: null,
-                    emergingChart: null,
-                    decliningChart: null,
+                    trendChart: null,
                     mappingDistributionChart: null,
                     wordCloudCharts: new Map(),
                     wordCloudRenderSignatures: new Map(),
@@ -505,8 +480,7 @@
                     wordCloudPageSize: 4,
                     wordCloudWordLimit: 10,
                     dtmRenderError: '',
-                    emergingRenderError: '',
-                    decliningRenderError: '',
+                    trendRenderError: '',
                     mappingRenderError: '',
                     renderAttempts: 0,
 
@@ -1087,25 +1061,18 @@
                     },
 
                     renderTrendCharts() {
-                        const trend = this.payload?.trend ?? {};
-                        const emerging = Array.isArray(trend.emerging) ? trend.emerging : [];
-                        const declining = Array.isArray(trend.declining) ? trend.declining : [];
+                        const rows = Array.isArray(this.payload?.trend) ? this.payload.trend : [];
 
-                        if (this.emergingChart) {
-                            this.emergingChart.destroy();
-                            this.emergingChart = null;
+                        if (this.trendChart) {
+                            this.trendChart.destroy();
+                            this.trendChart = null;
                         }
 
-                        if (this.decliningChart) {
-                            this.decliningChart.destroy();
-                            this.decliningChart = null;
-                        }
-
-                        this.emergingChart = this.createTrendChart(this.$refs.emergingChartCanvas, emerging, false, 'emergingRenderError');
-                        this.decliningChart = this.createTrendChart(this.$refs.decliningChartCanvas, declining, true, 'decliningRenderError');
+                        this.trendRenderError = '';
+                        this.trendChart = this.createTrendChart(this.$refs.trendChartCanvas, rows, 'trendRenderError');
                     },
 
-                    createTrendChart(canvas, rows, isDeclining, errorKey) {
+                    createTrendChart(canvas, rows, errorKey) {
                         if (!canvas || !Array.isArray(rows) || rows.length === 0) {
                             return null;
                         }
@@ -1116,117 +1083,84 @@
                         }
 
                         if (typeof window.Chart === 'undefined') {
-                            this[errorKey] = 'Library Chart.js belum termuat, jadi grafik belum bisa dirender.';
+                            this[errorKey] = 'Library Chart.js belum termuat.';
                             return null;
                         }
 
                         const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
                         if (!ctx) {
-                            this[errorKey] = 'Canvas chart belum siap (context null). Silakan refresh halaman.';
+                            this[errorKey] = 'Canvas context null.';
                             return null;
                         }
 
-                        const labels = rows.map((row) => row.label);
-                        const data = rows.map((row) => Math.abs(Number(row.delta || 0)));
-                        const gradientPairs = isDeclining
-                            ? [
-                                ['#ef4444', '#b91c1c'],
-                                ['#f97316', '#c2410c'],
-                                ['#f59e0b', '#b45309'],
-                                ['#a855f7', '#7e22ce'],
-                                ['#ec4899', '#be185d'],
-                            ]
-                            : [
-                                ['#3b82f6', '#1d4ed8'],
-                                ['#06b6d4', '#0e7490'],
-                                ['#22c55e', '#15803d'],
-                                ['#6366f1', '#4338ca'],
-                                ['#14b8a6', '#0f766e'],
-                            ];
-                        const chartTextColor = '#334155';
-                        const chartGridColor = '#e2e8f0';
+                        const labels = rows.map((r) => r.label);
+                        const data = rows.map((r) => Number(r.relative_slope || 0));
+
+                        // Colors aligned with notebook: emerging/stable/declining/insufficient_data.
+                        const bgColors = rows.map((r) => {
+                            if (r.trend_label === 'emerging') return 'rgba(34, 197, 94, 0.85)';
+                            if (r.trend_label === 'declining') return 'rgba(239, 68, 68, 0.85)';
+                            if (r.trend_label === 'stable') return 'rgba(59, 130, 246, 0.85)';
+                            return 'rgba(156, 163, 175, 0.85)';
+                        });
 
                         const chart = new window.Chart(ctx, {
                             type: 'bar',
                             data: {
                                 labels,
                                 datasets: [{
-                                    label: isDeclining ? 'Penurunan (%)' : 'Kenaikan (%)',
+                                    label: 'Relative Slope',
                                     data,
-                                    backgroundColor: (context) => {
-                                        const index = Number(context.dataIndex ?? 0);
-                                        const pair = gradientPairs[index % gradientPairs.length];
-                                        return this.buildGradient(context.chart?.ctx, context.chart?.chartArea, pair[0], pair[1]);
-                                    },
-                                    borderRadius: 6,
+                                    backgroundColor: bgColors,
+                                    borderRadius: 4,
                                     borderSkipped: false,
-                                    borderWidth: 1,
-                                    borderColor: (context) => {
-                                        const index = Number(context.dataIndex ?? 0);
-                                        const pair = gradientPairs[index % gradientPairs.length];
-                                        return pair[1];
-                                    },
-                                    hoverBorderWidth: 0,
-                                    inflateAmount: 0,
                                 }],
                             },
                             options: {
                                 indexAxis: 'y',
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                resizeDelay: 140,
                                 animation: false,
-                                transitions: {
-                                    active: {
-                                        animation: {
-                                            duration: 0,
-                                        },
-                                    },
-                                },
                                 plugins: {
-                                    legend: {
-                                        display: false,
-                                    },
+                                    legend: { display: false },
                                     tooltip: {
                                         callbacks: {
                                             label: (context) => {
                                                 const row = rows[context.dataIndex] || {};
-                                                return `${Number(context.parsed.x).toFixed(2)}% (awal ${Number(row.start || 0).toFixed(2)}% → akhir ${Number(row.end || 0).toFixed(2)}%)`;
+                                                return `Relative Slope: ${Number(context.parsed.x).toFixed(3)} (${(row.trend_label || 'stable').toUpperCase()})`;
                                             },
                                         },
                                     },
                                 },
                                 scales: {
                                     x: {
-                                        beginAtZero: true,
-                                        ticks: {
-                                            color: chartTextColor,
-                                        },
-                                        grid: {
-                                            color: chartGridColor,
-                                        },
-                                        title: {
-                                            display: true,
-                                            text: isDeclining ? 'Besaran Penurunan (%)' : 'Kenaikan (%)',
-                                            color: chartTextColor,
-                                        },
+                                        grid: { color: '#e2e8f0' },
+                                        title: { display: true, text: 'Relative Slope' },
                                     },
                                     y: {
-                                        ticks: {
-                                            autoSkip: false,
-                                            color: chartTextColor,
-                                            callback: function(value) {
-                                                const label = String(this.getLabelForValue(value) ?? '');
-                                                return label.length > 28 ? `${label.slice(0, 28)}...` : label;
-                                            },
-                                        },
-                                        grid: {
-                                            display: false,
-                                        },
+                                        grid: { display: false },
+                                        ticks: { font: { size: 11 } },
                                     },
                                 },
                             },
+                            plugins: [{
+                                id: 'zeroLine',
+                                beforeDraw: (chart) => {
+                                    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+                                    const zeroX = x.getPixelForValue(0);
+                                    if (isNaN(zeroX)) return;
+                                    ctx.save();
+                                    ctx.beginPath();
+                                    ctx.moveTo(zeroX, top);
+                                    ctx.lineTo(zeroX, bottom);
+                                    ctx.lineWidth = 1.5;
+                                    ctx.strokeStyle = '#334155';
+                                    ctx.stroke();
+                                    ctx.restore();
+                                },
+                            }],
                         });
+
                         return chart;
                     },
 

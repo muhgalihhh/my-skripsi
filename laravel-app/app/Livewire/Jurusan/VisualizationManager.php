@@ -471,76 +471,78 @@ class VisualizationManager extends Component
     {
         $series = $dtmPayload['series'] ?? [];
         if (empty($series)) {
-            return [
-                'emerging' => [],
-                'declining' => [],
-            ];
+            return [];
         }
 
         $rows = [];
+        $dtaTrendThreshold = 0.03;
+        $minPoints = 3;
+
         foreach ($series as $topicSeries) {
             $data = $topicSeries['data'] ?? [];
             if (!is_array($data) || count($data) < 2) {
                 continue;
             }
 
-            $start = (float) $data[0];
-            $end = (float) $data[count($data) - 1];
-            $delta = $end - $start;
+            $yVals = array_values($data);
+            $nPoints = count($yVals);
+
+            $start = (float) $yVals[0];
+            $end = (float) $yVals[$nPoints - 1];
+
+            $slope = 0.0;
+            $relativeSlope = 0.0;
+            $trendLabel = 'stable';
+
+            if ($nPoints < $minPoints) {
+                $trendLabel = 'insufficient_data';
+            } else {
+                $xVals = range(0, $nPoints - 1);
+                $sumX = array_sum($xVals);
+                $sumY = array_sum($yVals);
+                $sumXY = 0.0;
+                $sumX2 = 0.0;
+
+                for ($i = 0; $i < $nPoints; $i++) {
+                    $sumXY += $xVals[$i] * $yVals[$i];
+                    $sumX2 += $xVals[$i] * $xVals[$i];
+                }
+
+                $denominator = ($nPoints * $sumX2) - ($sumX * $sumX);
+                if ($denominator != 0) {
+                    $slope = (($nPoints * $sumXY) - ($sumX * $sumY)) / $denominator;
+                }
+
+                $baseline = max(array_sum($yVals) / $nPoints, 1.0);
+                $relativeSlope = $slope / $baseline;
+
+                if ($relativeSlope >= $dtaTrendThreshold && $end >= $start) {
+                    $trendLabel = 'emerging';
+                } elseif ($relativeSlope <= -$dtaTrendThreshold && $end <= $start) {
+                    $trendLabel = 'declining';
+                } else {
+                    $trendLabel = 'stable';
+                }
+            }
 
             $rows[] = [
                 'topic_id' => (int) ($topicSeries['topic_id'] ?? 0),
                 'label' => (string) ($topicSeries['label'] ?? 'Topik'),
                 'start' => round($start, 4),
                 'end' => round($end, 4),
-                'delta' => round($delta, 4),
+                'relative_slope' => round($relativeSlope, 4),
+                'trend_label' => $trendLabel,
             ];
         }
 
         if (empty($rows)) {
-            return [
-                'emerging' => [],
-                'declining' => [],
-            ];
+            return [];
         }
 
-        $rowsCollection = collect($rows);
+        // Sort ascending by relative_slope (minus to plus)
+        $rowsCollection = collect($rows)->sortBy('relative_slope')->values()->all();
 
-        $emerging = $rowsCollection
-            ->filter(fn($row) => $row['delta'] > 0)
-            ->sortByDesc('delta')
-            ->take($this->trendLimit)
-            ->values()
-            ->all();
-
-        // Jika tidak ada delta negatif, tampilkan delta terkecil agar chart tetap informatif.
-        $declining = $rowsCollection
-            ->filter(fn($row) => $row['delta'] < 0)
-            ->sortBy('delta')
-            ->take($this->trendLimit)
-            ->values()
-            ->all();
-
-        if (empty($emerging)) {
-            $emerging = $rowsCollection
-                ->sortByDesc('delta')
-                ->take($this->trendLimit)
-                ->values()
-                ->all();
-        }
-
-        if (empty($declining)) {
-            $declining = $rowsCollection
-                ->sortBy('delta')
-                ->take($this->trendLimit)
-                ->values()
-                ->all();
-        }
-
-        return [
-            'emerging' => $emerging,
-            'declining' => $declining,
-        ];
+        return $rowsCollection;
     }
 
     protected function buildSkripsiTopicMappingPayload(TopicModelRun $run, Collection $topics): array
@@ -647,7 +649,7 @@ class VisualizationManager extends Component
                 'chartPayload' => [
                     'wordcloud_topics' => [],
                     'dtm' => ['years' => [], 'series' => [], 'has_data' => false, 'missing_reason' => null],
-                    'trend' => ['emerging' => [], 'declining' => []],
+                    'trend' => [],
                 ],
             ]);
         }
@@ -688,7 +690,7 @@ class VisualizationManager extends Component
         $chartPayload = [
             'wordcloud_topics' => [],
             'dtm' => ['years' => [], 'series' => [], 'has_data' => false, 'missing_reason' => null],
-            'trend' => ['emerging' => [], 'declining' => []],
+            'trend' => [],
         ];
 
         if ($activeRun) {

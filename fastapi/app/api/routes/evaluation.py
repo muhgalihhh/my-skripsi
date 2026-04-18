@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/evaluation", tags=["Evaluation"])
 service = TrainingService()
-DTA_TREND_THRESHOLD = 0.5
+DTA_TREND_THRESHOLD = 0.03
 TOP_WORDS_PREVIEW_LIMIT = 15
 
 
@@ -85,10 +85,26 @@ def _classify_topic_trends(
         years_arr = np.array(sorted(int(y) for y in freq_per_year.keys()), dtype=float)
         freqs_arr = np.array([freq_per_year[str(int(y))] for y in years_arr], dtype=float)
 
-        if len(years_arr) >= 2 and freqs_arr.sum() > 0:
-            slope = float(np.polyfit(years_arr, freqs_arr, 1)[0])
-        else:
+        n_points = len(years_arr)
+        min_points = 3
+
+        if n_points < min_points:
             slope = 0.0
+            relative_slope = 0.0
+            direction = TrendDirection.STABLE
+        else:
+            x = np.arange(n_points, dtype=float)
+            y_vals = freqs_arr
+            slope = float(np.polyfit(x, y_vals, 1)[0])
+            baseline = max(float(np.mean(y_vals)), 1.0)
+            relative_slope = float(slope / baseline)
+
+            if relative_slope >= DTA_TREND_THRESHOLD and float(y_vals[-1]) >= float(y_vals[0]):
+                direction = TrendDirection.EMERGING
+            elif relative_slope <= -DTA_TREND_THRESHOLD and float(y_vals[-1]) <= float(y_vals[0]):
+                direction = TrendDirection.DECLINING
+            else:
+                direction = TrendDirection.STABLE
 
         # Get top words
         try:
@@ -96,21 +112,13 @@ def _classify_topic_trends(
         except Exception:
             top_words = []
 
-        # Classify
-        if slope > DTA_TREND_THRESHOLD:
-            direction = TrendDirection.EMERGING
-        elif slope < -DTA_TREND_THRESHOLD:
-            direction = TrendDirection.DECLINING
-        else:
-            direction = TrendDirection.STABLE
-
         trend = TopicTrend(
             topic_id=int(topic_id),
             topic_label=f"Topic {topic_id}",
             top_words=top_words[:TOP_WORDS_PREVIEW_LIMIT],
             trend=direction,
             frequency_per_year=freq_per_year,
-            trend_slope=round(slope, 4),
+            trend_slope=round(relative_slope, 4),
         )
 
         if direction == TrendDirection.EMERGING:
