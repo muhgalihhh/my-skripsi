@@ -13,9 +13,9 @@
                         Pipeline FastAPI-Laravel untuk BERTopic & LDA (preprocessing + training) pada analisis topik skripsi UNSOED.
                     </p>
                 </div>
-                <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-2 sm:p-2.5 xl:w-auto">
-                    <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap xl:w-auto">
-                        <div class="w-full sm:w-[200px]">
+                <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 sm:w-auto">
+                    <div class="flex w-full flex-col gap-2.5 sm:flex-row sm:items-end">
+                        <div class="w-full sm:w-[220px]">
                             <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Model Pelatihan</label>
                             <select
                                 class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
@@ -29,45 +29,7 @@
                             <x-app.icon name="arrow-path" class="h-4 w-4" />
                             Muat Ulang Pratinjau
                         </x-ui.button>
-                        <x-ui.button wire:click="openRunPreprocessingConfirm" wire:loading.attr="disabled" variant="primary"
-                            :disabled="(($apiStatus['status'] ?? '') !== 'ok')" class="w-full sm:w-auto">
-                            <x-app.icon name="funnel" class="h-4 w-4" />
-                            <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
-                            <span wire:loading wire:target="runPreprocessing">Processing…</span>
-                        </x-ui.button>
-                        <x-ui.button type="button" wire:click="openStartTrainingConfirm" wire:loading.attr="disabled" variant="success"
-                            :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed'])) || ((($modelType ?? 'bertopic') === 'bertopic') ? (($bertopicParamsSource ?? 'schema_default') === 'schema_default') : (($ldaParamsSource ?? 'schema_default') === 'schema_default'))"
-                            class="w-full sm:w-auto">
-                            <x-app.icon name="play-circle" class="h-4 w-4" />
-                            <span wire:loading.remove wire:target="startTraining">Mulai Pelatihan {{ strtoupper($modelType) }}</span>
-                            <span wire:loading wire:target="startTraining">Memulai…</span>
-                        </x-ui.button>
-                        <div class="w-full sm:w-[280px]">
-                            <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Import Model (.tar.gz)</label>
-                            <input
-                                type="file"
-                                accept=".tar.gz,.tgz,.tar,application/gzip,application/x-gzip,application/x-tar"
-                                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                                wire:model="modelArchiveFile"
-                            />
-                        </div>
-                        <x-ui.button
-                            type="button"
-                            wire:click="importModelArchive"
-                            wire:loading.attr="disabled"
-                            wire:target="importModelArchive"
-                            variant="secondary"
-                            :disabled="(($apiStatus['status'] ?? '') !== 'ok')"
-                            class="w-full sm:w-auto"
-                        >
-                            <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
-                            <span wire:loading.remove wire:target="importModelArchive">Import Model</span>
-                            <span wire:loading wire:target="importModelArchive">Mengimpor…</span>
-                        </x-ui.button>
                     </div>
-                    <p class="mt-2 text-[11px] text-gray-500">
-                        Gunakan dua jalur: <strong>training manual</strong> atau <strong>import model terlatih</strong> dari notebook.
-                    </p>
                 </div>
             </div>
         </div>
@@ -91,6 +53,69 @@
                 </div>
             </div>
         @endif
+
+        {{-- ── Pipeline Actions (dipisah agar tidak sesak) ─────────────────── --}}
+        <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-900">Aksi Pipeline</h2>
+                    <p class="text-xs text-gray-500">Kontrol preprocessing, training, dan import dipisah agar lebih rapi.</p>
+                </div>
+                <p class="text-[11px] text-gray-500">
+                    Gunakan dua jalur: <strong>training manual</strong> atau <strong>import model terlatih</strong> dari notebook.
+                </p>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Preprocessing</p>
+                    <p class="mt-1 text-xs text-gray-500">Siapkan cleaned_text dan processed_text sebelum training.</p>
+                    <x-ui.button wire:click="openRunPreprocessingConfirm" wire:loading.attr="disabled" variant="primary"
+                        :disabled="(($apiStatus['status'] ?? '') !== 'ok')" class="mt-3 w-full justify-center">
+                        <x-app.icon name="funnel" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
+                        <span wire:loading wire:target="runPreprocessing">Processing…</span>
+                    </x-ui.button>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Training</p>
+                    <p class="mt-1 text-xs text-gray-500">Jalankan pelatihan model {{ strtoupper($modelType) }} menggunakan parameter aktif.</p>
+                    <x-ui.button type="button" wire:click="openStartTrainingConfirm" wire:loading.attr="disabled" variant="success"
+                        :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed'])) || ((($modelType ?? 'bertopic') === 'bertopic') ? (($bertopicParamsSource ?? 'schema_default') === 'schema_default') : (($ldaParamsSource ?? 'schema_default') === 'schema_default'))"
+                        class="mt-3 w-full justify-center">
+                        <x-app.icon name="play-circle" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="startTraining">Mulai Pelatihan {{ strtoupper($modelType) }}</span>
+                        <span wire:loading wire:target="startTraining">Memulai…</span>
+                    </x-ui.button>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Import Model</p>
+                    <p class="mt-1 text-xs text-gray-500">Unggah file model (.tar.gz/.tgz/.tar) untuk dipakai tanpa retraining.</p>
+                    <label class="mt-3 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Arsip Model</label>
+                    <input
+                        type="file"
+                        accept=".tar.gz,.tgz,.tar,application/gzip,application/x-gzip,application/x-tar"
+                        class="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                        wire:model="modelArchiveFile"
+                    />
+                    <x-ui.button
+                        type="button"
+                        wire:click="importModelArchive"
+                        wire:loading.attr="disabled"
+                        wire:target="importModelArchive"
+                        variant="secondary"
+                        :disabled="(($apiStatus['status'] ?? '') !== 'ok')"
+                        class="mt-3 w-full justify-center"
+                    >
+                        <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
+                        <span wire:loading.remove wire:target="importModelArchive">Import Model</span>
+                        <span wire:loading wire:target="importModelArchive">Mengimpor…</span>
+                    </x-ui.button>
+                </div>
+            </div>
+        </div>
 
         {{-- ── Tabs (reduce scrolling) ─────────────────────────────── --}}
         <div class="rounded-2xl border border-gray-200 bg-white p-2.5 shadow-sm">
