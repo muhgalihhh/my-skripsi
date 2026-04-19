@@ -64,6 +64,7 @@ class TopicModelingManager extends Component
     // Model utilities (download + test)
     public bool $modelTestLoading = false;
     public array $modelTestDatasetResult = [];
+    public string $lastImportedArchiveName = '';
 
     // Confirm modal states for resource-intensive actions
     public bool $showRunPreprocessingConfirm = false;
@@ -339,7 +340,7 @@ class TopicModelingManager extends Component
 
         $this->isProcessing = true;
         $this->statusType = 'info';
-        $this->statusMessage = 'Mengimpor model terlatih...';
+        $this->statusMessage = sprintf('Mengimpor model terlatih dari file %s...', $filename !== '' ? $filename : '(tanpa nama)');
 
         try {
             $fastApi = app(FastApiService::class);
@@ -355,6 +356,8 @@ class TopicModelingManager extends Component
             $importedModelType = in_array((string) ($response['model_type'] ?? ''), ['bertopic', 'lda'], true)
                 ? (string) $response['model_type']
                 : 'bertopic';
+            $importedFrom = trim((string) ($response['imported_from'] ?? $filename));
+            $this->lastImportedArchiveName = $importedFrom;
 
             $run = TopicModelRun::create([
                 'user_id' => $userId,
@@ -372,7 +375,21 @@ class TopicModelingManager extends Component
             $this->storeTrainingResults();
 
             if (($this->activeRun?->status ?? '') === 'completed') {
-                $this->dispatch('toast', type: 'success', message: sprintf('Model %s berhasil diimpor.', strtoupper($importedModelType)));
+                $this->statusType = 'success';
+                $this->statusMessage = sprintf(
+                    'Model %s berhasil diimpor dari file %s.',
+                    strtoupper($importedModelType),
+                    $importedFrom !== '' ? $importedFrom : '(tanpa nama)'
+                );
+                $this->dispatch(
+                    'toast',
+                    type: 'success',
+                    message: sprintf(
+                        'Model %s berhasil diimpor dari file %s.',
+                        strtoupper($importedModelType),
+                        $importedFrom !== '' ? $importedFrom : '(tanpa nama)'
+                    )
+                );
             } else {
                 $this->dispatch('toast', type: 'warning', message: 'Model berhasil diunggah, namun hasil import belum tersinkron penuh.');
             }
@@ -1165,6 +1182,7 @@ class TopicModelingManager extends Component
         if ($userId === null) {
             $this->activeRun = null;
             $this->activeRunId = null;
+            $this->lastImportedArchiveName = '';
             return;
         }
 
@@ -1174,6 +1192,7 @@ class TopicModelingManager extends Component
             ->first();
 
         $this->activeRunId = $this->activeRun?->id;
+        $this->lastImportedArchiveName = '';
     }
 
     /**
@@ -1251,6 +1270,7 @@ class TopicModelingManager extends Component
         $this->showRunPreprocessingConfirm = false;
 
         $this->isProcessing = true;
+        $this->lastImportedArchiveName = '';
         $this->statusType = 'info';
         $this->statusMessage = 'Menjalankan preprocessing data...';
         $this->preprocessingDroppedReport = [];
@@ -1705,6 +1725,20 @@ class TopicModelingManager extends Component
             $keywordRatio = (float) ($result['same']['keyword_match_ratio'] ?? 0);
             $isSameCoherence = $result['same']['coherence_cv'] ?? null;
             $isSameDiversity = $result['same']['topic_diversity'] ?? null;
+            $delta = is_array($result['delta'] ?? null) ? $result['delta'] : [];
+            $deltaCoherence = isset($delta['coherence_cv']) && is_numeric($delta['coherence_cv'])
+                ? abs((float) $delta['coherence_cv'])
+                : null;
+            $deltaDiversity = isset($delta['topic_diversity']) && is_numeric($delta['topic_diversity'])
+                ? abs((float) $delta['topic_diversity'])
+                : null;
+            $nearMatchTolerance = 0.01;
+            $hardMatch = ($isSameCoherence === true) && ($isSameDiversity === true);
+            $nearMatch = !$hardMatch
+                && $deltaCoherence !== null
+                && $deltaDiversity !== null
+                && $deltaCoherence <= $nearMatchTolerance
+                && $deltaDiversity <= $nearMatchTolerance;
 
             // Backfill run metrics for legacy imported runs that previously stored empty metrics.
             $retestMetrics = is_array($result['retest_metrics'] ?? null) ? $result['retest_metrics'] : [];
@@ -1759,12 +1793,24 @@ class TopicModelingManager extends Component
                 }
             }
 
-            $sameLabel = ($isSameCoherence === true && $isSameDiversity === true)
-                ? '✅ Sama (metrics match)'
-                : '⚠️ Berbeda (metrics berubah)';
+            if ($hardMatch) {
+                $sameLabel = '✅ Sama (metrics match)';
+                $this->statusType = 'success';
+            } elseif ($nearMatch) {
+                $sameLabel = 'ℹ️ Hampir sama (selisih kecil)';
+                $this->statusType = 'info';
+            } else {
+                $sameLabel = '⚠️ Berbeda (metrics berubah)';
+                $this->statusType = 'warning';
+            }
 
-            $this->statusType = ($isSameCoherence === true && $isSameDiversity === true) ? 'success' : 'warning';
-            $this->statusMessage = $sameLabel . sprintf(' | Keyword match: %.0f%%', $keywordRatio * 100);
+            $deltaLabel = ($deltaCoherence !== null && $deltaDiversity !== null)
+                ? sprintf(' | ΔCv=%.4f, ΔTD=%.4f', $deltaCoherence, $deltaDiversity)
+                : '';
+
+            $this->statusMessage = $sameLabel
+                . sprintf(' | Keyword match: %.0f%%', $keywordRatio * 100)
+                . $deltaLabel;
         } catch (\Throwable $e) {
             Log::error('Model test-dataset failed', ['error' => $e->getMessage()]);
             $this->statusType = 'error';
@@ -1890,6 +1936,8 @@ class TopicModelingManager extends Component
         }
 
         $topics = $results['topic_info'] ?? [];
+        $importedFrom = trim((string) ($results['imported_from'] ?? ''));
+        $this->lastImportedArchiveName = $importedFrom;
         if (is_array($topics) && !empty($topics)) {
             $numTopicsFromTopicInfo = 0;
             foreach ($topics as $topicItem) {
@@ -1997,6 +2045,9 @@ class TopicModelingManager extends Component
             $this->activeRun->coherence_cv ?? 0,
             $this->activeRun->topic_diversity ?? 0,
         );
+        if ($importedFrom !== '') {
+            $this->statusMessage .= sprintf(' | File import: %s', $importedFrom);
+        }
 
         $this->dispatch('toast', type: 'success', message: sprintf('✅ Training %s selesai!', $modelLabel));
         $this->trainingJobId = '';

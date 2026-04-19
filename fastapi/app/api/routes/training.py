@@ -1111,6 +1111,7 @@ async def import_trained_model_archive(
                 "message": completion_message,
                 "job_id": job_id,
                 "model_type": imported_model_type.value,
+                "imported_from": filename or "uploaded_archive",
                 "num_topics": len(topic_info),
                 "num_outliers": int(num_outliers),
                 "total_documents": len(document_topics),

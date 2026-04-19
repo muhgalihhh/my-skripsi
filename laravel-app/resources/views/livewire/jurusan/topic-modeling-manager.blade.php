@@ -619,6 +619,9 @@
                                 </x-ui.button>
                             @endif
                             <div class="text-xs text-gray-500 sm:ml-auto">Job ID: {{ $activeRun->fastapi_training_job_id }}</div>
+                            @if (!empty($lastImportedArchiveName))
+                                <div class="w-full text-xs text-gray-500 sm:text-right">File import: <span class="font-medium text-gray-700">{{ $lastImportedArchiveName }}</span></div>
+                            @endif
                         </div>
 
                         @if (($activeRun->model_type ?? '') === 'bertopic' && !empty($modelTestDatasetResult) && !isset($modelTestDatasetResult['status']))
@@ -626,13 +629,35 @@
                                 $stored = $modelTestDatasetResult['stored_metrics'] ?? [];
                                 $retest = $modelTestDatasetResult['retest_metrics'] ?? [];
                                 $same = $modelTestDatasetResult['same'] ?? [];
+                                $delta = $modelTestDatasetResult['delta'] ?? [];
                                 $dataset = $modelTestDatasetResult['dataset'] ?? [];
-                                $ok = ($same['coherence_cv'] ?? false) === true && ($same['topic_diversity'] ?? false) === true;
+                                $hardMatch = ($same['coherence_cv'] ?? false) === true && ($same['topic_diversity'] ?? false) === true;
+                                $deltaCvAbs = is_numeric($delta['coherence_cv'] ?? null) ? abs((float) $delta['coherence_cv']) : null;
+                                $deltaTdAbs = is_numeric($delta['topic_diversity'] ?? null) ? abs((float) $delta['topic_diversity']) : null;
+                                $nearMatchTolerance = 0.01;
+                                $nearMatch = !$hardMatch
+                                    && $deltaCvAbs !== null
+                                    && $deltaTdAbs !== null
+                                    && $deltaCvAbs <= $nearMatchTolerance
+                                    && $deltaTdAbs <= $nearMatchTolerance;
+
+                                $bannerClass = $hardMatch
+                                    ? 'border-emerald-200 bg-emerald-50'
+                                    : ($nearMatch ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50');
+                                $titleClass = $hardMatch
+                                    ? 'text-emerald-800'
+                                    : ($nearMatch ? 'text-sky-800' : 'text-amber-800');
                             @endphp
-                            <div class="mb-5 rounded-xl border {{ $ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50' }} p-4">
+                            <div class="mb-5 rounded-xl border {{ $bannerClass }} p-4">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <div class="text-sm font-semibold {{ $ok ? 'text-emerald-800' : 'text-amber-800' }}">
-                                        {{ $ok ? 'Hasil test: sama dengan training' : 'Hasil test: ada perbedaan dari training' }}
+                                    <div class="text-sm font-semibold {{ $titleClass }}">
+                                        @if ($hardMatch)
+                                            Hasil test: sama dengan training
+                                        @elseif($nearMatch)
+                                            Hasil test: hampir sama (selisih kecil)
+                                        @else
+                                            Hasil test: ada perbedaan dari training
+                                        @endif
                                     </div>
                                     <div class="text-xs text-gray-500">
                                         Dataset: {{ (int) ($dataset['used'] ?? 0) }}/{{ (int) ($dataset['total'] ?? 0) }} dipakai
@@ -655,6 +680,8 @@
                                         <div class="font-semibold text-gray-700">Kecocokan</div>
                                         <div class="mt-1 text-gray-600">Coherence cocok: <span class="font-mono">{{ ($same['coherence_cv'] ?? null) === true ? 'ya' : 'tidak' }}</span></div>
                                         <div class="text-gray-600">Keragaman cocok: <span class="font-mono">{{ ($same['topic_diversity'] ?? null) === true ? 'ya' : 'tidak' }}</span></div>
+                                        <div class="text-gray-600">ΔCoherence: <span class="font-mono">{{ $deltaCvAbs !== null ? number_format($deltaCvAbs, 4) : '-' }}</span></div>
+                                        <div class="text-gray-600">ΔKeragaman: <span class="font-mono">{{ $deltaTdAbs !== null ? number_format($deltaTdAbs, 4) : '-' }}</span></div>
                                         <div class="text-gray-600">Kata kunci cocok: <span class="font-mono">{{ isset($same['keyword_match_ratio']) ? round(((float) $same['keyword_match_ratio']) * 100) . '%' : '-' }}</span></div>
                                     </div>
                                 </div>
