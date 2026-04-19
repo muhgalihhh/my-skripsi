@@ -43,6 +43,16 @@ class VisualizationManager extends Component
 
     protected function resolveDefaultRunId(int $userId): ?int
     {
+        $latestCompletedRunId = TopicModelRun::query()
+            ->where('user_id', $userId)
+            ->where('status', 'completed')
+            ->latest('id')
+            ->value('id');
+
+        if ($latestCompletedRunId !== null) {
+            return (int) $latestCompletedRunId;
+        }
+
         $latestRunWithDtmDataId = TopicModelTopicDocument::query()
             ->join('topic_model_runs', 'topic_model_runs.id', '=', 'topic_model_topic_documents.topic_model_run_id')
             ->join('skripsi', 'skripsi.id', '=', 'topic_model_topic_documents.skripsi_id')
@@ -56,13 +66,7 @@ class VisualizationManager extends Component
             return (int) $latestRunWithDtmDataId;
         }
 
-        $latestCompletedRunId = TopicModelRun::query()
-            ->where('user_id', $userId)
-            ->where('status', 'completed')
-            ->latest('id')
-            ->value('id');
-
-        return $latestCompletedRunId !== null ? (int) $latestCompletedRunId : null;
+        return null;
     }
 
     protected function buildWordCloudTopics(Collection $topics): array

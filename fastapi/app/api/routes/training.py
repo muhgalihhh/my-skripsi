@@ -181,30 +181,112 @@ def _infer_document_topics_for_bertopic(trainer) -> Tuple[List[Dict[str, Any]], 
         if not payload.documents or not payload.document_ids:
             return [], {}, 0
 
-        inferred_topics, _ = trainer.model.transform(payload.documents)
+        try:
+            inferred_topics, _ = trainer.model.transform(payload.documents)
 
-        rows: List[Dict[str, Any]] = []
-        topic_counts: Dict[int, int] = {}
-        num_outliers = 0
+            if len(inferred_topics) != len(payload.document_ids):
+                raise ValueError("Length mismatch between inferred topics and document ids")
 
-        for skripsi_id, inferred_topic in zip(payload.document_ids, inferred_topics):
-            topic_id = int(inferred_topic)
-            is_outlier = topic_id == -1
+            rows: List[Dict[str, Any]] = []
+            topic_counts: Dict[int, int] = {}
+            num_outliers = 0
 
-            if is_outlier:
-                num_outliers += 1
-            else:
-                topic_counts[topic_id] = topic_counts.get(topic_id, 0) + 1
+            for skripsi_id, inferred_topic in zip(payload.document_ids, inferred_topics):
+                topic_id = int(inferred_topic)
+                is_outlier = topic_id == -1
 
-            rows.append(
-                {
-                    "skripsi_id": int(skripsi_id),
-                    "topic_id": topic_id,
-                    "is_outlier": is_outlier,
-                }
+                if is_outlier:
+                    num_outliers += 1
+                else:
+                    topic_counts[topic_id] = topic_counts.get(topic_id, 0) + 1
+
+                rows.append(
+                    {
+                        "skripsi_id": int(skripsi_id),
+                        "topic_id": topic_id,
+                        "is_outlier": is_outlier,
+                    }
+                )
+
+            return rows, topic_counts, num_outliers
+        except Exception as transform_exc:
+            logger.warning(
+                "BERTopic transform failed during import mapping, using keyword fallback: {}",
+                str(transform_exc),
             )
 
-        return rows, topic_counts, num_outliers
+            topic_word_sets: Dict[int, set[str]] = {}
+            dominant_topic_id: Optional[int] = None
+
+            try:
+                topic_info = trainer.model.get_topic_info()
+                positive_rows = topic_info[topic_info["Topic"] != -1]
+                if not positive_rows.empty:
+                    dominant_topic_id = int(
+                        positive_rows.sort_values("Count", ascending=False).iloc[0]["Topic"]
+                    )
+            except Exception:
+                dominant_topic_id = None
+
+            for raw_topic_id in trainer.model.get_topics().keys():
+                topic_id = int(raw_topic_id)
+                if topic_id < 0:
+                    continue
+
+                words_scores = trainer.model.get_topic(topic_id) or []
+                word_set = {
+                    str(word).strip().lower()
+                    for word, _ in words_scores[:TOP_WORDS_PREVIEW_LIMIT]
+                    if str(word).strip() != ""
+                }
+
+                if word_set:
+                    topic_word_sets[topic_id] = word_set
+
+            if not topic_word_sets:
+                return [], {}, 0
+
+            if dominant_topic_id is None or dominant_topic_id not in topic_word_sets:
+                dominant_topic_id = min(topic_word_sets.keys())
+
+            rows: List[Dict[str, Any]] = []
+            topic_counts: Dict[int, int] = {}
+            num_outliers = 0
+
+            for skripsi_id, document in zip(payload.document_ids, payload.documents):
+                tokens = {
+                    token
+                    for token in str(document).lower().split()
+                    if token.strip() != ""
+                }
+
+                best_topic_id = -1
+                best_score = -1
+                for topic_id, topic_words in topic_word_sets.items():
+                    score = sum(1 for word in topic_words if word in tokens)
+                    if score > best_score:
+                        best_score = score
+                        best_topic_id = topic_id
+
+                if best_score <= 0:
+                    best_topic_id = int(dominant_topic_id)
+
+                is_outlier = best_topic_id == -1
+
+                if is_outlier:
+                    num_outliers += 1
+                else:
+                    topic_counts[best_topic_id] = topic_counts.get(best_topic_id, 0) + 1
+
+                rows.append(
+                    {
+                        "skripsi_id": int(skripsi_id),
+                        "topic_id": int(best_topic_id),
+                        "is_outlier": is_outlier,
+                    }
+                )
+
+            return rows, topic_counts, num_outliers
     except Exception as exc:
         logger.warning("Unable to infer BERTopic document-topic mapping on import: {}", str(exc))
         return [], {}, 0
@@ -907,6 +989,8 @@ async def import_trained_model_archive(
             document_topics: List[Dict[str, Any]]
             topic_counts: Dict[int, int]
             num_outliers: int
+            metrics: Dict[str, Any] = {}
+            evaluator = TopicEvaluator()
 
             if imported_model_type == ModelType.BERTOPIC:
                 from app.ml.bertopic_trainer import BERTopicTrainer
@@ -925,6 +1009,24 @@ async def import_trained_model_archive(
 
                 if document_topics:
                     num_outliers = int(inferred_outliers)
+
+                try:
+                    payload = pipeline_service.build_training_payload(
+                        df=pipeline_service.load_training_dataset(),
+                        model_type=ModelType.BERTOPIC,
+                    )
+
+                    inferred_topics = [int(item.get("topic_id", -1)) for item in document_topics]
+                    topics_for_eval: Optional[List[int]] = inferred_topics if inferred_topics else None
+
+                    metrics = evaluator.evaluate_bertopic(
+                        model=trainer.model,
+                        documents=payload.documents,
+                        topics=topics_for_eval,
+                        vectorizer_model=trainer.vectorizer_model,
+                    )
+                except Exception as exc:
+                    logger.warning("Unable to compute BERTopic metrics on import: {}", str(exc))
             else:
                 from app.ml.lda_trainer import LDATrainer
 
@@ -941,13 +1043,35 @@ async def import_trained_model_archive(
                         if topic_id >= 0:
                             item["count"] = int(topic_counts.get(topic_id, item.get("count", 0)))
 
+                try:
+                    payload = pipeline_service.build_training_payload(
+                        df=pipeline_service.load_training_dataset(),
+                        model_type=ModelType.LDA,
+                    )
+                    tokenized_docs = [
+                        str(doc).split()
+                        for doc in payload.documents
+                        if str(doc).strip() != ""
+                    ]
+
+                    if tokenized_docs:
+                        metrics = evaluator.evaluate_lda(
+                            model=trainer.model,
+                            tokenized_docs=tokenized_docs,
+                            dictionary=trainer.dictionary,
+                        )
+                except Exception as exc:
+                    logger.warning("Unable to compute LDA metrics on import: {}", str(exc))
+
             result_payload: Dict[str, Any] = {
                 "job_id": job_id,
                 "model_type": imported_model_type.value,
                 "num_topics": len(topic_info),
                 "num_outliers": int(num_outliers),
                 "training_duration_seconds": None,
-                "metrics": {},
+                "metrics": metrics,
+                "coherence_cv": metrics.get("coherence_cv"),
+                "topic_diversity": metrics.get("topic_diversity"),
                 "topic_info": topic_info,
                 "document_topics": document_topics,
                 "model_path": str(target_model_dir),
@@ -990,6 +1114,8 @@ async def import_trained_model_archive(
                 "num_topics": len(topic_info),
                 "num_outliers": int(num_outliers),
                 "total_documents": len(document_topics),
+                "coherence_cv": metrics.get("coherence_cv"),
+                "topic_diversity": metrics.get("topic_diversity"),
             }
     except HTTPException as exc:
         if job_id is not None:

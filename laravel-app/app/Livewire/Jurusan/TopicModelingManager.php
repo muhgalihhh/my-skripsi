@@ -1706,6 +1706,59 @@ class TopicModelingManager extends Component
             $isSameCoherence = $result['same']['coherence_cv'] ?? null;
             $isSameDiversity = $result['same']['topic_diversity'] ?? null;
 
+            // Backfill run metrics for legacy imported runs that previously stored empty metrics.
+            $retestMetrics = is_array($result['retest_metrics'] ?? null) ? $result['retest_metrics'] : [];
+            $retestCoherence = isset($retestMetrics['coherence_cv']) && is_numeric($retestMetrics['coherence_cv'])
+                ? (float) $retestMetrics['coherence_cv']
+                : null;
+            $retestDiversity = isset($retestMetrics['topic_diversity']) && is_numeric($retestMetrics['topic_diversity'])
+                ? (float) $retestMetrics['topic_diversity']
+                : null;
+            $retestNumTopics = isset($retestMetrics['num_topics']) && is_numeric($retestMetrics['num_topics'])
+                ? (int) $retestMetrics['num_topics']
+                : null;
+
+            $currentCoherence = $this->activeRun->coherence_cv;
+            $currentDiversity = $this->activeRun->topic_diversity;
+            $currentNumTopics = $this->activeRun->num_topics;
+
+            $needsCoherenceBackfill = $currentCoherence === null || (float) $currentCoherence <= 0.0;
+            $needsDiversityBackfill = $currentDiversity === null || (float) $currentDiversity <= 0.0;
+            $needsNumTopicsBackfill = $currentNumTopics === null || (int) $currentNumTopics <= 0;
+
+            $runUpdates = [];
+            if ($needsCoherenceBackfill && $retestCoherence !== null) {
+                $runUpdates['coherence_cv'] = $retestCoherence;
+            }
+            if ($needsDiversityBackfill && $retestDiversity !== null) {
+                $runUpdates['topic_diversity'] = $retestDiversity;
+            }
+            if ($needsNumTopicsBackfill && $retestNumTopics !== null) {
+                $runUpdates['num_topics'] = $retestNumTopics;
+            }
+
+            if (!empty($runUpdates)) {
+                $this->activeRun->update($runUpdates);
+                $this->activeRun->refresh();
+            }
+
+            $hasMappings = TopicModelTopicDocument::query()
+                ->where('topic_model_run_id', $this->activeRun->id)
+                ->exists();
+
+            if (!$hasMappings) {
+                $topicIdToRowId = TopicModelTopic::query()
+                    ->where('topic_model_run_id', $this->activeRun->id)
+                    ->pluck('id', 'topic_id')
+                    ->map(fn($id) => (int) $id)
+                    ->all();
+
+                if (!empty($topicIdToRowId)) {
+                    $this->backfillTopicDocumentMappingsFromDataset($topicIdToRowId);
+                    $this->activeRun->load(['topics.documentLinks.skripsi']);
+                }
+            }
+
             $sameLabel = ($isSameCoherence === true && $isSameDiversity === true)
                 ? '✅ Sama (metrics match)'
                 : '⚠️ Berbeda (metrics berubah)';
@@ -1891,6 +1944,7 @@ class TopicModelingManager extends Component
 
         // Simpan mapping topic -> list skripsi agar bisa ditelusuri per topik di UI.
         $documentTopics = $results['document_topics'] ?? [];
+        $insertedMappingCount = 0;
         if (is_array($documentTopics) && !empty($documentTopics)) {
             $now = now();
             $rows = [];
@@ -1923,7 +1977,12 @@ class TopicModelingManager extends Component
                     ['topic_model_run_id', 'skripsi_id'],
                     ['topic_model_topic_id', 'topic_id', 'updated_at']
                 );
+                $insertedMappingCount = count($rows);
             }
+        }
+
+        if ($insertedMappingCount === 0 && !empty($topicIdToRowId)) {
+            $insertedMappingCount = $this->backfillTopicDocumentMappingsFromDataset($topicIdToRowId);
         }
 
         $this->activeRun->refresh();
@@ -1941,6 +2000,145 @@ class TopicModelingManager extends Component
 
         $this->dispatch('toast', type: 'success', message: sprintf('✅ Training %s selesai!', $modelLabel));
         $this->trainingJobId = '';
+    }
+
+    protected function backfillTopicDocumentMappingsFromDataset(array $topicIdToRowId): int
+    {
+        if (!$this->activeRun || empty($topicIdToRowId)) {
+            return 0;
+        }
+
+        $topics = TopicModelTopic::query()
+            ->where('topic_model_run_id', $this->activeRun->id)
+            ->get(['topic_id', 'count', 'top_words']);
+
+        if ($topics->isEmpty()) {
+            return 0;
+        }
+
+        $topicWordSets = [];
+        $dominantTopicId = null;
+        $dominantCount = -1;
+
+        foreach ($topics as $topic) {
+            $topicId = (int) $topic->topic_id;
+            if (!isset($topicIdToRowId[$topicId])) {
+                continue;
+            }
+
+            $rawWords = is_array($topic->top_words) ? $topic->top_words : [];
+            $wordSet = [];
+            foreach ($rawWords as $word) {
+                $normalized = mb_strtolower(trim((string) $word));
+                if ($normalized === '') {
+                    continue;
+                }
+                $wordSet[$normalized] = true;
+            }
+
+            if (!empty($wordSet)) {
+                $topicWordSets[$topicId] = $wordSet;
+            }
+
+            $topicCount = (int) ($topic->count ?? 0);
+            if ($topicCount > $dominantCount) {
+                $dominantCount = $topicCount;
+                $dominantTopicId = $topicId;
+            }
+        }
+
+        if (empty($topicWordSets)) {
+            return 0;
+        }
+
+        if ($dominantTopicId === null || !isset($topicIdToRowId[$dominantTopicId])) {
+            $topicIds = array_keys($topicWordSets);
+            sort($topicIds);
+            $dominantTopicId = (int) ($topicIds[0] ?? 0);
+        }
+
+        $textColumn = ($this->activeRun->model_type ?? 'bertopic') === 'lda'
+            ? 'processed_text'
+            : 'cleaned_text';
+
+        $datasetRows = TopicModelDataset::query()
+            ->select(['skripsi_id', $textColumn])
+            ->whereNotNull($textColumn)
+            ->get();
+
+        if ($datasetRows->isEmpty()) {
+            return 0;
+        }
+
+        $now = now();
+        $rows = [];
+
+        foreach ($datasetRows as $datasetRow) {
+            $skripsiId = (int) ($datasetRow->skripsi_id ?? 0);
+            if ($skripsiId <= 0) {
+                continue;
+            }
+
+            $text = mb_strtolower(trim((string) ($datasetRow->{$textColumn} ?? '')));
+            if ($text === '') {
+                continue;
+            }
+
+            $tokens = [];
+            foreach (preg_split('/\s+/u', $text) ?: [] as $token) {
+                $token = trim((string) $token);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[$token] = true;
+            }
+
+            $bestTopicId = null;
+            $bestScore = -1;
+
+            foreach ($topicWordSets as $topicId => $wordSet) {
+                $score = 0;
+                foreach ($wordSet as $word => $_) {
+                    if (isset($tokens[$word])) {
+                        $score++;
+                    }
+                }
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestTopicId = (int) $topicId;
+                }
+            }
+
+            if ($bestTopicId === null || $bestScore <= 0) {
+                $bestTopicId = (int) $dominantTopicId;
+            }
+
+            if (!isset($topicIdToRowId[$bestTopicId])) {
+                continue;
+            }
+
+            $rows[] = [
+                'topic_model_run_id' => $this->activeRun->id,
+                'topic_model_topic_id' => (int) $topicIdToRowId[$bestTopicId],
+                'topic_id' => $bestTopicId,
+                'skripsi_id' => $skripsiId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if (empty($rows)) {
+            return 0;
+        }
+
+        TopicModelTopicDocument::query()->upsert(
+            $rows,
+            ['topic_model_run_id', 'skripsi_id'],
+            ['topic_model_topic_id', 'topic_id', 'updated_at']
+        );
+
+        return count($rows);
     }
 
     public function openTopicMappingsModal(int $topicRowId): void
