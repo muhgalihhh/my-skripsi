@@ -4,7 +4,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Rekomendasi Judul Skripsi</h1>
-            <p class="mt-1 text-sm text-gray-500">Pilih topik untuk membuka halaman detail dan menghasilkan rekomendasi judul berbasis Gemini.</p>
+            <p class="mt-1 text-sm text-gray-500">Pilih topik untuk membuka halaman detail dan menghasilkan rekomendasi judul secara otomatis.</p>
         </div>
 
         <div class="w-full sm:w-80">

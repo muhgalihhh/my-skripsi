@@ -68,7 +68,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
                     </svg>
-                    Buat dengan Gemini
+                    Buat Rekomendasi
                 </x-ui.button>
             </div>
         </form>

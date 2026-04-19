@@ -59,6 +59,7 @@ class TopicModelingManager extends Component
     public array $datasetSummary = [];
 
     public $bertopicParamsJsonFile;
+    public $modelArchiveFile;
 
     // Model utilities (download + test)
     public bool $modelTestLoading = false;
@@ -294,6 +295,95 @@ class TopicModelingManager extends Component
         $this->bertopicParamsSource = 'uploaded_json';
         $this->bertopicParamsJsonFile = null;
         $this->dispatch('toast', type: 'success', message: 'BERTopic params berhasil dimuat dari JSON.');
+    }
+
+    public function importModelArchive(): void
+    {
+        if (($this->apiStatus['status'] ?? '') !== 'ok') {
+            $this->statusType = 'warning';
+            $this->statusMessage = 'FastAPI belum aktif. Import model tidak dapat dijalankan.';
+            return;
+        }
+
+        if (!$this->modelArchiveFile) {
+            $this->dispatch('toast', type: 'error', message: 'Pilih file arsip model terlebih dahulu.');
+            return;
+        }
+
+        $filename = trim((string) ($this->modelArchiveFile->getClientOriginalName() ?? ''));
+        if ($filename !== '') {
+            $lowerFilename = strtolower($filename);
+            $isTarArchive = str_ends_with($lowerFilename, '.tar.gz')
+                || str_ends_with($lowerFilename, '.tgz')
+                || str_ends_with($lowerFilename, '.tar');
+
+            if (!$isTarArchive) {
+                $this->dispatch('toast', type: 'error', message: 'File harus berformat .tar.gz, .tgz, atau .tar');
+                return;
+            }
+        }
+
+        $path = $this->modelArchiveFile->getRealPath();
+        if (!$path) {
+            $this->dispatch('toast', type: 'error', message: 'File arsip tidak bisa dibaca.');
+            return;
+        }
+
+        /** @var int|null $userId */
+        $userId = Auth::id();
+        if ($userId === null) {
+            $this->statusType = 'error';
+            $this->statusMessage = 'Silakan login terlebih dahulu.';
+            return;
+        }
+
+        $this->isProcessing = true;
+        $this->statusType = 'info';
+        $this->statusMessage = 'Mengimpor model terlatih...';
+
+        try {
+            $fastApi = app(FastApiService::class);
+            $response = $fastApi->importTrainedModelArchive($path, $filename, null);
+
+            if (($response['status'] ?? '') !== 'ok' || empty($response['job_id'])) {
+                $this->statusType = 'error';
+                $this->statusMessage = (string) ($response['message'] ?? 'Gagal import model.');
+                return;
+            }
+
+            $importedJobId = trim((string) ($response['job_id'] ?? ''));
+            $importedModelType = in_array((string) ($response['model_type'] ?? ''), ['bertopic', 'lda'], true)
+                ? (string) $response['model_type']
+                : 'bertopic';
+
+            $run = TopicModelRun::create([
+                'user_id' => $userId,
+                'model_type' => $importedModelType,
+                'status' => 'training',
+                'fastapi_training_job_id' => $importedJobId,
+                'started_at' => now(),
+            ]);
+
+            $this->activeRun = $run;
+            $this->activeRunId = $run->id;
+            $this->modelType = $importedModelType;
+            $this->trainingJobId = $importedJobId;
+
+            $this->storeTrainingResults();
+
+            if (($this->activeRun?->status ?? '') === 'completed') {
+                $this->dispatch('toast', type: 'success', message: sprintf('Model %s berhasil diimpor.', strtoupper($importedModelType)));
+            } else {
+                $this->dispatch('toast', type: 'warning', message: 'Model berhasil diunggah, namun hasil import belum tersinkron penuh.');
+            }
+        } catch (\Throwable $e) {
+            Log::error('Import trained model failed', ['error' => $e->getMessage()]);
+            $this->statusType = 'error';
+            $this->statusMessage = 'Gagal import model: ' . $e->getMessage();
+        } finally {
+            $this->modelArchiveFile = null;
+            $this->isProcessing = false;
+        }
     }
 
     /**

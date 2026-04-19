@@ -417,6 +417,67 @@ class FastApiService
   }
 
   /**
+   * Upload trained model archive (.tar/.tar.gz/.tgz) for import without retraining.
+   */
+  public function importTrainedModelArchive(string $filePath, string $filename, ?string $modelType = null): array
+  {
+    try {
+      if (!is_file($filePath)) {
+        return ['status' => 'error', 'message' => 'File arsip model tidak ditemukan.'];
+      }
+
+      $archiveName = trim($filename) !== '' ? $filename : 'model_archive.tar.gz';
+
+      $request = $this->fastApiRequest(600)
+        ->attach(
+          'model_archive',
+          file_get_contents($filePath),
+          $archiveName
+        );
+
+      $formPayload = [];
+      if ($modelType !== null) {
+        $normalizedModelType = strtolower(trim($modelType));
+        if (in_array($normalizedModelType, ['bertopic', 'lda'], true)) {
+          $formPayload['model_type'] = $normalizedModelType;
+        }
+      }
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = $request->post("{$this->baseUrl}/api/v1/training/model/import", $formPayload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      $detail = $response->json('detail');
+      $message = null;
+
+      if (is_string($detail) && trim($detail) !== '') {
+        $message = $detail;
+      } elseif (is_array($detail) && isset($detail['message'])) {
+        $message = (string) $detail['message'];
+      }
+
+      if ($message === null || trim($message) === '') {
+        $message = 'Gagal import model. Status: ' . $response->status();
+      }
+
+      return [
+        'status' => 'error',
+        'message' => $message,
+        'detail' => $detail ?? $response->body(),
+      ];
+    } catch (\Exception $e) {
+      Log::error('FastAPI import trained model failed: ' . $e->getMessage());
+      return [
+        'status' => 'error',
+        'message' => 'Tidak dapat terhubung ke FastAPI service: ' . $e->getMessage(),
+      ];
+    }
+  }
+
+  /**
    * Poll training status.
    */
   public function getTrainingStatus(string $jobId): array

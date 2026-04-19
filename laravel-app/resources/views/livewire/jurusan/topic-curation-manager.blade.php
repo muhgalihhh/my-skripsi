@@ -252,7 +252,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M10 2a1 1 0 0 1 .95.684l1.1 3.383a1 1 0 0 0 .63.63l3.383 1.1a1 1 0 0 1 0 1.903l-3.383 1.1a1 1 0 0 0-.63.63l-1.1 3.383a1 1 0 0 1-1.903 0l-1.1-3.383a1 1 0 0 0-.63-.63l-3.383-1.1a1 1 0 0 1 0-1.903l3.383-1.1a1 1 0 0 0 .63-.63l1.1-3.383A1 1 0 0 1 10 2Z" />
                                 </svg>
-                                Buat Saran AI (Gemini)
+                                Buat Saran AI
                             </button>
                             <span wire:loading wire:target="generateAiSuggestion" class="text-xs text-gray-500">
                                 Memproses saran AI...

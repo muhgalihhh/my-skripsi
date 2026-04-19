@@ -6,9 +6,12 @@ Endpoints for model training (BERTopic & LDA).
 import re
 import math
 import json
+import shutil
+import tarfile
+import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from app.core import database
@@ -55,6 +58,198 @@ def _validate_job_id(job_id: str) -> str:
     if not _JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=400, detail="Invalid job_id")
     return job_id
+
+
+def _safe_extract_tar_archive(archive_path: Path, extract_dir: Path) -> None:
+    """Extract tar archive with path traversal protections."""
+    with tarfile.open(archive_path, "r:*") as tar:
+        members = tar.getmembers()
+
+        for member in members:
+            member_path = Path(member.name)
+            if member_path.is_absolute() or ".." in member_path.parts:
+                raise HTTPException(status_code=400, detail="Arsip model tidak valid (unsafe path).")
+            if member.issym() or member.islnk():
+                raise HTTPException(status_code=400, detail="Arsip model tidak valid (symlink tidak diizinkan).")
+
+        tar.extractall(path=extract_dir, members=members)
+
+
+def _detect_imported_model_dir(extract_dir: Path) -> Tuple[ModelType, Path]:
+    """Detect model type and model root directory from extracted archive."""
+    candidates: List[Tuple[ModelType, Path]] = []
+
+    for candidate in [extract_dir, *extract_dir.rglob("*")]:
+        if not candidate.is_dir():
+            continue
+
+        has_bertopic = (candidate / "model").exists()
+        has_lda = (candidate / "lda_model").exists() and (candidate / "dictionary.dict").exists()
+
+        if has_bertopic:
+            candidates.append((ModelType.BERTOPIC, candidate))
+
+        if has_lda:
+            candidates.append((ModelType.LDA, candidate))
+
+    if not candidates:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Arsip tidak berisi artefak model yang dikenali. "
+                "Pastikan berisi folder model BERTopic atau file LDA (lda_model + dictionary.dict)."
+            ),
+        )
+
+    candidates.sort(key=lambda item: len(item[1].parts))
+    return candidates[0]
+
+
+def _build_bertopic_topic_info(model) -> Tuple[List[Dict[str, Any]], int]:
+    from app.services.stopwords import load_stopwords
+
+    topic_info: List[Dict[str, Any]] = []
+    num_outliers = 0
+    stopwords = load_stopwords("indonesian", include_academic=True)
+
+    info = model.get_topic_info()
+    for _, row in info.iterrows():
+        topic_id = int(row.get("Topic", -1))
+        count = int(row.get("Count", 0) or 0)
+
+        if topic_id == -1:
+            num_outliers = count
+            continue
+
+        words_scores = model.get_topic(topic_id) or []
+        filtered_words_scores = [
+            (word, score)
+            for (word, score) in words_scores
+            if word not in stopwords and len(str(word)) >= 3
+        ]
+
+        if not filtered_words_scores:
+            filtered_words_scores = words_scores
+
+        topic_info.append(
+            {
+                "topic_id": topic_id,
+                "count": count,
+                "top_words": [str(word) for word, _ in filtered_words_scores[:TOP_WORDS_PREVIEW_LIMIT]],
+                "word_scores": [float(score) for _, score in filtered_words_scores[:TOP_WORDS_PREVIEW_LIMIT]],
+            }
+        )
+
+    return topic_info, num_outliers
+
+
+def _build_lda_topic_info(model, num_topics: int) -> List[Dict[str, Any]]:
+    from app.services.stopwords import load_stopwords
+
+    topic_info: List[Dict[str, Any]] = []
+    stopwords = load_stopwords("indonesian", include_academic=True)
+
+    for topic_id in range(num_topics):
+        words_scores = model.show_topic(topic_id, topn=TOP_WORDS_PREVIEW_LIMIT)
+        filtered_words_scores = [
+            (word, score)
+            for (word, score) in words_scores
+            if word not in stopwords and len(str(word)) >= 3
+        ]
+
+        if not filtered_words_scores:
+            filtered_words_scores = words_scores
+
+        topic_info.append(
+            {
+                "topic_id": topic_id,
+                "count": 0,
+                "top_words": [str(word) for word, _ in filtered_words_scores],
+                "word_scores": [float(score) for _, score in filtered_words_scores],
+            }
+        )
+
+    return topic_info
+
+
+def _infer_document_topics_for_bertopic(trainer) -> Tuple[List[Dict[str, Any]], Dict[int, int], int]:
+    """Best-effort topic mapping to current DB dataset for imported BERTopic model."""
+    try:
+        df = pipeline_service.load_training_dataset()
+        payload = pipeline_service.build_training_payload(df=df, model_type=ModelType.BERTOPIC)
+
+        if not payload.documents or not payload.document_ids:
+            return [], {}, 0
+
+        inferred_topics, _ = trainer.model.transform(payload.documents)
+
+        rows: List[Dict[str, Any]] = []
+        topic_counts: Dict[int, int] = {}
+        num_outliers = 0
+
+        for skripsi_id, inferred_topic in zip(payload.document_ids, inferred_topics):
+            topic_id = int(inferred_topic)
+            is_outlier = topic_id == -1
+
+            if is_outlier:
+                num_outliers += 1
+            else:
+                topic_counts[topic_id] = topic_counts.get(topic_id, 0) + 1
+
+            rows.append(
+                {
+                    "skripsi_id": int(skripsi_id),
+                    "topic_id": topic_id,
+                    "is_outlier": is_outlier,
+                }
+            )
+
+        return rows, topic_counts, num_outliers
+    except Exception as exc:
+        logger.warning("Unable to infer BERTopic document-topic mapping on import: {}", str(exc))
+        return [], {}, 0
+
+
+def _infer_document_topics_for_lda(trainer) -> Tuple[List[Dict[str, Any]], Dict[int, int], int]:
+    """Best-effort topic mapping to current DB dataset for imported LDA model."""
+    try:
+        df = pipeline_service.load_training_dataset()
+        payload = pipeline_service.build_training_payload(df=df, model_type=ModelType.LDA)
+        documents = payload.documents
+        doc_ids = [int(v) for v in df["id"].tolist()]
+
+        rows: List[Dict[str, Any]] = []
+        topic_counts: Dict[int, int] = {}
+        num_outliers = 0
+
+        for skripsi_id, document in zip(doc_ids, documents):
+            tokens = str(document).split()
+            bow = trainer.dictionary.doc2bow(tokens)
+
+            if not bow:
+                topic_id = -1
+                num_outliers += 1
+            else:
+                distributions = trainer.model.get_document_topics(bow, minimum_probability=0.0)
+                if not distributions:
+                    topic_id = -1
+                    num_outliers += 1
+                else:
+                    topic_id = int(max(distributions, key=lambda item: item[1])[0])
+                    topic_counts[topic_id] = topic_counts.get(topic_id, 0) + 1
+
+            rows.append(
+                {
+                    "skripsi_id": int(skripsi_id),
+                    "topic_id": topic_id,
+                    "is_outlier": topic_id == -1,
+                }
+            )
+
+        return rows, topic_counts, num_outliers
+    except Exception as exc:
+        logger.warning("Unable to infer LDA document-topic mapping on import: {}", str(exc))
+        return [], {}, 0
 
 
 def _parse_iso_datetime(value: object) -> Optional[datetime]:
@@ -623,6 +818,214 @@ async def get_training_results(job_id: str):
         )
 
 
+@router.post("/model/import")
+async def import_trained_model_archive(
+    model_archive: UploadFile = File(...),
+    model_type: Optional[ModelType] = Form(None),
+):
+    """Import trained model archive (tar/tar.gz/tgz) and register it as a completed job."""
+
+    filename = (model_archive.filename or "").strip()
+    if filename:
+        lower_name = filename.lower()
+        if not (
+            lower_name.endswith(".tar.gz")
+            or lower_name.endswith(".tgz")
+            or lower_name.endswith(".tar")
+        ):
+            raise HTTPException(status_code=400, detail="File harus berformat .tar.gz, .tgz, atau .tar")
+
+    try:
+        archive_bytes = await model_archive.read()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Gagal membaca file upload: {exc}")
+
+    if not archive_bytes:
+        raise HTTPException(status_code=400, detail="File arsip model kosong")
+
+    path_settings.ensure_dirs()
+
+    job_id: Optional[str] = None
+    imported_model_type: Optional[ModelType] = None
+    target_model_dir: Optional[Path] = None
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="model_import_") as temp_dir_raw:
+            temp_dir = Path(temp_dir_raw)
+            archive_path = temp_dir / (filename if filename else "model_archive.tar.gz")
+            archive_path.write_bytes(archive_bytes)
+
+            extract_dir = temp_dir / "extract"
+            extract_dir.mkdir(parents=True, exist_ok=True)
+
+            _safe_extract_tar_archive(archive_path=archive_path, extract_dir=extract_dir)
+
+            detected_model_type, source_model_dir = _detect_imported_model_dir(extract_dir)
+
+            if model_type is not None and model_type != detected_model_type:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Arsip terdeteksi sebagai {detected_model_type.value}, "
+                        f"namun parameter model_type={model_type.value}."
+                    ),
+                )
+
+            imported_model_type = detected_model_type
+            job_id = service.create_job(
+                model_type=imported_model_type,
+                description=f"Imported archive: {filename or 'uploaded_archive'}",
+            )
+
+            service._update_job(
+                job_id,
+                status=TrainingStatus.RUNNING.value,
+                progress=35.0,
+                message="Importing model archive...",
+                started_at=datetime.now().isoformat(),
+            )
+
+            target_model_dir = path_settings.get_models_dir() / f"{imported_model_type.value}_{job_id}"
+            if target_model_dir.exists():
+                shutil.rmtree(target_model_dir)
+
+            shutil.copytree(source_model_dir, target_model_dir)
+
+            if imported_model_type == ModelType.BERTOPIC:
+                embeddings_path = target_model_dir / "embeddings.npy"
+                if embeddings_path.exists():
+                    shared_embeddings_path = path_settings.get_embeddings_dir() / f"embeddings_{job_id}.npy"
+                    shutil.copy2(embeddings_path, shared_embeddings_path)
+
+            service._update_job(
+                job_id,
+                progress=70.0,
+                message="Preparing imported model summary...",
+            )
+
+            topic_info: List[Dict[str, Any]]
+            document_topics: List[Dict[str, Any]]
+            topic_counts: Dict[int, int]
+            num_outliers: int
+
+            if imported_model_type == ModelType.BERTOPIC:
+                from app.ml.bertopic_trainer import BERTopicTrainer
+
+                trainer = BERTopicTrainer()
+                trainer.load_model(job_id)
+
+                topic_info, num_outliers = _build_bertopic_topic_info(trainer.model)
+                document_topics, topic_counts, inferred_outliers = _infer_document_topics_for_bertopic(trainer)
+
+                if topic_counts:
+                    for item in topic_info:
+                        topic_id = int(item.get("topic_id", -1))
+                        if topic_id >= 0:
+                            item["count"] = int(topic_counts.get(topic_id, item.get("count", 0)))
+
+                if document_topics:
+                    num_outliers = int(inferred_outliers)
+            else:
+                from app.ml.lda_trainer import LDATrainer
+
+                trainer = LDATrainer()
+                trainer.load_model(job_id)
+
+                num_topics = int(trainer.model.num_topics)
+                topic_info = _build_lda_topic_info(trainer.model, num_topics)
+                document_topics, topic_counts, num_outliers = _infer_document_topics_for_lda(trainer)
+
+                if topic_counts:
+                    for item in topic_info:
+                        topic_id = int(item.get("topic_id", -1))
+                        if topic_id >= 0:
+                            item["count"] = int(topic_counts.get(topic_id, item.get("count", 0)))
+
+            result_payload: Dict[str, Any] = {
+                "job_id": job_id,
+                "model_type": imported_model_type.value,
+                "num_topics": len(topic_info),
+                "num_outliers": int(num_outliers),
+                "training_duration_seconds": None,
+                "metrics": {},
+                "topic_info": topic_info,
+                "document_topics": document_topics,
+                "model_path": str(target_model_dir),
+                "imported_from": filename or "uploaded_archive",
+                "imported_at": datetime.now().isoformat(),
+            }
+
+            metadata_path = target_model_dir / "metadata.json"
+            if metadata_path.exists():
+                try:
+                    metadata_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+                except Exception:
+                    metadata_payload = None
+
+                if isinstance(metadata_payload, dict):
+                    if isinstance(metadata_payload.get("hyperparameters"), dict):
+                        result_payload["hyperparameters"] = metadata_payload["hyperparameters"]
+
+            service._save_results(job_id, result_payload)
+
+            completion_message = (
+                f"Imported {imported_model_type.value.upper()} model successfully "
+                f"({len(topic_info)} topics)."
+            )
+
+            service._update_job(
+                job_id,
+                status=TrainingStatus.COMPLETED.value,
+                progress=100.0,
+                completed_at=datetime.now().isoformat(),
+                message=completion_message,
+                result=result_payload,
+            )
+
+            return {
+                "status": "ok",
+                "message": completion_message,
+                "job_id": job_id,
+                "model_type": imported_model_type.value,
+                "num_topics": len(topic_info),
+                "num_outliers": int(num_outliers),
+                "total_documents": len(document_topics),
+            }
+    except HTTPException as exc:
+        if job_id is not None:
+            if target_model_dir is not None and target_model_dir.exists():
+                shutil.rmtree(target_model_dir, ignore_errors=True)
+
+            detail_message = exc.detail if isinstance(exc.detail, str) else json.dumps(exc.detail, ensure_ascii=False)
+            service._update_job(
+                job_id,
+                status=TrainingStatus.FAILED.value,
+                progress=100.0,
+                completed_at=datetime.now().isoformat(),
+                message=f"Import failed: {detail_message}",
+                error=detail_message,
+            )
+
+        raise
+    except Exception as exc:
+        logger.exception("Model import failed")
+
+        if job_id is not None:
+            if target_model_dir is not None and target_model_dir.exists():
+                shutil.rmtree(target_model_dir, ignore_errors=True)
+
+            service._update_job(
+                job_id,
+                status=TrainingStatus.FAILED.value,
+                progress=100.0,
+                completed_at=datetime.now().isoformat(),
+                message=f"Import failed: {str(exc)}",
+                error=str(exc),
+            )
+
+        raise HTTPException(status_code=500, detail=f"Gagal import model: {str(exc)}")
+
+
 @router.get("/model/{job_id}/download")
 async def download_trained_model(job_id: str):
     """Download the archived trained model (.tar.gz) for a job.
@@ -1144,10 +1547,19 @@ async def test_trained_model_with_dataset(job_id: str):
         if not tokenized_docs:
             raise HTTPException(status_code=400, detail="No valid processed_text tokens for LDA evaluation.")
 
+        lda_coherence_type = str(stored_metrics.get("coherence_type", "c_v") or "c_v")
+        lda_top_n_words = int(stored_metrics.get("top_n_words", 10) or 10)
+        lda_topic_floor_min_topics = int(stored_metrics.get("topic_floor_min_topics", 2) or 2)
+        lda_topic_floor_penalty = float(stored_metrics.get("topic_floor_penalty", 0.20) or 0.20)
+
         retest_metrics = evaluator.evaluate_lda(
             model=model,
             tokenized_docs=tokenized_docs,
             dictionary=dictionary,
+            coherence_type=lda_coherence_type,
+            top_n_words=lda_top_n_words,
+            topic_floor_min_topics=lda_topic_floor_min_topics,
+            topic_floor_penalty=lda_topic_floor_penalty,
         )
     else:
         from app.ml.bertopic_trainer import BERTopicTrainer
@@ -1156,16 +1568,28 @@ async def test_trained_model_with_dataset(job_id: str):
         trainer = BERTopicTrainer()
         trainer.load_model(job_id)
 
+        bt_coherence_type = str(stored_metrics.get("coherence_type", "c_v") or "c_v")
+        bt_coherence_tokenization = str(
+            stored_metrics.get("coherence_tokenization", "vectorizer") or "vectorizer"
+        )
+        bt_coherence_dict_no_below = int(stored_metrics.get("coherence_dict_no_below", 3) or 3)
+        bt_coherence_dict_no_above = float(stored_metrics.get("coherence_dict_no_above", 0.95) or 0.95)
+        bt_top_n_words = int(stored_metrics.get("top_n_words", 10) or 10)
+        bt_topic_floor_min_topics = int(stored_metrics.get("topic_floor_min_topics", 2) or 2)
+        bt_topic_floor_penalty = float(stored_metrics.get("topic_floor_penalty", 0.20) or 0.20)
+
         retest_metrics = evaluator.evaluate_bertopic(
             model=trainer.model,
             documents=df["cleaned_text"].tolist(),
             topics=None,
             vectorizer_model=trainer.vectorizer_model,
-            coherence_type=stored_metrics.get("coherence_type", "c_v"),
-            coherence_tokenization=stored_metrics.get("coherence_tokenization", "vectorizer"),
-            coherence_dict_no_below=stored_metrics.get("coherence_dict_no_below", 3),
-            coherence_dict_no_above=stored_metrics.get("coherence_dict_no_above", 0.95),
-            top_n_words=int(stored_metrics.get("top_n_words", 10) or 10),
+            coherence_type=bt_coherence_type,
+            coherence_tokenization=bt_coherence_tokenization,
+            coherence_dict_no_below=bt_coherence_dict_no_below,
+            coherence_dict_no_above=bt_coherence_dict_no_above,
+            top_n_words=bt_top_n_words,
+            topic_floor_min_topics=bt_topic_floor_min_topics,
+            topic_floor_penalty=bt_topic_floor_penalty,
         )
 
         current_topic_info = []

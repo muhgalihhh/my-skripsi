@@ -42,7 +42,32 @@
                             <span wire:loading.remove wire:target="startTraining">Mulai Pelatihan {{ strtoupper($modelType) }}</span>
                             <span wire:loading wire:target="startTraining">Memulai…</span>
                         </x-ui.button>
+                        <div class="w-full sm:w-[280px]">
+                            <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Import Model (.tar.gz)</label>
+                            <input
+                                type="file"
+                                accept=".tar.gz,.tgz,.tar,application/gzip,application/x-gzip,application/x-tar"
+                                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
+                                wire:model="modelArchiveFile"
+                            />
+                        </div>
+                        <x-ui.button
+                            type="button"
+                            wire:click="importModelArchive"
+                            wire:loading.attr="disabled"
+                            wire:target="importModelArchive"
+                            variant="secondary"
+                            :disabled="(($apiStatus['status'] ?? '') !== 'ok')"
+                            class="w-full sm:w-auto"
+                        >
+                            <x-app.icon name="arrow-up-tray" class="h-4 w-4" />
+                            <span wire:loading.remove wire:target="importModelArchive">Import Model</span>
+                            <span wire:loading wire:target="importModelArchive">Mengimpor…</span>
+                        </x-ui.button>
                     </div>
+                    <p class="mt-2 text-[11px] text-gray-500">
+                        Gunakan dua jalur: <strong>training manual</strong> atau <strong>import model terlatih</strong> dari notebook.
+                    </p>
                 </div>
             </div>
         </div>

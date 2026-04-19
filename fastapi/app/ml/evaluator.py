@@ -20,8 +20,8 @@ class TopicEvaluator:
     """
 
     # Keep objective-score weighting aligned with notebook tuning workflow.
-    OBJECTIVE_WEIGHT_COHERENCE_CV = 0.5
-    OBJECTIVE_WEIGHT_TOPIC_DIVERSITY = 0.5
+    OBJECTIVE_WEIGHT_COHERENCE_CV = 0.65
+    OBJECTIVE_WEIGHT_TOPIC_DIVERSITY = 0.35
 
     def compute_coherence_gensim(
         self,
@@ -157,10 +157,11 @@ class TopicEvaluator:
         self,
         score: float,
         num_topics: Optional[int],
-        min_topics: int = 8,
+        min_topics: int = 2,
         penalty: float = 0.20,
     ) -> tuple[float, bool]:
-        """Apply linear penalty if topic count is below the configured minimum."""
+        """Apply notebook-aligned floor rule: score=0 when topic_count <= min_topics."""
+        _ = penalty  # Preserved for backward compatibility in method signature.
         base_score = float(score or 0.0)
         if num_topics is None:
             return base_score, False
@@ -170,12 +171,10 @@ class TopicEvaluator:
         except (TypeError, ValueError):
             return base_score, False
 
-        if topic_count >= int(min_topics):
-            return base_score, False
+        if topic_count <= int(min_topics):
+            return 0.0, True
 
-        shortfall = int(min_topics) - topic_count
-        multiplier = max(0.0, 1.0 - float(penalty) * shortfall)
-        return round(base_score * multiplier, 6), True
+        return base_score, False
 
     def evaluate_bertopic(
         self,
@@ -189,7 +188,7 @@ class TopicEvaluator:
         coherence_dict_no_below: int = 3,
         coherence_dict_no_above: float = 0.95,
         top_n_words: int = 10,
-        topic_floor_min_topics: int = 8,
+        topic_floor_min_topics: int = 2,
         topic_floor_penalty: float = 0.20,
     ) -> Dict[str, Any]:
         """
@@ -203,7 +202,8 @@ class TopicEvaluator:
         Returns:
             Dictionary with evaluation metrics
         """
-        if coherence_tokenization.strip().lower() != "vectorizer":
+        coherence_tokenization_norm = "vectorizer"
+        if coherence_tokenization.strip().lower() != coherence_tokenization_norm:
             logger.warning(
                 f"coherence_tokenization={coherence_tokenization} ignored; forced to 'vectorizer'"
             )
@@ -269,6 +269,15 @@ class TopicEvaluator:
             "num_topics": len(topic_words),
             "num_outliers": outlier_count,
             "outlier_pct": outlier_pct,
+            "coherence_type": coherence_type,
+            "coherence_tokenization": coherence_tokenization_norm,
+            "coherence_dict_no_below": int(coherence_dict_no_below),
+            "coherence_dict_no_above": float(coherence_dict_no_above),
+            "top_n_words": int(top_n_words),
+            "topic_floor_min_topics": int(topic_floor_min_topics),
+            "topic_floor_penalty": float(topic_floor_penalty),
+            "objective_weight_coherence_cv": float(self.OBJECTIVE_WEIGHT_COHERENCE_CV),
+            "objective_weight_topic_diversity": float(self.OBJECTIVE_WEIGHT_TOPIC_DIVERSITY),
             "objective_score_raw": objective_score_raw,
             "objective_score": objective_score,
             "topic_floor_penalized": topic_floor_penalized,
@@ -282,7 +291,7 @@ class TopicEvaluator:
         dictionary,
         coherence_type: str = "c_v",
         top_n_words: int = 10,
-        topic_floor_min_topics: int = 8,
+        topic_floor_min_topics: int = 2,
         topic_floor_penalty: float = 0.20,
     ) -> Dict[str, Any]:
         """
@@ -326,6 +335,12 @@ class TopicEvaluator:
             "num_topics": model.num_topics,
             "num_outliers": 0,
             "outlier_pct": 0.0,
+            "coherence_type": coherence_type,
+            "top_n_words": int(top_n_words),
+            "topic_floor_min_topics": int(topic_floor_min_topics),
+            "topic_floor_penalty": float(topic_floor_penalty),
+            "objective_weight_coherence_cv": float(self.OBJECTIVE_WEIGHT_COHERENCE_CV),
+            "objective_weight_topic_diversity": float(self.OBJECTIVE_WEIGHT_TOPIC_DIVERSITY),
             "objective_score_raw": objective_score_raw,
             "objective_score": objective_score,
             "topic_floor_penalized": topic_floor_penalized,
