@@ -19,6 +19,10 @@ class TopicEvaluator:
         - Topic Diversity: Measures uniqueness of topics (% unique words across topics)
     """
 
+    # Keep objective-score weighting aligned with notebook tuning workflow.
+    OBJECTIVE_WEIGHT_COHERENCE_CV = 0.5
+    OBJECTIVE_WEIGHT_TOPIC_DIVERSITY = 0.5
+
     def compute_coherence_gensim(
         self,
         model,
@@ -134,6 +138,45 @@ class TopicEvaluator:
         )
         return round(float(diversity), 4)
 
+    def _build_score_metrics(self, coherence: float, diversity: float) -> Dict[str, float]:
+        """Compute unified score variants shared by BERTopic and LDA."""
+        coh_safe = 0.0 if not isinstance(coherence, (int, float)) or math.isnan(coherence) else float(coherence)
+        div_safe = 0.0 if not isinstance(diversity, (int, float)) or math.isnan(diversity) else float(diversity)
+        objective_linear = (
+            float(self.OBJECTIVE_WEIGHT_COHERENCE_CV) * coh_safe
+            + float(self.OBJECTIVE_WEIGHT_TOPIC_DIVERSITY) * div_safe
+        )
+
+        return {
+            "score": round(coh_safe * div_safe, 6),
+            "score_hmean_cv_td": round((2 * coh_safe * div_safe) / (coh_safe + div_safe + 1e-12), 6),
+            "score_cv_td": round(objective_linear, 6),
+        }
+
+    def _apply_topic_floor_penalty(
+        self,
+        score: float,
+        num_topics: Optional[int],
+        min_topics: int = 8,
+        penalty: float = 0.20,
+    ) -> tuple[float, bool]:
+        """Apply linear penalty if topic count is below the configured minimum."""
+        base_score = float(score or 0.0)
+        if num_topics is None:
+            return base_score, False
+
+        try:
+            topic_count = int(num_topics)
+        except (TypeError, ValueError):
+            return base_score, False
+
+        if topic_count >= int(min_topics):
+            return base_score, False
+
+        shortfall = int(min_topics) - topic_count
+        multiplier = max(0.0, 1.0 - float(penalty) * shortfall)
+        return round(base_score * multiplier, 6), True
+
     def evaluate_bertopic(
         self,
         model,
@@ -146,6 +189,8 @@ class TopicEvaluator:
         coherence_dict_no_below: int = 3,
         coherence_dict_no_above: float = 0.95,
         top_n_words: int = 10,
+        topic_floor_min_topics: int = 8,
+        topic_floor_penalty: float = 0.20,
     ) -> Dict[str, Any]:
         """
         Full evaluation of a BERTopic model.
@@ -208,12 +253,15 @@ class TopicEvaluator:
 
         outlier_pct = round(outlier_count / max(total_docs, 1) * 100.0, 2)
 
-        coh_safe = 0.0 if not isinstance(coherence, (int, float)) or math.isnan(coherence) else float(coherence)
-        div_safe = 0.0 if not isinstance(diversity, (int, float)) or math.isnan(diversity) else float(diversity)
-
-        score = round(coh_safe * div_safe * (1 - outlier_pct / 100.0), 6)
-        score_hmean_cv_td = round((2 * coh_safe * div_safe) / (coh_safe + div_safe + 1e-12), 6)
-        score_cv_td = round((0.65 * coh_safe + 0.35 * div_safe) * (1 - outlier_pct / 100.0), 6)
+        # Keep outlier statistics for diagnostics, and expose both raw and penalized objective scores.
+        score_metrics = self._build_score_metrics(coherence=coherence, diversity=diversity)
+        objective_score_raw = float(score_metrics["score_cv_td"])
+        objective_score, topic_floor_penalized = self._apply_topic_floor_penalty(
+            score=objective_score_raw,
+            num_topics=len(topic_words),
+            min_topics=topic_floor_min_topics,
+            penalty=topic_floor_penalty,
+        )
 
         return {
             "coherence_cv": coherence,
@@ -221,9 +269,10 @@ class TopicEvaluator:
             "num_topics": len(topic_words),
             "num_outliers": outlier_count,
             "outlier_pct": outlier_pct,
-            "score": score,
-            "score_hmean_cv_td": score_hmean_cv_td,
-            "score_cv_td": score_cv_td,
+            "objective_score_raw": objective_score_raw,
+            "objective_score": objective_score,
+            "topic_floor_penalized": topic_floor_penalized,
+            **score_metrics,
         }
 
     def evaluate_lda(
@@ -231,6 +280,10 @@ class TopicEvaluator:
         model,
         tokenized_docs: List[List[str]],
         dictionary,
+        coherence_type: str = "c_v",
+        top_n_words: int = 10,
+        topic_floor_min_topics: int = 8,
+        topic_floor_penalty: float = 0.20,
     ) -> Dict[str, Any]:
         """
         Full evaluation of an LDA model.
@@ -248,23 +301,33 @@ class TopicEvaluator:
             model=model,
             tokenized_docs=tokenized_docs,
             dictionary=dictionary,
+            coherence_type=coherence_type,
         )
 
         # Topic words for diversity
         topic_words = []
         for topic_id in range(model.num_topics):
-            words = [w for w, _ in model.show_topic(topic_id, topn=10)]
+            words = [w for w, _ in model.show_topic(topic_id, topn=top_n_words)]
             topic_words.append(words)
 
-        diversity = self.compute_topic_diversity(topic_words)
-
-        coh_safe = 0.0 if not isinstance(coherence, (int, float)) or math.isnan(coherence) else float(coherence)
-        div_safe = 0.0 if not isinstance(diversity, (int, float)) or math.isnan(diversity) else float(diversity)
-        score = round(coh_safe * div_safe, 6)
+        diversity = self.compute_topic_diversity(topic_words, top_n=top_n_words)
+        score_metrics = self._build_score_metrics(coherence=coherence, diversity=diversity)
+        objective_score_raw = float(score_metrics["score_cv_td"])
+        objective_score, topic_floor_penalized = self._apply_topic_floor_penalty(
+            score=objective_score_raw,
+            num_topics=model.num_topics,
+            min_topics=topic_floor_min_topics,
+            penalty=topic_floor_penalty,
+        )
 
         return {
             "coherence_cv": coherence,
             "topic_diversity": diversity,
             "num_topics": model.num_topics,
-            "score": score,
+            "num_outliers": 0,
+            "outlier_pct": 0.0,
+            "objective_score_raw": objective_score_raw,
+            "objective_score": objective_score,
+            "topic_floor_penalized": topic_floor_penalized,
+            **score_metrics,
         }
