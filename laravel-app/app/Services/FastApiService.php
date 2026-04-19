@@ -579,12 +579,49 @@ class FastApiService
         return ['status' => 'not_found', 'message' => "Model/hasil {$jobId} tidak ditemukan"]; 
       }
 
+      $detailPayload = $response->json();
+      $detailText = null;
+
+      if (is_array($detailPayload)) {
+        $detailValue = $detailPayload['detail'] ?? null;
+        if (is_string($detailValue)) {
+          $detailText = trim($detailValue);
+        } elseif (is_array($detailValue)) {
+          $detailText = json_encode($detailValue, JSON_UNESCAPED_UNICODE);
+        }
+      }
+
+      if ($detailText === null || $detailText === '') {
+        $detailText = trim((string) $response->body());
+      }
+
+      if (
+        $response->status() === 400
+        && $detailText !== ''
+        && (
+          str_contains(strtolower($detailText), 'dataset in db is empty')
+          || str_contains(strtolower($detailText), 'run preprocessing first')
+          || str_contains(strtolower($detailText), 'no valid records')
+        )
+      ) {
+        return [
+          'status' => 'error',
+          'message' => 'Data preprocessing belum tersedia untuk test model. Jalankan preprocessing terlebih dahulu.',
+          'detail' => $detailText,
+        ];
+      }
+
       Log::warning('FastAPI model test-dataset failed', [
         'status' => $response->status(),
         'body' => $response->body(),
       ]);
 
-      return ['status' => 'error', 'message' => 'Gagal test model. Status: ' . $response->status()];
+      return [
+        'status' => 'error',
+        'message' => $detailText !== ''
+          ? ('Gagal test model: ' . $detailText)
+          : ('Gagal test model. Status: ' . $response->status()),
+      ];
     } catch (\Exception $e) {
       Log::warning('FastAPI model test-dataset request failed: ' . $e->getMessage());
       return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];

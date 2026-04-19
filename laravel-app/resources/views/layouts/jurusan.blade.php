@@ -185,19 +185,6 @@
                 </button>
                 <h2 class="text-lg font-semibold text-gray-800">@yield('page-title', 'Dashboard')</h2>
             </div>
-            <div class="flex items-center space-x-3">
-                {{-- Notification --}}
-                <div x-data="{ notifOpen: false }" class="relative">
-                    <button @click="notifOpen = !notifOpen"
-                        class="relative p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
-                        <x-app.icon name="bell" class="w-5 h-5" />
-                    </button>
-                    <div x-show="notifOpen" @click.away="notifOpen = false" x-transition
-                        class="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                        <p class="px-4 py-3 text-sm text-gray-500 text-center">Tidak ada notifikasi baru</p>
-                    </div>
-                </div>
-            </div>
         </header>
 
         {{-- Flash Messages with Alpine.js auto-dismiss --}}

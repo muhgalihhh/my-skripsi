@@ -1692,6 +1692,7 @@ class TopicModelingManager extends Component
         if (!$this->activeRun || $this->activeRun->status !== 'completed') {
             $this->statusType = 'warning';
             $this->statusMessage = 'Belum ada hasil training yang bisa di-test.';
+            $this->dispatch('toast', type: 'warning', message: $this->statusMessage);
             return;
         }
 
@@ -1699,6 +1700,7 @@ class TopicModelingManager extends Component
         if ($jobId === '') {
             $this->statusType = 'error';
             $this->statusMessage = 'Job ID training tidak ditemukan.';
+            $this->dispatch('toast', type: 'error', message: $this->statusMessage);
             return;
         }
 
@@ -1713,12 +1715,14 @@ class TopicModelingManager extends Component
             if (($result['status'] ?? '') === 'unreachable') {
                 $this->statusType = 'warning';
                 $this->statusMessage = $result['message'] ?? 'FastAPI tidak dapat dihubungi.';
+                $this->dispatch('toast', type: 'warning', message: $this->statusMessage);
                 return;
             }
 
             if (($result['status'] ?? '') === 'error' || ($result['status'] ?? '') === 'not_found') {
                 $this->statusType = 'error';
                 $this->statusMessage = $result['message'] ?? 'Gagal melakukan test model.';
+                $this->dispatch('toast', type: 'error', message: $this->statusMessage);
                 return;
             }
 
@@ -1740,6 +1744,14 @@ class TopicModelingManager extends Component
                 && $deltaCoherence <= $nearMatchTolerance
                 && $deltaDiversity <= $nearMatchTolerance;
 
+            $storedMetrics = is_array($result['stored_metrics'] ?? null) ? $result['stored_metrics'] : [];
+            $storedCoherence = isset($storedMetrics['coherence_cv']) && is_numeric($storedMetrics['coherence_cv'])
+                ? (float) $storedMetrics['coherence_cv']
+                : null;
+            $storedDiversity = isset($storedMetrics['topic_diversity']) && is_numeric($storedMetrics['topic_diversity'])
+                ? (float) $storedMetrics['topic_diversity']
+                : null;
+
             // Backfill run metrics for legacy imported runs that previously stored empty metrics.
             $retestMetrics = is_array($result['retest_metrics'] ?? null) ? $result['retest_metrics'] : [];
             $retestCoherence = isset($retestMetrics['coherence_cv']) && is_numeric($retestMetrics['coherence_cv'])
@@ -1751,6 +1763,21 @@ class TopicModelingManager extends Component
             $retestNumTopics = isset($retestMetrics['num_topics']) && is_numeric($retestMetrics['num_topics'])
                 ? (int) $retestMetrics['num_topics']
                 : null;
+
+            $metricZeroTolerance = 0.0000001;
+            $zeroMetricMatch = $hardMatch
+                && $storedCoherence !== null
+                && $storedDiversity !== null
+                && $retestCoherence !== null
+                && $retestDiversity !== null
+                && abs($storedCoherence) <= $metricZeroTolerance
+                && abs($storedDiversity) <= $metricZeroTolerance
+                && abs($retestCoherence) <= $metricZeroTolerance
+                && abs($retestDiversity) <= $metricZeroTolerance;
+
+            $this->modelTestDatasetResult['quality'] = [
+                'zero_metric_match' => $zeroMetricMatch,
+            ];
 
             $currentCoherence = $this->activeRun->coherence_cv;
             $currentDiversity = $this->activeRun->topic_diversity;
@@ -1793,7 +1820,10 @@ class TopicModelingManager extends Component
                 }
             }
 
-            if ($hardMatch) {
+            if ($zeroMetricMatch) {
+                $sameLabel = '⚠️ Match numerik, tetapi Cv/TD = 0. Hasil evaluasi tidak representatif.';
+                $this->statusType = 'warning';
+            } elseif ($hardMatch) {
                 $sameLabel = '✅ Sama (metrics match)';
                 $this->statusType = 'success';
             } elseif ($nearMatch) {
@@ -1804,7 +1834,7 @@ class TopicModelingManager extends Component
                 $this->statusType = 'warning';
             }
 
-            $deltaLabel = ($deltaCoherence !== null && $deltaDiversity !== null)
+            $deltaLabel = (!$zeroMetricMatch && $deltaCoherence !== null && $deltaDiversity !== null)
                 ? sprintf(' | ΔCv=%.4f, ΔTD=%.4f', $deltaCoherence, $deltaDiversity)
                 : '';
 
@@ -1815,6 +1845,7 @@ class TopicModelingManager extends Component
             Log::error('Model test-dataset failed', ['error' => $e->getMessage()]);
             $this->statusType = 'error';
             $this->statusMessage = 'Gagal melakukan test model: ' . $e->getMessage();
+            $this->dispatch('toast', type: 'error', message: $this->statusMessage);
         } finally {
             $this->modelTestLoading = false;
         }

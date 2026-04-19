@@ -630,29 +630,47 @@
                                 $retest = $modelTestDatasetResult['retest_metrics'] ?? [];
                                 $same = $modelTestDatasetResult['same'] ?? [];
                                 $delta = $modelTestDatasetResult['delta'] ?? [];
+                                $quality = $modelTestDatasetResult['quality'] ?? [];
                                 $dataset = $modelTestDatasetResult['dataset'] ?? [];
                                 $hardMatch = ($same['coherence_cv'] ?? false) === true && ($same['topic_diversity'] ?? false) === true;
                                 $deltaCvAbs = is_numeric($delta['coherence_cv'] ?? null) ? abs((float) $delta['coherence_cv']) : null;
                                 $deltaTdAbs = is_numeric($delta['topic_diversity'] ?? null) ? abs((float) $delta['topic_diversity']) : null;
                                 $nearMatchTolerance = 0.01;
+                                $zeroMetricMatch = ($quality['zero_metric_match'] ?? false) === true;
+                                $reliableHardMatch = $hardMatch && !$zeroMetricMatch;
                                 $nearMatch = !$hardMatch
                                     && $deltaCvAbs !== null
                                     && $deltaTdAbs !== null
                                     && $deltaCvAbs <= $nearMatchTolerance
                                     && $deltaTdAbs <= $nearMatchTolerance;
 
-                                $bannerClass = $hardMatch
+                                $formatMetric = static function ($value): string {
+                                    return is_numeric($value) ? number_format((float) $value, 4) : '-';
+                                };
+
+                                $storedCv = $formatMetric($stored['coherence_cv'] ?? null);
+                                $storedTd = $formatMetric($stored['topic_diversity'] ?? null);
+                                $storedTopics = is_numeric($stored['num_topics'] ?? null) ? (string) ((int) $stored['num_topics']) : '-';
+                                $retestCv = $formatMetric($retest['coherence_cv'] ?? null);
+                                $retestTd = $formatMetric($retest['topic_diversity'] ?? null);
+                                $retestTopics = is_numeric($retest['num_topics'] ?? null) ? (string) ((int) $retest['num_topics']) : '-';
+                                $sameCoherence = $same['coherence_cv'] ?? null;
+                                $sameDiversity = $same['topic_diversity'] ?? null;
+
+                                $bannerClass = $reliableHardMatch
                                     ? 'border-emerald-200 bg-emerald-50'
                                     : ($nearMatch ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50');
-                                $titleClass = $hardMatch
+                                $titleClass = $reliableHardMatch
                                     ? 'text-emerald-800'
                                     : ($nearMatch ? 'text-sky-800' : 'text-amber-800');
                             @endphp
                             <div class="mb-5 rounded-xl border {{ $bannerClass }} p-4">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <div class="text-sm font-semibold {{ $titleClass }}">
-                                        @if ($hardMatch)
+                                        @if ($reliableHardMatch)
                                             Hasil test: sama dengan training
+                                        @elseif($zeroMetricMatch)
+                                            Hasil test: match numerik, tetapi Cv/TD bernilai 0 (tidak representatif)
                                         @elseif($nearMatch)
                                             Hasil test: hampir sama (selisih kecil)
                                         @else
@@ -666,25 +684,30 @@
                                 <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
                                     <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
                                         <div class="font-semibold text-gray-700">Training (tersimpan)</div>
-                                        <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $stored['coherence_cv'] ?? '-' }}</span></div>
-                                        <div class="text-gray-600">Keragaman: <span class="font-mono">{{ $stored['topic_diversity'] ?? '-' }}</span></div>
-                                        <div class="text-gray-600">#Topik: <span class="font-mono">{{ $stored['num_topics'] ?? '-' }}</span></div>
+                                        <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $storedCv }}</span></div>
+                                        <div class="text-gray-600">Keragaman: <span class="font-mono">{{ $storedTd }}</span></div>
+                                        <div class="text-gray-600">#Topik: <span class="font-mono">{{ $storedTopics }}</span></div>
                                     </div>
                                     <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
                                         <div class="font-semibold text-gray-700">Uji Ulang (dataset sekarang)</div>
-                                        <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $retest['coherence_cv'] ?? '-' }}</span></div>
-                                        <div class="text-gray-600">Keragaman: <span class="font-mono">{{ $retest['topic_diversity'] ?? '-' }}</span></div>
-                                        <div class="text-gray-600">#Topik: <span class="font-mono">{{ $retest['num_topics'] ?? '-' }}</span></div>
+                                        <div class="mt-1 text-gray-600">Coherence (C_v): <span class="font-mono">{{ $retestCv }}</span></div>
+                                        <div class="text-gray-600">Keragaman: <span class="font-mono">{{ $retestTd }}</span></div>
+                                        <div class="text-gray-600">#Topik: <span class="font-mono">{{ $retestTopics }}</span></div>
                                     </div>
                                     <div class="rounded-lg bg-white/70 border border-gray-200 p-3">
                                         <div class="font-semibold text-gray-700">Kecocokan</div>
-                                        <div class="mt-1 text-gray-600">Coherence cocok: <span class="font-mono">{{ ($same['coherence_cv'] ?? null) === true ? 'ya' : 'tidak' }}</span></div>
-                                        <div class="text-gray-600">Keragaman cocok: <span class="font-mono">{{ ($same['topic_diversity'] ?? null) === true ? 'ya' : 'tidak' }}</span></div>
-                                        <div class="text-gray-600">ΔCoherence: <span class="font-mono">{{ $deltaCvAbs !== null ? number_format($deltaCvAbs, 4) : '-' }}</span></div>
-                                        <div class="text-gray-600">ΔKeragaman: <span class="font-mono">{{ $deltaTdAbs !== null ? number_format($deltaTdAbs, 4) : '-' }}</span></div>
+                                        <div class="mt-1 text-gray-600">Coherence cocok: <span class="font-mono">{{ $sameCoherence === true ? 'ya' : ($sameCoherence === false ? 'tidak' : '-') }}</span></div>
+                                        <div class="text-gray-600">Keragaman cocok: <span class="font-mono">{{ $sameDiversity === true ? 'ya' : ($sameDiversity === false ? 'tidak' : '-') }}</span></div>
+                                        <div class="text-gray-600">ΔCoherence: <span class="font-mono">{{ (!$zeroMetricMatch && $deltaCvAbs !== null) ? number_format($deltaCvAbs, 4) : '-' }}</span></div>
+                                        <div class="text-gray-600">ΔKeragaman: <span class="font-mono">{{ (!$zeroMetricMatch && $deltaTdAbs !== null) ? number_format($deltaTdAbs, 4) : '-' }}</span></div>
                                         <div class="text-gray-600">Kata kunci cocok: <span class="font-mono">{{ isset($same['keyword_match_ratio']) ? round(((float) $same['keyword_match_ratio']) * 100) . '%' : '-' }}</span></div>
                                     </div>
                                 </div>
+                                @if ($zeroMetricMatch)
+                                    <div class="mt-2 text-xs text-amber-700">
+                                        Catatan: Cv/TD di training dan uji ulang sama-sama 0.0000, jadi kecocokan ini bersifat numerik saja dan belum cukup merepresentasikan kualitas topik.
+                                    </div>
+                                @endif
                                 <div class="mt-2 text-xs text-gray-500">
                                     Catatan: jika dataset di DB berubah setelah training, hasil re-test bisa ikut berubah.
                                 </div>
