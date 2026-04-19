@@ -19,6 +19,7 @@ from loguru import logger
 
 _training_jobs: Dict[str, Dict[str, Any]] = {}
 _JOB_STATE_FILE = "training_jobs_state.json"
+_IMPORT_SNAPSHOT_FILE = "import_snapshot.json"
 _JOB_STORE_LOCK = Lock()
 
 
@@ -414,9 +415,12 @@ class TrainingService:
         result_path = results_dir / f"result_{job_id}.json"
 
         model_path = result.get("model_path")
+        snapshot_path = self._write_import_snapshot(model_path=model_path, result=result)
         archive_path = self._archive_model_artifacts(job_id=job_id, model_path=model_path)
 
         result["results_path"] = str(result_path)
+        if snapshot_path is not None:
+            result["import_snapshot_path"] = snapshot_path
         if archive_path is not None:
             result["model_archive_path"] = archive_path
 
@@ -429,6 +433,49 @@ class TrainingService:
 
         logger.info(f"Results saved to {result_path}")
         return str(result_path)
+
+    def _write_import_snapshot(self, model_path: Any, result: Dict[str, Any]) -> Optional[str]:
+        """Persist a compact payload inside model artifacts for deterministic imports."""
+        if not model_path:
+            return None
+
+        try:
+            model_dir = Path(str(model_path))
+        except Exception:
+            return None
+
+        if not model_dir.exists() or not model_dir.is_dir():
+            return None
+
+        topic_info = result.get("topic_info")
+        if not isinstance(topic_info, list):
+            topic_info = []
+
+        document_topics = result.get("document_topics")
+        if not isinstance(document_topics, list):
+            document_topics = []
+
+        metrics = result.get("metrics")
+        if not isinstance(metrics, dict):
+            metrics = {}
+
+        snapshot_payload = {
+            "schema_version": 1,
+            "job_id": str(result.get("job_id") or ""),
+            "model_type": str(result.get("model_type") or ""),
+            "num_topics": result.get("num_topics"),
+            "num_outliers": result.get("num_outliers"),
+            "topic_info": topic_info,
+            "document_topics": document_topics,
+            "metrics": metrics,
+            "created_at": datetime.now().isoformat(),
+        }
+
+        snapshot_path = model_dir / _IMPORT_SNAPSHOT_FILE
+        with open(snapshot_path, "w", encoding="utf-8") as f:
+            json.dump(snapshot_payload, f, indent=2, ensure_ascii=False)
+
+        return str(snapshot_path)
 
     def _archive_model_artifacts(self, job_id: str, model_path: Any) -> Optional[str]:
         """Create a tar.gz archive of the trained model directory inside results.

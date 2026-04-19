@@ -52,6 +52,7 @@ service = TrainingService()
 
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 TOP_WORDS_PREVIEW_LIMIT = 15
+IMPORT_SNAPSHOT_FILE = "import_snapshot.json"
 
 
 def _validate_job_id(job_id: str) -> str:
@@ -170,6 +171,143 @@ def _build_lda_topic_info(model, num_topics: int) -> List[Dict[str, Any]]:
         )
 
     return topic_info
+
+
+def _load_import_snapshot_payload(model_dir: Path) -> Dict[str, Any]:
+    """Load import snapshot payload bundled in model artifacts, if available."""
+    snapshot_path = model_dir / IMPORT_SNAPSHOT_FILE
+    if not snapshot_path.exists():
+        return {}
+
+    try:
+        raw_payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Unable to read import snapshot {}: {}", str(snapshot_path), str(exc))
+        return {}
+
+    if not isinstance(raw_payload, dict):
+        logger.warning("Ignoring invalid import snapshot format at {}", str(snapshot_path))
+        return {}
+
+    return raw_payload
+
+
+def _normalize_topic_info_payload(raw_topic_info: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_topic_info, list):
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    seen_topic_ids: set[int] = set()
+
+    for item in raw_topic_info:
+        if not isinstance(item, dict):
+            continue
+
+        try:
+            topic_id = int(item.get("topic_id", -1))
+        except Exception:
+            continue
+
+        if topic_id < 0 or topic_id in seen_topic_ids:
+            continue
+
+        raw_words = item.get("top_words")
+        if not isinstance(raw_words, list):
+            raw_words = []
+
+        top_words: List[str] = []
+        for word in raw_words:
+            normalized_word = str(word).strip()
+            if normalized_word != "":
+                top_words.append(normalized_word)
+            if len(top_words) >= TOP_WORDS_PREVIEW_LIMIT:
+                break
+
+        raw_scores = item.get("word_scores")
+        if not isinstance(raw_scores, list):
+            raw_scores = []
+
+        word_scores: List[float] = []
+        for score in raw_scores:
+            try:
+                word_scores.append(float(score))
+            except Exception:
+                continue
+            if len(word_scores) >= TOP_WORDS_PREVIEW_LIMIT:
+                break
+
+        try:
+            count = int(item.get("count", 0) or 0)
+        except Exception:
+            count = 0
+
+        normalized.append(
+            {
+                "topic_id": topic_id,
+                "count": max(0, count),
+                "top_words": top_words,
+                "word_scores": word_scores,
+            }
+        )
+        seen_topic_ids.add(topic_id)
+
+    normalized.sort(key=lambda row: int(row.get("topic_id", 0)))
+    return normalized
+
+
+def _normalize_document_topics_payload(raw_document_topics: Any) -> Tuple[List[Dict[str, Any]], Dict[int, int], int]:
+    if not isinstance(raw_document_topics, list):
+        return [], {}, 0
+
+    rows: List[Dict[str, Any]] = []
+    topic_counts: Dict[int, int] = {}
+    num_outliers = 0
+    seen_doc_ids: set[int] = set()
+
+    for item in raw_document_topics:
+        if not isinstance(item, dict):
+            continue
+
+        try:
+            skripsi_id = int(item.get("skripsi_id", 0))
+            topic_id = int(item.get("topic_id", -1))
+        except Exception:
+            continue
+
+        if skripsi_id <= 0 or skripsi_id in seen_doc_ids:
+            continue
+
+        is_outlier = topic_id == -1
+        if is_outlier:
+            num_outliers += 1
+        else:
+            topic_counts[topic_id] = topic_counts.get(topic_id, 0) + 1
+
+        rows.append(
+            {
+                "skripsi_id": skripsi_id,
+                "topic_id": topic_id,
+                "is_outlier": is_outlier,
+            }
+        )
+        seen_doc_ids.add(skripsi_id)
+
+    rows.sort(key=lambda row: int(row.get("skripsi_id", 0)))
+    return rows, topic_counts, num_outliers
+
+
+def _apply_topic_counts(topic_info: List[Dict[str, Any]], topic_counts: Dict[int, int]) -> None:
+    if not topic_counts:
+        return
+
+    for item in topic_info:
+        try:
+            topic_id = int(item.get("topic_id", -1))
+        except Exception:
+            continue
+
+        if topic_id >= 0:
+            item["count"] = int(topic_counts.get(topic_id, item.get("count", 0)))
 
 
 def _infer_document_topics_for_bertopic(trainer) -> Tuple[List[Dict[str, Any]], Dict[int, int], int]:
@@ -991,6 +1129,11 @@ async def import_trained_model_archive(
             num_outliers: int
             metrics: Dict[str, Any] = {}
             evaluator = TopicEvaluator()
+            snapshot_payload = _load_import_snapshot_payload(target_model_dir)
+            snapshot_metrics = snapshot_payload.get("metrics")
+            if not isinstance(snapshot_metrics, dict):
+                snapshot_metrics = {}
+            mapping_source = "runtime_inference"
 
             if imported_model_type == ModelType.BERTOPIC:
                 from app.ml.bertopic_trainer import BERTopicTrainer
@@ -998,17 +1141,32 @@ async def import_trained_model_archive(
                 trainer = BERTopicTrainer()
                 trainer.load_model(job_id)
 
+                snapshot_topic_info = _normalize_topic_info_payload(snapshot_payload.get("topic_info"))
+                (
+                    snapshot_document_topics,
+                    snapshot_topic_counts,
+                    snapshot_num_outliers,
+                ) = _normalize_document_topics_payload(snapshot_payload.get("document_topics"))
+
                 topic_info, num_outliers = _build_bertopic_topic_info(trainer.model)
-                document_topics, topic_counts, inferred_outliers = _infer_document_topics_for_bertopic(trainer)
+                if snapshot_topic_info:
+                    topic_info = snapshot_topic_info
 
-                if topic_counts:
-                    for item in topic_info:
-                        topic_id = int(item.get("topic_id", -1))
-                        if topic_id >= 0:
-                            item["count"] = int(topic_counts.get(topic_id, item.get("count", 0)))
+                if snapshot_document_topics:
+                    document_topics = snapshot_document_topics
+                    topic_counts = snapshot_topic_counts
+                    num_outliers = snapshot_num_outliers
+                    mapping_source = "archive_snapshot"
+                    logger.info(
+                        "Using archived BERTopic mapping from {}",
+                        IMPORT_SNAPSHOT_FILE,
+                    )
+                else:
+                    document_topics, topic_counts, inferred_outliers = _infer_document_topics_for_bertopic(trainer)
+                    if document_topics:
+                        num_outliers = int(inferred_outliers)
 
-                if document_topics:
-                    num_outliers = int(inferred_outliers)
+                _apply_topic_counts(topic_info, topic_counts)
 
                 try:
                     payload = pipeline_service.build_training_payload(
@@ -1017,7 +1175,16 @@ async def import_trained_model_archive(
                     )
 
                     inferred_topics = [int(item.get("topic_id", -1)) for item in document_topics]
-                    topics_for_eval: Optional[List[int]] = inferred_topics if inferred_topics else None
+                    topics_for_eval: Optional[List[int]] = None
+                    if inferred_topics and len(inferred_topics) == len(payload.documents):
+                        topics_for_eval = inferred_topics
+                    elif inferred_topics:
+                        logger.warning(
+                            "Skipping BERTopic topic override during import metrics due to length mismatch "
+                            "(topics={} docs={})",
+                            len(inferred_topics),
+                            len(payload.documents),
+                        )
 
                     metrics = evaluator.evaluate_bertopic(
                         model=trainer.model,
@@ -1027,21 +1194,35 @@ async def import_trained_model_archive(
                     )
                 except Exception as exc:
                     logger.warning("Unable to compute BERTopic metrics on import: {}", str(exc))
+
+                if not metrics and snapshot_metrics:
+                    metrics = snapshot_metrics
             else:
                 from app.ml.lda_trainer import LDATrainer
 
                 trainer = LDATrainer()
                 trainer.load_model(job_id)
 
+                snapshot_topic_info = _normalize_topic_info_payload(snapshot_payload.get("topic_info"))
+                document_topics, topic_counts, num_outliers = _normalize_document_topics_payload(
+                    snapshot_payload.get("document_topics")
+                )
+
                 num_topics = int(trainer.model.num_topics)
                 topic_info = _build_lda_topic_info(trainer.model, num_topics)
-                document_topics, topic_counts, num_outliers = _infer_document_topics_for_lda(trainer)
+                if snapshot_topic_info:
+                    topic_info = snapshot_topic_info
 
-                if topic_counts:
-                    for item in topic_info:
-                        topic_id = int(item.get("topic_id", -1))
-                        if topic_id >= 0:
-                            item["count"] = int(topic_counts.get(topic_id, item.get("count", 0)))
+                if document_topics:
+                    mapping_source = "archive_snapshot"
+                    logger.info(
+                        "Using archived LDA mapping from {}",
+                        IMPORT_SNAPSHOT_FILE,
+                    )
+                else:
+                    document_topics, topic_counts, num_outliers = _infer_document_topics_for_lda(trainer)
+
+                _apply_topic_counts(topic_info, topic_counts)
 
                 try:
                     payload = pipeline_service.build_training_payload(
@@ -1063,6 +1244,9 @@ async def import_trained_model_archive(
                 except Exception as exc:
                     logger.warning("Unable to compute LDA metrics on import: {}", str(exc))
 
+                if not metrics and snapshot_metrics:
+                    metrics = snapshot_metrics
+
             result_payload: Dict[str, Any] = {
                 "job_id": job_id,
                 "model_type": imported_model_type.value,
@@ -1074,6 +1258,8 @@ async def import_trained_model_archive(
                 "topic_diversity": metrics.get("topic_diversity"),
                 "topic_info": topic_info,
                 "document_topics": document_topics,
+                "mapping_source": mapping_source,
+                "import_snapshot_available": bool(snapshot_payload),
                 "model_path": str(target_model_dir),
                 "imported_from": filename or "uploaded_archive",
                 "imported_at": datetime.now().isoformat(),
@@ -1117,6 +1303,7 @@ async def import_trained_model_archive(
                 "total_documents": len(document_topics),
                 "coherence_cv": metrics.get("coherence_cv"),
                 "topic_diversity": metrics.get("topic_diversity"),
+                "mapping_source": mapping_source,
             }
     except HTTPException as exc:
         if job_id is not None:
@@ -1165,14 +1352,32 @@ async def download_trained_model(job_id: str):
     results_dir = path_settings.get_results_dir()
     archive_path = results_dir / f"model_{job_id}.tar.gz"
 
+    model_path = None
+    loaded_results: Dict[str, Any] = {}
+
+    try:
+        loaded_results = service.load_results(job_id)
+        model_path = loaded_results.get("model_path")
+    except Exception:
+        loaded_results = {}
+        model_path = None
+
+    # Ensure archive contains deterministic import snapshot when result payload is available.
+    if model_path:
+        snapshot_path = service._write_import_snapshot(model_path=model_path, result=loaded_results)
+        if snapshot_path is not None:
+            refreshed_archive_path = service._archive_model_artifacts(job_id=job_id, model_path=model_path)
+            if refreshed_archive_path is not None:
+                archive_path = Path(refreshed_archive_path)
+
     # If not present, try to create it from the saved model directory.
     if not archive_path.exists():
-        model_path = None
-        try:
-            results = service.load_results(job_id)
-            model_path = results.get("model_path")
-        except Exception:
-            model_path = None
+        if not model_path:
+            try:
+                results = service.load_results(job_id)
+                model_path = results.get("model_path")
+            except Exception:
+                model_path = None
 
         # Fallback guesses (in case results JSON isn't available)
         if not model_path:
