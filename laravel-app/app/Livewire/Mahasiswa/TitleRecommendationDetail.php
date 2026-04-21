@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Mahasiswa;
 
+use App\Models\Skripsi;
 use App\Models\TopicModelTopic;
 use App\Models\TopicModelTopicDocument;
 use App\Services\FastApiService;
@@ -26,6 +27,12 @@ class TitleRecommendationDetail extends Component
     public array $topicContext = [];
 
     public array $mappedSkripsi = [];
+
+    public bool $showDetailModal = false;
+
+    public ?int $selectedSkripsiId = null;
+
+    public array $selectedSkripsi = [];
 
     protected int $mappedRowsLimit = 240;
 
@@ -122,6 +129,25 @@ class TitleRecommendationDetail extends Component
         }
 
         $this->recommendationItems = $items;
+    }
+
+    public function showMappedSkripsiDetail(int $skripsiId): void
+    {
+        $doc = Skripsi::query()->find($skripsiId);
+        if (!$doc) {
+            return;
+        }
+
+        $this->selectedSkripsiId = (int) $doc->id;
+        $this->selectedSkripsi = $doc->toArray();
+        $this->showDetailModal = true;
+    }
+
+    public function closeMappedSkripsiDetail(): void
+    {
+        $this->showDetailModal = false;
+        $this->selectedSkripsiId = null;
+        $this->selectedSkripsi = [];
     }
 
     private function loadMappedSkripsi(int $topicRowId, int $runId): array
@@ -245,6 +271,7 @@ class TitleRecommendationDetail extends Component
             'mappedSkripsi' => $this->mappedSkripsi,
             'recommendationItems' => $this->recommendationItems,
             'recommendationError' => $this->recommendationError,
+            'selectedSkripsi' => $this->selectedSkripsi,
         ]);
     }
 }

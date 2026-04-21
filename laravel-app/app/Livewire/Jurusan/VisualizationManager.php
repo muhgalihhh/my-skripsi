@@ -22,8 +22,6 @@ class VisualizationManager extends Component
     public string $runFilter = '';
 
     protected int $wordCloudWordsPerTopic = 10;
-    protected int $dtmSeriesLimit = 10;
-    protected int $trendLimit = 8;
     protected int $mappingRowsLimit = 600;
     protected bool $preferFastApiDta = true;
 
@@ -232,6 +230,7 @@ class VisualizationManager extends Component
         }
 
         $matrix = [];
+        $rawCountsByTopic = [];
         $rows = $response['topics_over_time_raw'] ?? [];
 
         if (is_array($rows) && !empty($rows)) {
@@ -249,6 +248,7 @@ class VisualizationManager extends Component
                 }
 
                 $matrix[$topicId][$year] = ($matrix[$topicId][$year] ?? 0.0) + $freq;
+                $rawCountsByTopic[$topicId][$year] = ($rawCountsByTopic[$topicId][$year] ?? 0.0) + $freq;
             }
         }
 
@@ -282,6 +282,7 @@ class VisualizationManager extends Component
                         }
 
                         $matrix[$topicId][$year] = ($matrix[$topicId][$year] ?? 0.0) + (float) $freqValue;
+                        $rawCountsByTopic[$topicId][$year] = ($rawCountsByTopic[$topicId][$year] ?? 0.0) + (float) $freqValue;
                     }
                 }
             }
@@ -311,7 +312,7 @@ class VisualizationManager extends Component
             ->map(fn(array $yearMap) => array_sum($yearMap))
             ->sortDesc();
 
-        $selectedTopicIds = $topicTotals->keys()->take($this->dtmSeriesLimit)->map(fn($id) => (int) $id)->values()->all();
+        $selectedTopicIds = $topicTotals->keys()->map(fn($id) => (int) $id)->values()->all();
 
         $yearTotals = [];
         foreach ($years as $year) {
@@ -336,11 +337,22 @@ class VisualizationManager extends Component
                 $rawCounts[] = round($count, 4);
             }
 
+            $rawObservedByYear = $rawCountsByTopic[$topicId] ?? [];
+            ksort($rawObservedByYear);
+            $rawObservedCounts = array_map(
+                fn($value) => round((float) $value, 4),
+                array_values($rawObservedByYear)
+            );
+            if (empty($rawObservedCounts)) {
+                $rawObservedCounts = $rawCounts;
+            }
+
             $series[] = [
                 'topic_id' => $topicId,
                 'label' => $topicLabelMap[$topicId] ?? sprintf('Topik %s', $topicId),
                 'data' => $points,
                 'counts' => $rawCounts,
+                'raw_counts' => $rawObservedCounts,
             ];
         }
 
@@ -400,7 +412,7 @@ class VisualizationManager extends Component
             ->map(fn(Collection $rows) => (int) $rows->sum('doc_count'))
             ->sortDesc();
 
-        $selectedTopicIds = $topicTotals->keys()->take($this->dtmSeriesLimit)->map(fn($id) => (int) $id)->values()->all();
+        $selectedTopicIds = $topicTotals->keys()->map(fn($id) => (int) $id)->values()->all();
 
         $matrix = [];
         $yearTotals = [];
@@ -427,11 +439,23 @@ class VisualizationManager extends Component
                 $rawCounts[] = $count;
             }
 
+            $topicRawRows = $raw
+                ->filter(fn($row) => (int) $row->topic_id === $topicId)
+                ->sortBy('year');
+            $rawObservedCounts = $topicRawRows
+                ->map(fn($row) => (int) $row->doc_count)
+                ->values()
+                ->all();
+            if (empty($rawObservedCounts)) {
+                $rawObservedCounts = $rawCounts;
+            }
+
             $series[] = [
                 'topic_id' => $topicId,
                 'label' => $topicLabelMap[$topicId] ?? sprintf('Topik %s', $topicId),
                 'data' => $points,
                 'counts' => $rawCounts,
+                'raw_counts' => $rawObservedCounts,
             ];
         }
 
@@ -479,27 +503,27 @@ class VisualizationManager extends Component
         }
 
         $rows = [];
-        $dtaTrendThreshold = 0.03;
+        $dtaTrendThreshold = 0.10;
         $minPoints = 3;
 
         foreach ($series as $topicSeries) {
-            $data = $topicSeries['data'] ?? [];
-            if (!is_array($data) || count($data) < 2) {
+            $slopeSeries = $topicSeries['raw_counts'] ?? ($topicSeries['counts'] ?? ($topicSeries['data'] ?? []));
+            if (!is_array($slopeSeries) || count($slopeSeries) < 2) {
                 continue;
             }
 
-            $yVals = array_values($data);
+            $yVals = array_map(static fn($value) => (float) $value, array_values($slopeSeries));
             $nPoints = count($yVals);
 
             $start = (float) $yVals[0];
             $end = (float) $yVals[$nPoints - 1];
 
             $slope = 0.0;
-            $relativeSlope = 0.0;
+            $relativeSlope = null;
             $trendLabel = 'stable';
 
             if ($nPoints < $minPoints) {
-                $trendLabel = 'insufficient_data';
+                $trendLabel = 'stable';
             } else {
                 $xVals = range(0, $nPoints - 1);
                 $sumX = array_sum($xVals);
@@ -534,7 +558,7 @@ class VisualizationManager extends Component
                 'label' => (string) ($topicSeries['label'] ?? 'Topik'),
                 'start' => round($start, 4),
                 'end' => round($end, 4),
-                'relative_slope' => round($relativeSlope, 4),
+                'relative_slope' => $relativeSlope !== null ? round($relativeSlope, 4) : null,
                 'trend_label' => $trendLabel,
             ];
         }

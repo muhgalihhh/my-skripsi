@@ -155,6 +155,46 @@
             </div>
         @endif
 
+        @if (!$isProcessing && !empty($lastMappingSummary))
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900">Ringkasan Mapping Topik Otomatis</h3>
+                        <p class="text-xs text-gray-500">Inferensi incremental tanpa retraining ke model BERTopic terakhir</p>
+                    </div>
+                    @if (!empty($lastMappingSummary['run_id']))
+                        <span class="inline-flex items-center px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-100">
+                            Run #{{ $lastMappingSummary['run_id'] }}
+                        </span>
+                    @endif
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                    <div class="bg-green-50 rounded-lg border border-green-100 p-3">
+                        <p class="text-xs text-green-700">Berhasil Di-mapping</p>
+                        <p class="text-xl font-bold text-green-700">{{ (int) ($lastMappingSummary['mapped'] ?? 0) }}</p>
+                    </div>
+                    <div class="bg-red-50 rounded-lg border border-red-100 p-3">
+                        <p class="text-xs text-red-700">Belum Ter-mapping</p>
+                        <p class="text-xl font-bold text-red-700">{{ (int) ($lastMappingSummary['failed'] ?? 0) }}</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg border border-gray-100 p-3">
+                        <p class="text-xs text-gray-600">Kandidat Inferensi</p>
+                        <p class="text-xl font-bold text-gray-800">{{ (int) ($lastMappingSummary['candidates'] ?? 0) }}</p>
+                    </div>
+                </div>
+
+                @if (!empty($lastMappingSummary['reason_label']))
+                    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <p class="text-xs text-amber-800">
+                            <span class="font-semibold">Catatan:</span>
+                            {{ $lastMappingSummary['reason_label'] }}
+                        </p>
+                    </div>
+                @endif
+            </div>
+        @endif
+
         {{-- ── Scraping Form ────────────────────────────────── --}}
         <div
             class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 {{ $isProcessing ? 'opacity-60 pointer-events-none' : '' }}">

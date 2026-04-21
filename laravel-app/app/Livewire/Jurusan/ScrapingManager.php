@@ -5,6 +5,8 @@ namespace App\Livewire\Jurusan;
 use App\Models\ScrapingLog;
 use App\Models\Skripsi;
 use App\Models\TopicModelRun;
+use App\Models\TopicModelTopic;
+use App\Models\TopicModelTopicDocument;
 use App\Services\FastApiService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
@@ -33,6 +35,7 @@ class ScrapingManager extends Component
     public int $jobTotalUrls = 0;
     public int $jobSkippedCount = 0;
     public int $jobFilteredCount = 0;
+    public array $lastMappingSummary = [];
 
     // Monitoring modal
     public bool $showMonitoringModal = false;
@@ -121,6 +124,7 @@ class ScrapingManager extends Component
     public function startScraping(): void
     {
         $this->showStartScrapingConfirm = false;
+        $this->lastMappingSummary = [];
 
         $this->validate([
             'startYear' => 'required|integer|min:2000|max:2030',
@@ -279,6 +283,7 @@ class ScrapingManager extends Component
 
         $newAdded = 0;
         $dataUpdated = 0;
+        $affectedSkripsiIds = [];
 
         foreach ($documents as $index => $doc) {
             $url = $doc['URL'] ?? $doc['url'] ?? null;
@@ -310,9 +315,11 @@ class ScrapingManager extends Component
                 if ($existing) {
                     $existing->update($data);
                     $dataUpdated++;
+                    $affectedSkripsiIds[] = (int) $existing->id;
                 } else {
-                    Skripsi::create(array_merge($data, ['url' => $url]));
+                    $created = Skripsi::create(array_merge($data, ['url' => $url]));
                     $newAdded++;
+                    $affectedSkripsiIds[] = (int) $created->id;
                 }
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::warning('Failed to save skripsi document', [
@@ -331,12 +338,200 @@ class ScrapingManager extends Component
             'data_updated' => $dataUpdated,
         ]);
 
+        $mappingSummary = $this->syncLatestBertopicMappingsForSkripsi($affectedSkripsiIds);
+
+        $mappedCount = (int) ($mappingSummary['mapped'] ?? 0);
+        $candidateCount = (int) ($mappingSummary['candidates'] ?? 0);
+        $failedCount = max(0, $candidateCount - $mappedCount);
+        $reasonCode = isset($mappingSummary['reason']) ? (string) $mappingSummary['reason'] : null;
+        $this->lastMappingSummary = [
+            'mapped' => $mappedCount,
+            'candidates' => $candidateCount,
+            'failed' => $failedCount,
+            'reason' => $reasonCode,
+            'reason_label' => $this->formatMappingReason($reasonCode),
+            'run_id' => isset($mappingSummary['run_id']) ? (int) $mappingSummary['run_id'] : null,
+            'job_id' => isset($mappingSummary['job_id']) ? (string) $mappingSummary['job_id'] : null,
+        ];
+
         $message = "Scraping selesai! " . count($documents) . " dokumen, {$newAdded} baru, {$dataUpdated} diperbarui.";
+        if ($mappedCount > 0) {
+            $message .= " {$mappedCount} dokumen baru dipetakan ke topik model terakhir.";
+        }
+        if ($failedCount > 0) {
+            $message .= " {$failedCount} dokumen belum berhasil dipetakan otomatis.";
+        }
         $this->statusMessage = "Scraping selesai! Total: " . count($documents) . " dokumen ditemukan, {$newAdded} baru ditambahkan, {$dataUpdated} data diperbarui.";
+        if ($mappedCount > 0) {
+            $this->statusMessage .= " {$mappedCount} dokumen baru sudah termapping ke topik.";
+        }
+        if ($failedCount > 0) {
+            $this->statusMessage .= " {$failedCount} dokumen belum termapping otomatis.";
+        }
         $this->statusType = 'success';
         $this->jobProgress = 100;
         $this->jobStep = 'Selesai';
         $this->dispatch('toast', type: 'success', message: $message);
+    }
+
+    /**
+     * Map newly scraped documents into the latest completed BERTopic run
+     * without retraining by using FastAPI batch inference endpoint.
+     *
+     * @param array<int> $skripsiIds
+     * @return array{mapped:int, candidates:int, reason:?string}
+     */
+    protected function syncLatestBertopicMappingsForSkripsi(array $skripsiIds): array
+    {
+        $uniqueIds = array_values(array_unique(array_filter(array_map('intval', $skripsiIds), fn($id) => $id > 0)));
+        if (empty($uniqueIds)) {
+            return ['mapped' => 0, 'candidates' => 0, 'reason' => 'no_affected_ids', 'run_id' => null, 'job_id' => null];
+        }
+
+        $run = TopicModelRun::query()
+            ->where('status', 'completed')
+            ->where('model_type', 'bertopic')
+            ->whereNotNull('fastapi_training_job_id')
+            ->orderByDesc('completed_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$run) {
+            return ['mapped' => 0, 'candidates' => 0, 'reason' => 'no_completed_bertopic_run', 'run_id' => null, 'job_id' => null];
+        }
+
+        $jobId = trim((string) ($run->fastapi_training_job_id ?? ''));
+        if ($jobId === '') {
+            return ['mapped' => 0, 'candidates' => 0, 'reason' => 'missing_fastapi_job_id', 'run_id' => (int) $run->id, 'job_id' => null];
+        }
+
+        $topicIdToRowId = TopicModelTopic::query()
+            ->where('topic_model_run_id', (int) $run->id)
+            ->pluck('id', 'topic_id')
+            ->mapWithKeys(fn($rowId, $topicId) => [(int) $topicId => (int) $rowId])
+            ->toArray();
+
+        if (empty($topicIdToRowId)) {
+            return ['mapped' => 0, 'candidates' => 0, 'reason' => 'run_has_no_topics', 'run_id' => (int) $run->id, 'job_id' => $jobId];
+        }
+
+        $candidates = Skripsi::query()
+            ->leftJoin('topic_model_topic_documents as tmd', function ($join) use ($run) {
+                $join->on('tmd.skripsi_id', '=', 'skripsi.id')
+                    ->where('tmd.topic_model_run_id', '=', (int) $run->id);
+            })
+            ->whereIn('skripsi.id', $uniqueIds)
+            ->whereNull('tmd.id')
+            ->select([
+                'skripsi.id',
+                'skripsi.title',
+                'skripsi.abstract',
+                'skripsi.conclusion',
+            ])
+            ->orderBy('skripsi.id')
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return ['mapped' => 0, 'candidates' => 0, 'reason' => 'all_already_mapped', 'run_id' => (int) $run->id, 'job_id' => $jobId];
+        }
+
+        $prepared = [];
+        foreach ($candidates as $row) {
+            $title = trim((string) ($row->title ?? ''));
+            $abstract = trim((string) ($row->abstract ?? ''));
+            $conclusion = trim((string) ($row->conclusion ?? ''));
+
+            $parts = array_values(array_filter([$title, $abstract, $conclusion], fn($part) => $part !== ''));
+            $text = trim(implode("\n\n", $parts));
+
+            if (mb_strlen($text) < 3) {
+                continue;
+            }
+
+            $prepared[] = [
+                'skripsi_id' => (int) $row->id,
+                'text' => mb_substr($text, 0, 5000),
+            ];
+        }
+
+        if (empty($prepared)) {
+            return ['mapped' => 0, 'candidates' => (int) $candidates->count(), 'reason' => 'no_valid_text', 'run_id' => (int) $run->id, 'job_id' => $jobId];
+        }
+
+        $rows = [];
+        $fastApi = app(FastApiService::class);
+        $chunkSize = 180;
+        $now = now();
+
+        foreach (array_chunk($prepared, $chunkSize) as $chunk) {
+            $texts = array_map(fn($item) => $item['text'], $chunk);
+            $batchResponse = $fastApi->inferTopicsForBatch($texts, $jobId, 3);
+
+            if (in_array((string) ($batchResponse['status'] ?? ''), ['error', 'unreachable', 'not_found'], true)) {
+                \Illuminate\Support\Facades\Log::warning('Post-scraping topic mapping skipped due to inference failure', [
+                    'run_id' => (int) $run->id,
+                    'job_id' => $jobId,
+                    'status' => $batchResponse['status'] ?? 'error',
+                    'message' => $batchResponse['message'] ?? 'Unknown error',
+                ]);
+                continue;
+            }
+
+            $items = is_array($batchResponse['items'] ?? null) ? $batchResponse['items'] : [];
+            foreach ($items as $item) {
+                $index = (int) ($item['index'] ?? -1);
+                if ($index < 0 || !isset($chunk[$index])) {
+                    continue;
+                }
+
+                $topicId = (int) ($item['topic_id'] ?? -1);
+                if ($topicId < 0 || !isset($topicIdToRowId[$topicId])) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'topic_model_run_id' => (int) $run->id,
+                    'topic_model_topic_id' => (int) $topicIdToRowId[$topicId],
+                    'topic_id' => $topicId,
+                    'skripsi_id' => (int) $chunk[$index]['skripsi_id'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        if (!empty($rows)) {
+            TopicModelTopicDocument::query()->upsert(
+                $rows,
+                ['topic_model_run_id', 'skripsi_id'],
+                ['topic_model_topic_id', 'topic_id', 'updated_at']
+            );
+        }
+
+        return [
+            'mapped' => count($rows),
+            'candidates' => count($prepared),
+            'reason' => null,
+            'run_id' => (int) $run->id,
+            'job_id' => $jobId,
+        ];
+    }
+
+    protected function formatMappingReason(?string $reason): ?string
+    {
+        if ($reason === null || trim($reason) === '') {
+            return null;
+        }
+
+        return match ($reason) {
+            'no_affected_ids' => 'Tidak ada dokumen terdampak dari hasil scraping.',
+            'no_completed_bertopic_run' => 'Belum ada model BERTopic selesai; mapping otomatis dilewati.',
+            'missing_fastapi_job_id' => 'Run BERTopic ditemukan, tetapi job ID FastAPI tidak tersedia.',
+            'run_has_no_topics' => 'Run BERTopic belum memiliki data topik untuk mapping.',
+            'all_already_mapped' => 'Semua dokumen terdampak sudah punya mapping pada run aktif.',
+            'no_valid_text' => 'Dokumen tidak memiliki teks cukup untuk inferensi topik.',
+            default => 'Sinkronisasi mapping tidak berjalan penuh.',
+        };
     }
 
     /**
@@ -563,6 +758,7 @@ class ScrapingManager extends Component
             $this->jobTotalUrls = 0;
             $this->jobSkippedCount = 0;
             $this->jobFilteredCount = 0;
+            $this->lastMappingSummary = [];
 
             if ($totalBefore === 0) {
                 $message = 'Database skripsi sudah kosong. Auto increment tetap direset ke 1.';

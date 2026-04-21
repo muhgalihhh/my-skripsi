@@ -26,9 +26,7 @@ class TopicExplorer extends Component
 
     public array $clusterCheckResult = [];
 
-    protected int $topicCardLimit = 8;
     protected int $mappingRowsLimit = 1200;
-    protected int $dtmSeriesLimit = 8;
     protected int $searchTopTopics = 5;
     protected int $searchCandidateLimit = 260;
     protected int $searchResultLimit = 20;
@@ -378,7 +376,7 @@ class TopicExplorer extends Component
 
         $cards = [];
 
-        foreach ($topics->take($this->topicCardLimit) as $topic) {
+        foreach ($topics as $topic) {
             $topicId = (int) $topic->topic_id;
             $documents = collect($rows->get($topicId, collect()))
                 ->map(function ($row) {
@@ -569,7 +567,6 @@ class TopicExplorer extends Component
 
         $selectedTopicIds = $topicTotals
             ->keys()
-            ->take($this->dtmSeriesLimit)
             ->map(fn($id) => (int) $id)
             ->values()
             ->all();
@@ -589,17 +586,32 @@ class TopicExplorer extends Component
         $series = [];
         foreach ($selectedTopicIds as $topicId) {
             $points = [];
+            $counts = [];
             foreach ($years as $year) {
                 $count = (int) ($matrix[$topicId][$year] ?? 0);
                 $total = (int) ($yearTotals[$year] ?? 0);
                 $sharePct = $total > 0 ? ($count / $total) * 100 : 0;
                 $points[] = round($sharePct, 4);
+                $counts[] = $count;
+            }
+
+            $topicRawRows = $raw
+                ->filter(fn($row) => (int) $row->topic_id === $topicId)
+                ->sortBy('year');
+            $rawObservedCounts = $topicRawRows
+                ->map(fn($row) => (int) $row->doc_count)
+                ->values()
+                ->all();
+            if (empty($rawObservedCounts)) {
+                $rawObservedCounts = $counts;
             }
 
             $series[] = [
                 'topic_id' => $topicId,
                 'label' => $topicLabelMap[$topicId] ?? sprintf('Topik %s', $topicId),
                 'data' => $points,
+                'counts' => $counts,
+                'raw_counts' => $rawObservedCounts,
             ];
         }
 
@@ -609,6 +621,84 @@ class TopicExplorer extends Component
             'has_data' => !empty($series),
             'missing_reason' => null,
         ];
+    }
+
+    protected function buildTrendPayload(array $dtmPayload): array
+    {
+        $series = is_array($dtmPayload['series'] ?? null) ? $dtmPayload['series'] : [];
+        if (empty($series)) {
+            return [];
+        }
+
+        $rows = [];
+        $dtaTrendThreshold = 0.10;
+        $minPoints = 3;
+
+        foreach ($series as $topicSeries) {
+            $slopeSeries = $topicSeries['raw_counts'] ?? ($topicSeries['counts'] ?? ($topicSeries['data'] ?? []));
+            if (!is_array($slopeSeries) || count($slopeSeries) < 2) {
+                continue;
+            }
+
+            $yVals = array_map(static fn($value) => (float) $value, array_values($slopeSeries));
+            $nPoints = count($yVals);
+
+            $start = (float) $yVals[0];
+            $end = (float) $yVals[$nPoints - 1];
+
+            $slope = 0.0;
+            $relativeSlope = null;
+            $trendLabel = 'stable';
+
+            if ($nPoints < $minPoints) {
+                $trendLabel = 'stable';
+            } else {
+                $xVals = range(0, $nPoints - 1);
+                $sumX = array_sum($xVals);
+                $sumY = array_sum($yVals);
+                $sumXY = 0.0;
+                $sumX2 = 0.0;
+
+                for ($i = 0; $i < $nPoints; $i++) {
+                    $sumXY += $xVals[$i] * $yVals[$i];
+                    $sumX2 += $xVals[$i] * $xVals[$i];
+                }
+
+                $denominator = ($nPoints * $sumX2) - ($sumX * $sumX);
+                if ($denominator != 0) {
+                    $slope = (($nPoints * $sumXY) - ($sumX * $sumY)) / $denominator;
+                }
+
+                $baseline = max(array_sum($yVals) / $nPoints, 1.0);
+                $relativeSlope = $slope / $baseline;
+
+                if ($relativeSlope >= $dtaTrendThreshold && $end >= $start) {
+                    $trendLabel = 'emerging';
+                } elseif ($relativeSlope <= -$dtaTrendThreshold && $end <= $start) {
+                    $trendLabel = 'declining';
+                } else {
+                    $trendLabel = 'stable';
+                }
+            }
+
+            $rows[] = [
+                'topic_id' => (int) ($topicSeries['topic_id'] ?? 0),
+                'label' => (string) ($topicSeries['label'] ?? 'Topik'),
+                'start' => round($start, 4),
+                'end' => round($end, 4),
+                'relative_slope' => $relativeSlope !== null ? round($relativeSlope, 4) : null,
+                'trend_label' => $trendLabel,
+            ];
+        }
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        return collect($rows)
+            ->sortBy('relative_slope')
+            ->values()
+            ->all();
     }
 
     protected function extractSearchTokens(string $query): array
@@ -863,6 +953,10 @@ class TopicExplorer extends Component
 
         $topicList = collect();
         $topicCards = [];
+        $summaryStats = [
+            'topic_count' => 0,
+            'mapped_document_count' => 0,
+        ];
 
         $chartPayload = [
             'distribution' => ['labels' => [], 'counts' => []],
@@ -873,6 +967,7 @@ class TopicExplorer extends Component
                 'has_data' => false,
                 'missing_reason' => 'Data trend belum tersedia.',
             ],
+            'trend' => [],
         ];
 
         if ($activeRun) {
@@ -882,12 +977,20 @@ class TopicExplorer extends Component
                 ->orderBy('topic_id')
                 ->get();
 
+            $summaryStats['topic_count'] = $topicList->count();
+            $summaryStats['mapped_document_count'] = (int) TopicModelTopicDocument::query()
+                ->where('topic_model_run_id', $activeRun->id)
+                ->distinct('skripsi_id')
+                ->count('skripsi_id');
+
             $topicCards = $this->buildTopicCards($activeRun, $topicList);
 
+            $dtmPayload = $this->buildDtmPayloadFromDbMapping($activeRun, $topicList);
             $chartPayload = [
                 'distribution' => $this->buildTopicDistributionPayload($topicList),
                 'wordcloud_topics' => $this->buildWordCloudTopics($topicList),
-                'dtm' => $this->buildDtmPayloadFromDbMapping($activeRun, $topicList),
+                'dtm' => $dtmPayload,
+                'trend' => $this->buildTrendPayload($dtmPayload),
             ];
         }
 
@@ -895,6 +998,7 @@ class TopicExplorer extends Component
             'activeRun' => $activeRun,
             'topicList' => $topicList,
             'topicCards' => $topicCards,
+            'summaryStats' => $summaryStats,
             'chartPayload' => $chartPayload,
             'smartSearchResult' => $this->smartSearchResult,
             'clusterCheckResult' => $this->clusterCheckResult,

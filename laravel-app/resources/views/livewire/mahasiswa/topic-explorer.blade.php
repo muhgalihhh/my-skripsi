@@ -113,6 +113,20 @@
         </div>
 
         @if ($activeRun)
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Topik</p>
+                    <p class="mt-1 text-2xl font-bold text-gray-900">{{ number_format((int) ($summaryStats['topic_count'] ?? 0)) }}</p>
+                    <p class="mt-1 text-xs text-gray-500">Jumlah topik pada model aktif.</p>
+                </div>
+
+                <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Skripsi Termapping</p>
+                    <p class="mt-1 text-2xl font-bold text-gray-900">{{ number_format((int) ($summaryStats['mapped_document_count'] ?? 0)) }}</p>
+                    <p class="mt-1 text-xs text-gray-500">Jumlah dokumen skripsi yang sudah terpetakan ke topik.</p>
+                </div>
+            </div>
+
             <div class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
                 <div class="flex flex-wrap gap-2" role="tablist" aria-label="Navigasi dashboard mahasiswa">
                     <button type="button" role="tab" @click="setTab('wordcloud')"
@@ -271,6 +285,27 @@
                         </div>
                     @endif
                 </div>
+
+                <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+                    <div class="mb-3">
+                        <h2 class="text-lg font-semibold text-gray-900">Dynamic Topic Analysis (DTA)</h2>
+                        <p class="text-xs text-gray-500">Bar ke kanan menandakan topik menguat (Emerging), ke kiri melemah (Declining).</p>
+                    </div>
+
+                    @if (!empty($chartPayload['trend']))
+                        <div class="overflow-x-auto overflow-y-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
+                            <div class="min-w-[600px]">
+                                <canvas x-ref="trendCanvas" class="block h-[24rem] w-full max-w-full !transform-none sm:h-[30rem]"></canvas>
+                            </div>
+                        </div>
+                    @else
+                        <div class="flex h-[18rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400">
+                            <x-app.icon name="arrows-right-left" class="mb-3 h-12 w-12 text-gray-200" />
+                            <p class="text-sm font-medium">Belum ada data trend topik.</p>
+                            <p class="mt-1 text-xs">Pastikan data tren DTM tersedia minimal di beberapa tahun.</p>
+                        </div>
+                    @endif
+                </div>
             </div>
 
             <div x-show="isTab('wordcloud')" x-cloak x-transition.opacity.duration.150ms class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
@@ -280,18 +315,19 @@
                     </div>
                     <div>
                         <h2 class="text-lg font-semibold text-gray-900">Word Cloud Per Topik</h2>
-                        <p class="text-xs text-gray-500">Visual kata dominan pada setiap topik dari run BERTopic aktif.</p>
+                        <p class="text-xs text-gray-500">Setiap cloud merepresentasikan satu topik. Hover kata untuk melihat bobot.</p>
                     </div>
                 </div>
 
                 @if (!empty($chartPayload['wordcloud_topics']))
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         @foreach ($chartPayload['wordcloud_topics'] as $topicCloud)
-                            <div class="min-w-0 rounded-xl border border-gray-200 bg-white p-3">
+                            <div class="min-w-0">
                                 <div class="mb-2 flex items-center justify-between gap-2">
                                     <p class="truncate text-xs font-semibold text-gray-800" title="{{ $topicCloud['label'] }}">{{ $topicCloud['label'] }}</p>
                                     <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ number_format((int) ($topicCloud['doc_count'] ?? 0)) }} dok</span>
                                 </div>
+
                                 <canvas
                                     data-topic-wordcloud-id="{{ $topicCloud['topic_id'] }}"
                                     data-wordcloud-index="{{ $loop->index }}"
@@ -301,11 +337,15 @@
                             </div>
                         @endforeach
                     </div>
+
+                    <p class="mt-3 text-xs text-gray-500"
+                        x-text="`Menampilkan semua topik (${(payload?.wordcloud_topics || []).length}) • maks ${wordCloudWordLimit} kata/topik.`">
+                    </p>
                 @else
-                    <div class="flex h-[18rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400">
+                    <div class="flex h-[18rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[22rem]">
                         <x-app.icon name="cloud" class="mb-3 h-12 w-12 text-gray-200" />
-                        <p class="text-sm font-medium">Data wordcloud belum tersedia.</p>
-                        <p class="mt-1 text-xs">Pastikan topik memiliki daftar kata kunci (top words).</p>
+                        <p class="text-sm font-medium">Data word cloud per topik belum tersedia.</p>
+                        <p class="mt-1 text-xs">Pastikan run memiliki daftar top_words pada topik.</p>
                     </div>
                 @endif
             </div>
@@ -508,6 +548,7 @@
                     payload,
                     distributionChart: null,
                     dtmChart: null,
+                    trendChart: null,
                     currentTab: 'topics',
                     mappingTopics: Array.isArray(mappingTopics) ? mappingTopics : [],
                     mappingModalOpen: false,
@@ -521,6 +562,7 @@
                             requestAnimationFrame(() => {
                                 this.renderDistributionChart();
                                 this.renderDtmChart();
+                                this.renderTrendChart();
                             });
                         });
                     },
@@ -546,6 +588,7 @@
                                 requestAnimationFrame(() => {
                                     this.renderDistributionChart();
                                     this.renderDtmChart();
+                                    this.renderTrendChart();
                                 });
                             });
                         }
@@ -590,7 +633,10 @@
                     },
 
                     getWordCloudColorPool() {
-                        return ['#1d4ed8', '#0f766e', '#15803d', '#9333ea', '#b45309', '#0369a1', '#be123c', '#334155'];
+                        return [
+                            '#0f766e', '#1d4ed8', '#be123c', '#9333ea', '#b45309',
+                            '#0369a1', '#15803d', '#c2410c', '#334155', '#4d7c0f',
+                        ];
                     },
 
                     buildWordCloudSignature(topic, labels, rawWeights) {
@@ -649,40 +695,53 @@
                             }
 
                             const words = Array.isArray(topic?.words) ? topic.words : [];
-                            const limitedWords = words
+                            const seenWords = new Set();
+                            const normalizedWords = words
                                 .map((word) => {
                                     const text = typeof word?.text === 'string' ? word.text.trim() : '';
+                                    const normalizedText = text.toLowerCase();
+
+                                    if (normalizedText === '' || seenWords.has(normalizedText)) {
+                                        return null;
+                                    }
+
+                                    seenWords.add(normalizedText);
+
                                     const rawWeight = Number.parseFloat(word?.raw_weight);
                                     const visualWeight = Number.parseFloat(word?.weight);
+                                    const safeRaw = Number.isFinite(rawWeight) && rawWeight > 0
+                                        ? rawWeight
+                                        : Number.isFinite(visualWeight) && visualWeight > 0
+                                            ? visualWeight
+                                            : 0;
+
                                     return {
-                                        text,
-                                        rawWeight: Number.isFinite(rawWeight) && rawWeight > 0
-                                            ? rawWeight
-                                            : Number.isFinite(visualWeight) && visualWeight > 0
-                                                ? visualWeight
-                                                : 0,
-                                        visualWeight: Number.isFinite(visualWeight) && visualWeight > 0 ? visualWeight : 0,
+                                        text: normalizedText,
+                                        rawWeight: safeRaw,
                                     };
                                 })
-                                .filter((item) => item.text !== '' && item.rawWeight > 0)
-                                .slice(0, this.wordCloudWordLimit);
+                                .filter((word) => word !== null)
+                                .filter((word) => word.text.length > 0 && Number.isFinite(word.rawWeight) && word.rawWeight > 0)
+                                .sort((a, b) => b.rawWeight - a.rawWeight);
+
+                            const limitedWords = normalizedWords.slice(0, this.wordCloudWordLimit);
 
                             if (!limitedWords.length) {
                                 this.destroyWordCloudChart(index);
                                 return;
                             }
 
-                            const labels = limitedWords.map((item) => item.text);
-                            const rawWeights = limitedWords.map((item) => item.rawWeight);
+                            const rawWeights = limitedWords.map((word) => word.rawWeight);
                             const minRaw = Math.min(...rawWeights);
                             const maxRaw = Math.max(...rawWeights);
                             const denominator = (maxRaw - minRaw) || 1;
-                            const values = limitedWords.map((item) => {
-                                const ratio = (item.rawWeight - minRaw) / denominator;
-                                const scaled = 11 + (Math.pow(ratio, 1.1) * 22);
-                                return Math.max(11, Math.round(scaled));
+
+                            const labels = limitedWords.map((word) => word.text);
+                            const values = limitedWords.map((word) => {
+                                const ratio = (word.rawWeight - minRaw) / denominator;
+                                const scaled = 10 + (Math.pow(ratio, 1.05) * 24);
+                                return Math.max(10, Math.round(scaled));
                             });
-                            const colors = labels.map((_, wordIndex) => colorPool[wordIndex % colorPool.length]);
 
                             const signature = this.buildWordCloudSignature(topic, labels, rawWeights);
                             const existingSignature = this.wordCloudRenderSignatures.get(index);
@@ -691,7 +750,18 @@
                                 return;
                             }
 
-                            const rawWeightByWord = new Map(limitedWords.map((item) => [item.text, item.rawWeight]));
+                            const rawWeightByWord = new Map(limitedWords.map((word) => [word.text, word.rawWeight]));
+                            const colors = limitedWords.map((word, wordIndex) => {
+                                const ratio = (word.rawWeight - minRaw) / denominator;
+                                const band = Math.round(ratio * (colorPool.length - 1));
+                                let hash = 0;
+                                for (let i = 0; i < word.text.length; i += 1) {
+                                    hash = ((hash << 5) - hash) + word.text.charCodeAt(i);
+                                    hash |= 0;
+                                }
+                                const mixedIndex = Math.abs(hash + band + (wordIndex * 7)) % colorPool.length;
+                                return colorPool[mixedIndex];
+                            });
 
                             this.destroyWordCloudChart(index);
 
@@ -741,6 +811,15 @@
                                                     return `${word}: bobot ${Number(rawWeight).toFixed(4)}`;
                                                 },
                                             },
+                                        },
+                                    },
+                                    elements: {
+                                        word: {
+                                            fit: false,
+                                            minRotation: 0,
+                                            maxRotation: 0,
+                                            rotationSteps: 1,
+                                            padding: 3,
                                         },
                                     },
                                 },
@@ -909,6 +988,95 @@
                                     },
                                 },
                             },
+                        });
+                    },
+
+                    renderTrendChart() {
+                        const rows = Array.isArray(this.payload?.trend) ? this.payload.trend : [];
+
+                        if (this.trendChart) {
+                            this.trendChart.destroy();
+                            this.trendChart = null;
+                        }
+
+                        this.trendChart = this.createTrendChart(this.$refs.trendCanvas, rows);
+                    },
+
+                    createTrendChart(canvas, rows) {
+                        if (!canvas || !Array.isArray(rows) || rows.length === 0 || typeof window.Chart === 'undefined') {
+                            return null;
+                        }
+
+                        const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+                        if (!ctx) {
+                            return null;
+                        }
+
+                        const labels = rows.map((r) => r.label);
+                        const data = rows.map((r) => Number(r.relative_slope || 0));
+
+                        const bgColors = rows.map((r) => {
+                            if (r.trend_label === 'emerging') return 'rgba(34, 197, 94, 0.85)';
+                            if (r.trend_label === 'declining') return 'rgba(239, 68, 68, 0.85)';
+                            if (r.trend_label === 'stable') return 'rgba(59, 130, 246, 0.85)';
+                            return 'rgba(156, 163, 175, 0.85)';
+                        });
+
+                        return new window.Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels,
+                                datasets: [{
+                                    label: 'Relative Slope',
+                                    data,
+                                    backgroundColor: bgColors,
+                                    borderRadius: 4,
+                                    borderSkipped: false,
+                                }],
+                            },
+                            options: {
+                                indexAxis: 'y',
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                animation: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: (context) => {
+                                                const row = rows[context.dataIndex] || {};
+                                                return `Relative Slope: ${Number(context.parsed.x).toFixed(3)} (${(row.trend_label || 'stable').toUpperCase()})`;
+                                            },
+                                        },
+                                    },
+                                },
+                                scales: {
+                                    x: {
+                                        grid: { color: '#e2e8f0' },
+                                        title: { display: true, text: 'Relative Slope' },
+                                    },
+                                    y: {
+                                        grid: { display: false },
+                                        ticks: { font: { size: 11 } },
+                                    },
+                                },
+                            },
+                            plugins: [{
+                                id: 'zeroLine',
+                                beforeDraw: (chart) => {
+                                    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+                                    const zeroX = x.getPixelForValue(0);
+                                    if (isNaN(zeroX)) return;
+                                    ctx.save();
+                                    ctx.beginPath();
+                                    ctx.moveTo(zeroX, top);
+                                    ctx.lineTo(zeroX, bottom);
+                                    ctx.lineWidth = 1.5;
+                                    ctx.strokeStyle = '#334155';
+                                    ctx.stroke();
+                                    ctx.restore();
+                                },
+                            }],
                         });
                     },
                 }));

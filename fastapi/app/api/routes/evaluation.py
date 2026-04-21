@@ -11,7 +11,9 @@ from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/evaluation", tags=["Evaluation"])
 service = TrainingService()
-DTA_TREND_THRESHOLD = 0.03
+# Keep in sync with notebook_tuning_unified DTA rule.
+DTA_TREND_THRESHOLD = 0.10
+DTA_MIN_POINTS = 3
 TOP_WORDS_PREVIEW_LIMIT = 15
 
 
@@ -64,7 +66,10 @@ def _classify_topic_trends(
     topic_ids = [tid for tid in topics_over_time["Topic"].unique() if tid != -1]
 
     for topic_id in topic_ids:
-        topic_data = topics_over_time[topics_over_time["Topic"] == topic_id]
+        topic_data = topics_over_time[topics_over_time["Topic"] == topic_id].sort_values("Timestamp")
+
+        # Keep parameter for API compatibility; notebook slope does not impute missing years.
+        _ = year_range
 
         # Frequency per year
         freq_per_year: dict[str, float] = {}
@@ -74,27 +79,18 @@ def _classify_topic_trends(
                 if hasattr(row["Timestamp"], "year")
                 else str(row["Timestamp"])[:4]
             )
-            freq_per_year[yr] = float(row["Frequency"])
+            freq_per_year[yr] = freq_per_year.get(yr, 0.0) + float(row["Frequency"])
 
-        # Fill missing years with 0
-        for yr in year_range:
-            if str(yr) not in freq_per_year:
-                freq_per_year[str(yr)] = 0.0
+        # Match notebook: regress on ordered raw frequency points from topics_over_time.
+        y_vals = pd.to_numeric(topic_data["Frequency"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+        n_points = len(y_vals)
 
-        # Compute slope via linear regression
-        years_arr = np.array(sorted(int(y) for y in freq_per_year.keys()), dtype=float)
-        freqs_arr = np.array([freq_per_year[str(int(y))] for y in years_arr], dtype=float)
-
-        n_points = len(years_arr)
-        min_points = 3
-
-        if n_points < min_points:
-            slope = 0.0
-            relative_slope = 0.0
+        if n_points < DTA_MIN_POINTS:
+            slope = float("nan")
+            relative_slope = float("nan")
             direction = TrendDirection.STABLE
         else:
             x = np.arange(n_points, dtype=float)
-            y_vals = freqs_arr
             slope = float(np.polyfit(x, y_vals, 1)[0])
             baseline = max(float(np.mean(y_vals)), 1.0)
             relative_slope = float(slope / baseline)
@@ -118,7 +114,7 @@ def _classify_topic_trends(
             top_words=top_words[:TOP_WORDS_PREVIEW_LIMIT],
             trend=direction,
             frequency_per_year=freq_per_year,
-            trend_slope=round(relative_slope, 4),
+            trend_slope=round(relative_slope, 4) if np.isfinite(relative_slope) else None,
         )
 
         if direction == TrendDirection.EMERGING:

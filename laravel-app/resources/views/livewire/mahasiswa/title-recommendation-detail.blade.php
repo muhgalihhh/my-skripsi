@@ -131,15 +131,14 @@
                                 <td class="px-3 py-2.5 text-xs text-gray-700">{{ $doc['author'] ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-center text-xs text-gray-700">{{ $doc['year'] ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-center">
-                                    @if (!empty($doc['url']))
-                                        <a href="{{ $doc['url'] }}" target="_blank" rel="noopener"
-                                            class="inline-flex items-center rounded-lg border border-unsoed-blue-200 bg-unsoed-blue-50 px-2 py-0.5 text-[11px] font-semibold text-unsoed-blue-700 hover:bg-unsoed-blue-100">
-                                            <x-app.icon name="arrow-top-right-on-square" class="mr-1 h-3.5 w-3.5" />
-                                            Buka
-                                        </a>
-                                    @else
-                                        <span class="text-[11px] text-gray-400">-</span>
-                                    @endif
+                                    <button
+                                        type="button"
+                                        wire:click="showMappedSkripsiDetail({{ (int) ($doc['skripsi_id'] ?? 0) }})"
+                                        class="inline-flex items-center rounded-lg border border-unsoed-blue-200 bg-unsoed-blue-50 px-2 py-0.5 text-[11px] font-semibold text-unsoed-blue-700 hover:bg-unsoed-blue-100"
+                                    >
+                                        <x-app.icon name="eye" class="mr-1 h-3.5 w-3.5" />
+                                        Detail
+                                    </button>
                                 </td>
                             </tr>
                         @endforeach
@@ -151,5 +150,134 @@
                 Belum ada dokumen skripsi yang termapping pada topik ini.
             </div>
         @endif
+    </div>
+
+    <div x-data="{ open: @entangle('showDetailModal').live }" x-show="open" x-cloak class="fixed inset-0 z-50 overflow-y-auto" role="dialog"
+        aria-modal="true">
+        <div x-show="open" x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-150"
+            x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="$wire.closeMappedSkripsiDetail()"></div>
+
+        <div class="flex min-h-full items-center justify-center p-4">
+            <div x-show="open" x-transition:enter="ease-out duration-200"
+                x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                x-transition:leave="ease-in duration-150" x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-95"
+                class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+
+                <div class="bg-gradient-to-r from-unsoed-blue-700 to-unsoed-blue-600 px-6 py-4 flex items-center justify-between flex-shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                            <x-app.icon variant="s" name="document-text" class="w-4 h-4 text-white" />
+                        </div>
+                        <h3 class="text-base font-bold text-white">Detail Skripsi</h3>
+                    </div>
+                    <button wire:click="closeMappedSkripsiDetail"
+                        class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition"
+                        aria-label="Tutup detail skripsi">
+                        <x-app.icon name="x-mark" class="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+                    <div>
+                        <h4 class="text-base font-bold text-gray-900 leading-snug">
+                            {{ $selectedSkripsi['title'] ?? '-' }}</h4>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            @if ($selectedSkripsi['year'] ?? null)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-unsoed-blue-100 text-unsoed-blue-700">
+                                    {{ $selectedSkripsi['year'] }}
+                                </span>
+                            @endif
+                            @if ($selectedSkripsi['type'] ?? null)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                                    {{ $selectedSkripsi['type'] }}
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        @foreach ([['Penulis', $selectedSkripsi['author'] ?? '-'], ['Kode ID', $selectedSkripsi['id_code'] ?? '-'], ['Divisi', $selectedSkripsi['divisions'] ?? '-'], ['Subjek', $selectedSkripsi['subjects'] ?? '-'], ['Tanggal Deposit', $selectedSkripsi['deposit_date'] ?? '-'], ['Tanggal Modifikasi', $selectedSkripsi['modified_date'] ?? '-']] as [$label, $value])
+                            <div class="bg-gray-50 rounded-xl p-3">
+                                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                                    {{ $label }}</p>
+                                <p class="text-sm text-gray-800">{{ $value }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    @if ($selectedSkripsi['keywords'] ?? null)
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Kata Kunci</p>
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach (explode(',', $selectedSkripsi['keywords']) as $keyword)
+                                    @if (trim($keyword))
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{{ trim($keyword) }}</span>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($selectedSkripsi['abstract'] ?? null)
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Abstrak</p>
+                            <div
+                                class="bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm text-gray-700 leading-relaxed max-h-36 overflow-y-auto">
+                                {{ $selectedSkripsi['abstract'] }}
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($selectedSkripsi['conclusion'] ?? null)
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                                Kesimpulan
+                                @if ($selectedSkripsi['conclusion_source'] ?? null)
+                                    <span
+                                        class="text-gray-300 normal-case font-normal">({{ $selectedSkripsi['conclusion_source'] === 'model' ? 'Model' : $selectedSkripsi['conclusion_source'] }})</span>
+                                @endif
+                            </p>
+                            <div
+                                class="bg-green-50 border border-green-100 rounded-xl p-4 text-sm text-gray-700 leading-relaxed max-h-36 overflow-y-auto">
+                                {{ $selectedSkripsi['conclusion'] }}
+                            </div>
+                        </div>
+                    @endif
+
+                    @if (!empty($selectedSkripsi['pdf_documents']))
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Dokumen PDF</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                @foreach ($selectedSkripsi['pdf_documents'] as $docName => $docUrl)
+                                    <a href="{{ $docUrl }}" target="_blank" rel="noopener"
+                                        class="flex items-center px-3 py-2 bg-red-50 hover:bg-red-100 rounded-xl text-xs font-medium text-red-700 transition border border-red-100 gap-1.5">
+                                        <x-app.icon name="document-text" class="w-4 h-4 flex-shrink-0" />
+                                        {{ $docName }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($selectedSkripsi['url'] ?? null)
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">URL Repository
+                            </p>
+                            <a href="{{ $selectedSkripsi['url'] }}" target="_blank" rel="noopener"
+                                class="text-sm text-unsoed-blue-600 hover:underline break-all inline-flex items-center gap-1">
+                                {{ $selectedSkripsi['url'] }}
+                                <x-app.icon name="arrow-top-right-on-square" class="w-3 h-3 flex-shrink-0" />
+                            </a>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
     </div>
 </div>

@@ -881,6 +881,66 @@ class FastApiService
   }
 
   /**
+   * Infer topics for multiple texts using existing BERTopic model (no retraining).
+   */
+  public function inferTopicsForBatch(array $texts, ?string $jobId = null, int $topNTopics = 3): array
+  {
+    $cleanTexts = array_values(array_filter(array_map(
+      static fn($text): string => trim((string) $text),
+      $texts
+    ), static fn(string $text): bool => mb_strlen($text) >= 3));
+
+    if (empty($cleanTexts)) {
+      return [
+        'status' => 'error',
+        'message' => 'Batch inferensi kosong. Minimal 1 teks dengan panjang >= 3 karakter.',
+      ];
+    }
+
+    try {
+      $payload = [
+        'texts' => array_slice($cleanTexts, 0, 200),
+        'top_n_topics' => max(1, min(10, $topNTopics)),
+      ];
+
+      $normalizedJobId = trim((string) ($jobId ?? ''));
+      if ($normalizedJobId !== '') {
+        $payload['job_id'] = $normalizedJobId;
+      }
+
+      /** @var \Illuminate\Http\Client\Response $response */
+      $response = $this->fastApiRequest(180)
+        ->post("{$this->baseUrl}/api/v1/training/model/infer-batch", $payload);
+
+      if ($response->successful()) {
+        return $response->json();
+      }
+
+      if ($response->status() === 404) {
+        return ['status' => 'not_found', 'message' => 'Model BERTopic untuk batch inferensi tidak ditemukan.'];
+      }
+
+      if ($response->status() === 422) {
+        return [
+          'status' => 'error',
+          'message' => 'Payload batch inferensi tidak valid.',
+          'detail' => $response->json() ?? $response->body(),
+        ];
+      }
+
+      Log::warning('FastAPI batch topic inference failed', [
+        'status' => $response->status(),
+        'body' => $response->body(),
+      ]);
+
+      return ['status' => 'error', 'message' => 'Gagal melakukan batch inferensi topik. Status: ' . $response->status()];
+    } catch (\Exception $e) {
+      Log::warning('FastAPI batch topic inference request failed: ' . $e->getMessage());
+      return ['status' => 'unreachable', 'message' => 'FastAPI tidak dapat dihubungi'];
+    }
+  }
+
+  /**
    * Infer the most relevant BERTopic topic from a free-text query.
    */
   public function inferTopicForQuery(string $jobId, string $query, int $topNTopics = 5): array
