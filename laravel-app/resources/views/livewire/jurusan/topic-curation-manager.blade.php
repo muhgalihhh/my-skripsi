@@ -7,7 +7,7 @@
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Manajemen Topik</h1>
                 <p class="mt-1 text-sm text-gray-500">
-                    Beri nama topik dan tambahkan deskripsi representasi untuk hasil ekstraksi BERTopic/LDA.
+                    Beri nama topik dan deskripsi untuk hasil pemodelan topik.
                 </p>
             </div>
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-2">
@@ -67,7 +67,7 @@
 
             <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p class="text-xs text-gray-500">
-                    Topik diambil dari run dengan status <strong>selesai</strong> milik akun jurusan yang sedang login.
+                    Topik diambil dari proses pelatihan model yang telah selesai.
                 </p>
                 <button
                     wire:click="clearFilters"
@@ -89,7 +89,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Topik</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Kata Kunci Ekstraksi</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nama Topik</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Deskripsi Representasi</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Deskripsi</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Aksi</th>
                             </tr>
                         </thead>
@@ -138,7 +138,7 @@
                                                 {{ $topic->representation_description }}
                                             </div>
                                         @else
-                                            <div class="text-xs text-gray-400">Belum ada deskripsi representasi</div>
+                                            <div class="text-xs text-gray-400">Belum ada deskripsi</div>
                                         @endif
                                         <div class="mt-2">
                                             @if ($isCurated)
@@ -172,7 +172,7 @@
                     <x-app.icon name="inbox-stack" class="mb-4 h-14 w-14 text-gray-200" />
                     <p class="text-sm font-semibold text-gray-500">Belum ada topik yang dapat dikurasi</p>
                     <p class="mt-1 text-xs text-gray-400">
-                        Jalankan pelatihan dan pastikan status run sudah <strong>selesai</strong>.
+                        Jalankan proses pelatihan topik dan pastikan sudah berstatus selesai.
                     </p>
                 </div>
             @endif
@@ -278,13 +278,13 @@
 
                     <div>
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Deskripsi Representasi Topik
+                            Deskripsi Topik
                         </label>
                         <textarea
                             wire:model.defer="editRepresentationDescription"
                             rows="5"
                             maxlength="2000"
-                            placeholder="Jelaskan secara ringkas makna topik berdasarkan kata kunci dan dokumen yang terklaster."
+                            placeholder="Jelaskan secara ringkas tentang topik ini."
                             class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm leading-relaxed focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
                         ></textarea>
                         @error('editRepresentationDescription')

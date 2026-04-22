@@ -8,7 +8,7 @@
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Dashboard Jurusan</h1>
             <p class="mt-1 text-sm text-gray-500">
-                Overview data skripsi dan aktivitas scraping
+                Ringkasan data skripsi dan aktivitas sinkronisasi repositori
             </p>
         </div>
 
@@ -50,7 +50,7 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Scraping Terakhir</p>
+                        <p class="text-sm font-medium text-gray-500">Sinkronisasi Terakhir</p>
                         @if ($latestScraping)
                             <p
                                 class="text-lg font-bold mt-1
@@ -75,12 +75,12 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {{-- Quick Scraping --}}
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">⚡ Quick Scraping</h2>
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">⚡ Sinkronisasi Manual</h2>
                 <p class="text-sm text-gray-500 mb-4">
-                    Jalankan scraping data skripsi dari Repository UNSOED secara manual.
+                    Lakukan pembaruan data skripsi dari Repositori UNSOED secara langsung.
                 </p>
                 <form method="POST" action="{{ route('jurusan.scraping.start') }}"
-                    onsubmit="return confirm('Mulai proses scraping? Proses ini mungkin membutuhkan waktu beberapa menit.')">
+                    onsubmit="return confirm('Mulai proses sinkronisasi? Tindakan ini mungkin memerlukan waktu beberapa saat.')">
                     @csrf
                     <div class="grid grid-cols-2 gap-3 mb-4">
                         <div>
@@ -96,7 +96,7 @@
                     </div>
                     <button type="submit"
                         class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition">
-                        🚀 Mulai Scrapping
+                        🚀 Mulai Sinkronisasi
                     </button>
                 </form>
             </div>
@@ -121,7 +121,7 @@
                         @endforeach
                     </div>
                 @else
-                    <p class="text-sm text-gray-400">Belum ada data. Lakukan scraping terlebih dahulu.</p>
+                    <p class="text-sm text-gray-400">Data belum tersedia. Silakan lakukan sinkronisasi terlebih dahulu.</p>
                 @endif
             </div>
         </div>
@@ -129,7 +129,7 @@
         {{-- Recent Scraping Logs --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-900">📋 Riwayat Scraping Terbaru</h2>
+                <h2 class="text-lg font-semibold text-gray-900">📋 Riwayat Sinkronisasi Terbaru</h2>
                 <a href="{{ route('jurusan.scraping.index') }}"
                     class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                     Lihat Semua →
@@ -181,7 +181,7 @@
                     </table>
                 </div>
             @else
-                <p class="text-sm text-gray-400 text-center py-8">Belum ada riwayat scraping.</p>
+                <p class="text-sm text-gray-400 text-center py-8">Belum ada riwayat sinkronisasi.</p>
             @endif
         </div>
     </div>

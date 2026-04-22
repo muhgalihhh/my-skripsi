@@ -7,10 +7,10 @@
         <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div class="max-w-3xl">
-                    <span class="inline-flex items-center rounded-full bg-unsoed-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-unsoed-blue-700">FastAPI Pipeline</span>
+                    <span class="inline-flex items-center rounded-full bg-unsoed-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-unsoed-blue-700">Mesin Analitik Teks</span>
                     <h1 class="mt-2 text-2xl font-bold text-gray-900">Analisis Topik</h1>
                     <p class="mt-1.5 text-sm text-gray-500">
-                        Pipeline FastAPI-Laravel untuk BERTopic & LDA (preprocessing + training) pada analisis topik skripsi UNSOED.
+                        Pemodelan topik (BERTopic & LDA) untuk memetakan tren penelitian dari data abstrak skripsi.
                     </p>
                 </div>
                 <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 sm:w-auto">
@@ -58,41 +58,41 @@
         <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
             <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 class="text-sm font-semibold text-gray-900">Aksi Pipeline</h2>
-                    <p class="text-xs text-gray-500">Kontrol preprocessing, training, dan import dipisah agar lebih rapi.</p>
+                    <h2 class="text-sm font-semibold text-gray-900">Komando Pemrosesan</h2>
+                    <p class="text-xs text-gray-500">Kontrol proses dari pembersihan teks hingga pelatihan model.</p>
                 </div>
                 <p class="text-[11px] text-gray-500">
-                    Gunakan dua jalur: <strong>training manual</strong> atau <strong>import model terlatih</strong> dari notebook.
+                    Pilih antara <strong>Pelatihan Baru</strong> atau <strong>Impor Model</strong> yang sudah ada.
                 </p>
             </div>
 
             <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
                 <div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Preprocessing</p>
-                    <p class="mt-1 text-xs text-gray-500">Siapkan cleaned_text dan processed_text sebelum training.</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Prapemrosesan Data</p>
+                    <p class="mt-1 text-xs text-gray-500">Pembersihan dan standardisasi teks abstrak menggunakan modul NLP.</p>
                     <x-ui.button wire:click="openRunPreprocessingConfirm" wire:loading.attr="disabled" variant="primary"
                         :disabled="(($apiStatus['status'] ?? '') !== 'ok')" class="mt-3 w-full justify-center">
                         <x-app.icon name="funnel" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="runPreprocessing">Preprocessing</span>
-                        <span wire:loading wire:target="runPreprocessing">Processing…</span>
+                        <span wire:loading.remove wire:target="runPreprocessing">Mulai Prapemrosesan</span>
+                        <span wire:loading wire:target="runPreprocessing">Memproses Teks…</span>
                     </x-ui.button>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Training</p>
-                    <p class="mt-1 text-xs text-gray-500">Jalankan pelatihan model {{ strtoupper($modelType) }} menggunakan parameter aktif.</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Pelatihan Mesin Pembelajaran</p>
+                    <p class="mt-1 text-xs text-gray-500">Mulai proses pelatihan model {{ strtoupper($modelType) }} menggunakan data yang telah dibersihkan.</p>
                     <x-ui.button type="button" wire:click="openStartTrainingConfirm" wire:loading.attr="disabled" variant="success"
                         :disabled="(($apiStatus['status'] ?? '') !== 'ok') || (!$activeRun) || (!in_array($activeRun?->status ?? '', ['pending','completed','failed'])) || ((($modelType ?? 'bertopic') === 'bertopic') ? (($bertopicParamsSource ?? 'schema_default') === 'schema_default') : (($ldaParamsSource ?? 'schema_default') === 'schema_default'))"
                         class="mt-3 w-full justify-center">
                         <x-app.icon name="play-circle" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="startTraining">Mulai Pelatihan {{ strtoupper($modelType) }}</span>
-                        <span wire:loading wire:target="startTraining">Memulai…</span>
+                        <span wire:loading.remove wire:target="startTraining">Jalankan Pelatihan {{ strtoupper($modelType) }}</span>
+                        <span wire:loading wire:target="startTraining">Melatih…</span>
                     </x-ui.button>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Import Model</p>
-                    <p class="mt-1 text-xs text-gray-500">Unggah file model (.tar.gz/.tgz/.tar) untuk dipakai tanpa retraining.</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Impor Model Eksternal</p>
+                    <p class="mt-1 text-xs text-gray-500">Gunakan model yang sudah dilatih sebelumnya (*.tar.gz) untuk mempercepat proses analisis.</p>
                     <label class="mt-3 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Arsip Model</label>
                     <input
                         type="file"
@@ -124,7 +124,7 @@
                     $tabs = [
                         'overview' => 'Ringkasan',
                         'preview' => 'Pratinjau',
-                        'database' => 'Basis Data',
+                        'database' => 'Penyimpanan Data',
                         'hasil' => 'Hasil',
                         'pengaturan' => 'Pengaturan',
                     ];
@@ -144,9 +144,7 @@
             <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 <x-app.icon variant="o" name="exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <div>
-                    Layanan FastAPI tidak aktif. Pastikan container <code
-                        class="mx-1 rounded bg-amber-100 px-1.5 py-0.5 font-mono">skripsi-fastapi</code>
-                    berjalan.
+                    Layanan analitik tidak merespons. Pastikan sistem pendukung berjalan normal.
                 </div>
             </div>
         @endif
@@ -166,16 +164,16 @@
                                     class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                 <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                             </span>
-                            <span class="text-sm text-green-700 font-medium">Layanan FastAPI Aktif</span>
+                            <span class="text-sm text-green-700 font-medium">Layanan Komputasi Analitik Aktif</span>
                             <span class="text-xs text-gray-400">{{ $apiStatus['app_name'] ?? '' }}
                                 v{{ $apiStatus['version'] ?? '' }}</span>
                         @else
                             <span class="relative flex h-3 w-3">
                                 <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                             </span>
-                            <span class="text-sm text-red-700 font-medium">Layanan FastAPI Tidak Aktif</span>
+                            <span class="text-sm text-red-700 font-medium">Layanan Komputasi Analitik Tidak Merespons</span>
                             <span
-                                class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke layanan FastAPI.' }}</span>
+                                class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Mesin analitik sedang tidak dapat dijangkau.' }}</span>
                         @endif
                     </div>
 
@@ -192,10 +190,8 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 xl:col-span-2">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <div class="text-sm font-semibold text-gray-900">Kesiapan Dataset</div>
-                        <div class="mt-0.5 text-xs text-gray-500">Ringkasan data hasil preprocessing yang siap
-                            untuk
-                            training.</div>
+                        <div class="text-sm font-semibold text-gray-900">Kesiapan Korpus Teks</div>
+                        <div class="mt-0.5 text-xs text-gray-500">Ringkasan data abstrak yang siap digunakan untuk pelatihan.</div>
                     </div>
                     <x-ui.button variant="ghost-primary" size="sm" wire:click="loadDatasetSummary"
                         class="self-start font-medium flex items-center transition sm:self-auto !px-2"
@@ -257,7 +253,7 @@
                     @endif
                 @elseif(($datasetSummary['status'] ?? '') === 'unreachable')
                     <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        {{ $datasetSummary['message'] ?? 'FastAPI tidak dapat dihubungi. Ringkasan dataset belum bisa ditampilkan.' }}
+                        {{ $datasetSummary['message'] ?? 'Layanan komputasi tidak dapat dihubungi. Ringkasan dataset belum bisa ditampilkan.' }}
                     </div>
                 @elseif(($datasetSummary['status'] ?? '') === 'error')
                     <div class="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -348,7 +344,7 @@
 
                             @if (count($dropSamples) > 25)
                                 <div class="mt-2 text-xs text-gray-500">
-                                    Menampilkan 25 sampel pertama dari total sampel yang tersimpan di FastAPI.
+                                    Menampilkan 25 sampel pertama dari total sampel yang tidak lolos prapemrosesan.
                                 </div>
                             @endif
                         @endif
@@ -414,7 +410,7 @@
                     <div>
                         <h2 class="text-sm font-semibold text-gray-900">Pratinjau Pipeline Preprocessing</h2>
                         <p class="mt-0.5 text-xs text-gray-500">
-                            5 sampel abstrak dari tabel <code class="font-mono">topic_model_datasets</code> — menampilkan setiap langkah pipeline secara transparan.
+                            5 contoh data dari tabel <code class="font-mono">topic_model_datasets</code> beserta proses perubahannya.
                         </p>
                     </div>
                     <div class="flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
@@ -436,7 +432,7 @@
                         <div class="px-5 py-4">
                             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
                                 <div class="text-xs font-semibold text-gray-800 line-clamp-1">
-                                    #{{ $row['id'] }} — {{ $row['title'] }}
+                                    #{{ $row['id'] }} - {{ $row['title'] }}
                                 </div>
                                 <span
                                     class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{{ $row['year'] }}</span>
@@ -474,24 +470,23 @@
                                 <div x-show="activePreviewTab === 'final'" class="break-words">
                                     <span
                                         class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                                        BERTopic Input — Soft clean (natural, tanpa stemming/stopword removal)
+                                        Input BERTopic (Pembersihan Ringan, tanpa stemming/stopword removal)
                                     </span>
                                     {{ Str::limit($row['final_cleaned_text'], 350) }}
                                     <div
                                         class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] text-blue-700">
-                                        IndoSBERT butuh teks natural — stopword & stemming dihandle oleh c-TF-IDF
-                                        vectorizer di dalam BERTopic.
+                                        IndoSBERT membutuhkan teks natural, sehingga penghapusan stopword dan penyelarasan kata dasar ditangani oleh c-TF-IDF vectorizer di dalam BERTopic.
                                     </div>
                                 </div>
                                 <div x-show="activePreviewTab === 'lda'" class="break-words">
                                     <span
                                         class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                                        LDA Input — Tokenized + stopword removal (tanpa stemming lokal)
+                                        Input LDA (Tokenized dan Stopword Removal, tanpa stemming lokal)
                                     </span>
                                     {{ Str::limit($row['final_processed_text'], 350) }}
                                     <div
                                         class="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] text-emerald-700">
-                                        Stemming & finalisasi processed_text tetap dikerjakan di FastAPI preprocessing.
+                                        Penyelarasan kata dasar dan finalisasi teks dikerjakan secara otomatis oleh modul analitik.
                                     </div>
                                 </div>
                             </div>
@@ -513,11 +508,9 @@
             <x-ui.card no-padding>
                 <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                     <div>
-                        <h2 class="text-sm font-semibold text-gray-900">Hasil Preprocessing (Database)</h2>
+                        <h2 class="text-sm font-semibold text-gray-900">Hasil Prapemrosesan Data</h2>
                         <p class="mt-0.5 text-xs text-gray-500">
-                            Data <code class="font-mono">cleaned_text</code> (BERTopic) dan <code
-                                class="font-mono">processed_text</code> yang sudah tersimpan di tabel
-                            <code class="font-mono">skripsi</code>.
+                            Data teks bersih yang siap digunakan untuk pemodelan.
                         </p>
                     </div>
                     <button wire:click="loadDbPreprocessedRows" wire:loading.attr="disabled"
@@ -591,8 +584,8 @@
                 @else
                     <div class="px-5 py-8 text-center text-sm text-gray-400">
                         <x-app.icon name="funnel" class="mx-auto mb-3 h-10 w-10 text-gray-300" />
-                        Belum ada hasil preprocessing tersimpan di database.
-                        <div class="mt-1 text-xs">Jalankan <strong>Preprocessing</strong> dulu.</div>
+                        Belum ada hasil prapemrosesan teks yang tersimpan.
+                        <div class="mt-1 text-xs">Jalankan <strong>Prapemrosesan</strong> terlebih dahulu.</div>
                     </div>
                 @endif
             </x-ui.card>
@@ -602,9 +595,9 @@
         {{-- ========================== TAB: HASIL ========================== --}}
         <div x-show="activeTab === 'hasil'" x-cloak class="space-y-6">
 
-            <x-ui.card title="Hasil Analisis Topik" description="Run aktif — topik tersimpan di database.">
+            <x-ui.card title="Hasil Analisis Topik" description="Proses selesai, topik berhasil didapatkan.">
                 @if ($activeRun && $activeRun->status === 'completed')
-                    {{-- Model actions (FastAPI artifacts) --}}
+                    {{-- Model actions --}}
                     @if ($activeRun->fastapi_training_job_id)
                         <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                             <x-ui.button wire:click="downloadModel" wire:loading.attr="disabled" variant="secondary">
@@ -1272,12 +1265,12 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
-                <div class="text-xs text-gray-400">Simpan sebagai bawaan di basis data (LDA per akun).</div>
+                <div class="text-xs text-gray-400">Simpan sebagai konfigurasi preferensi akun.</div>
                 <div class="flex items-center gap-2">
                     <x-ui.button wire:click="saveTrainingParams" wire:loading.attr="disabled" variant="secondary">
                         <x-app.icon name="bookmark-square" class="h-4 w-4" />
-                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan sebagai Best</span>
-                        <span wire:loading wire:target="saveTrainingParams">Menyimpan Best…</span>
+                        <span wire:loading.remove wire:target="saveTrainingParams">Simpan Konfigurasi</span>
+                        <span wire:loading wire:target="saveTrainingParams">Menyimpan...</span>
                     </x-ui.button>
                 </div>
             </div>
@@ -1287,10 +1280,10 @@
 
     {{-- ---- Preprocessing Note ---- --}}
     <x-ui.alert type="warning">
-        <div class="font-semibold">Strategi preprocessing:</div>
+        <div class="font-semibold">Strategi prapemrosesan:</div>
         <ul class="mt-1 space-y-0.5 text-amber-700">
-            <li>• <strong>BERTopic:</strong> soft clean — tidak hapus stopword, tidak stemming</li>
-            <li>• <strong>LDA:</strong> tokenisasi + stopword removal + stemming (di FastAPI preprocessing)</li>
+            <li>• <strong>BERTopic:</strong> pembersihan ringan dengan mempertahankan tanda baca dan stopword, tanpa stemming</li>
+            <li>• <strong>LDA:</strong> tokenisasi + penghapusan stopword + stemming (dilakukan pada tahap prapemrosesan teks)</li>
         </ul>
     </x-ui.alert>
 

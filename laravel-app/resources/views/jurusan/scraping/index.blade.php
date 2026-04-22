@@ -1,15 +1,15 @@
 @extends('layouts.jurusan')
 
-@section('title', 'Manajemen Scraping')
+@section('title', 'Manajemen Sinkronisasi')
 
 @section('content')
     <div class="space-y-6">
         {{-- Page Header --}}
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Manajemen Scraping</h1>
+                <h1 class="text-2xl font-bold text-gray-900">Manajemen Sinkronisasi</h1>
                 <p class="mt-1 text-sm text-gray-500">
-                    Kelola proses scraping data skripsi dari Repository UNSOED
+                    Kelola proses sinkronisasi data skripsi dari Repositori UNSOED
                 </p>
             </div>
             <div class="text-right">
@@ -23,23 +23,22 @@
             <div class="flex items-center space-x-3">
                 @if (($apiStatus['status'] ?? '') === 'ok')
                     <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                    <span class="text-sm text-green-700 font-medium">FastAPI Service Online</span>
-                    <span class="text-xs text-gray-400">{{ $apiStatus['app_name'] ?? '' }}</span>
+                    <span class="text-sm text-green-700 font-medium">Layanan Analitik Terhubung</span>
                 @else
                     <span class="inline-block w-3 h-3 bg-red-500 rounded-full"></span>
-                    <span class="text-sm text-red-700 font-medium">FastAPI Service Offline</span>
+                    <span class="text-sm text-red-700 font-medium">Layanan Analitik Terputus</span>
                     <span
-                        class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Pastikan service berjalan di port 8000' }}</span>
+                        class="text-xs text-gray-400">Sistem tidak dapat terhubung ke modul pemrosesan data.</span>
                 @endif
             </div>
         </div>
 
         {{-- Scraping Form --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">🚀 Jalankan Scraping Manual</h2>
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">🚀 Jalankan Sinkronisasi Manual</h2>
 
             <form method="POST" action="{{ route('jurusan.scraping.start') }}"
-                onsubmit="this.querySelector('button[type=submit]').disabled=true; this.querySelector('button[type=submit]').innerText='⏳ Memproses...'; return confirm('Mulai proses scraping? Ini membutuhkan waktu beberapa menit.')">
+                onsubmit="this.querySelector('button[type=submit]').disabled=true; this.querySelector('button[type=submit]').innerText='⏳ Memproses...'; return confirm('Mulai proses sinkronisasi? Tindakan ini mungkin memerlukan waktu beberapa saat.')">
                 @csrf
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -57,15 +56,14 @@
                         <button type="submit"
                             class="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition"
                             {{ ($apiStatus['status'] ?? '') !== 'ok' ? 'disabled' : '' }}>
-                            🚀 Mulai Scrapping
+                            🚀 Mulai Sinkronisasi
                         </button>
                     </div>
                 </div>
 
                 @if (($apiStatus['status'] ?? '') !== 'ok')
                     <p class="text-xs text-red-500">
-                        ⚠️ FastAPI service tidak aktif. Nyalakan terlebih dahulu dengan: <code
-                            class="bg-gray-100 px-1 py-0.5 rounded">uvicorn app.main:app --reload</code>
+                        ⚠️ Layanan sinkronisasi saat ini tidak tersedia. Silakan hubungi administrator sistem.
                     </p>
                 @endif
             </form>
@@ -73,7 +71,7 @@
 
         {{-- Scraping History --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">📋 Riwayat Scraping</h2>
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">📋 Riwayat Sinkronisasi</h2>
 
             @if ($logs->isNotEmpty())
                 <div class="overflow-x-auto">
@@ -133,7 +131,7 @@
                     {{ $logs->links() }}
                 </div>
             @else
-                <p class="text-sm text-gray-400 text-center py-8">Belum ada riwayat scraping.</p>
+                <p class="text-sm text-gray-400 text-center py-8">Belum ada riwayat sinkronisasi.</p>
             @endif
         </div>
     </div>

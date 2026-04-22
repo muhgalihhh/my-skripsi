@@ -1,4 +1,4 @@
-<div wire:key="visualisasi-{{ $activeRun?->id ?? 'none' }}" x-data="topicVisualizationPage(@js($chartPayload), @js($skripsiMapping))" x-init="init()">
+<div wire:key="visualisasi-{{ $activeRun?->id ?? 'none' }}" x-data="{ activeVizTab: 'wordcloud', setVizTab(t) { this.activeVizTab = t; } }">
     @section('page-title', 'Visualisasi Topik')
 
     <div class="space-y-5 sm:space-y-6">
@@ -11,7 +11,7 @@
                     </span>
                     <h1 class="mt-2 text-2xl font-bold">Visualisasi Analisis Topik</h1>
                     <p class="mt-1.5 text-sm text-unsoed-blue-100">
-                        Eksplorasi hasil topik dari satu halaman: Word Cloud per topik, pemodelan topik dinamis, serta perbandingan topik meningkat dan menurun.
+                        Visualisasi tren topik penelitian melalui Word Cloud, Grafik Tren, dan Pemetaan Skripsi.
                     </p>
                     <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-medium">
                         <span class="rounded-full border border-white/20 bg-white/10 px-2.5 py-1">Word Cloud per Topik</span>
@@ -94,7 +94,7 @@
                             <x-app.icon name="list-bullet" class="h-5 w-5 text-unsoed-blue-700" />
                         </div>
                     </div>
-                    <p class="mt-3 text-xs text-unsoed-blue-700">Topik valid yang siap dieksplorasi</p>
+                    <p class="mt-3 text-xs text-unsoed-blue-700">Jumlah topik yang terbentuk</p>
                 </div>
 
                 <div class="rounded-2xl border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -107,7 +107,7 @@
                             <x-app.icon name="document-chart-bar" class="h-5 w-5 text-emerald-700" />
                         </div>
                     </div>
-                    <p class="mt-3 text-xs text-emerald-700">Dokumen yang berhasil dipetakan ke topik</p>
+                    <p class="mt-3 text-xs text-emerald-700">Jumlah skripsi yang dianalisis</p>
                 </div>
 
                 <div class="rounded-2xl border border-unsoed-gold-100 bg-gradient-to-b from-unsoed-gold-50 to-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -126,7 +126,7 @@
                             <x-app.icon name="calendar-days" class="h-5 w-5 text-unsoed-gold-700" />
                         </div>
                     </div>
-                    <p class="mt-3 text-xs text-unsoed-gold-700">Jendela waktu analisis trend topik</p>
+                    <p class="mt-3 text-xs text-unsoed-gold-700">Rentang waktu data skripsi</p>
                 </div>
             </div>
 
@@ -173,22 +173,16 @@
                     </div>
 
                     @if (!empty($chartPayload['wordcloud_topics']))
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                        <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                             @foreach ($chartPayload['wordcloud_topics'] as $topicCloud)
-                                <div class="min-w-0">
-                                    <div class="mb-2 flex items-center justify-between gap-2">
-                                        <p class="truncate text-xs font-semibold text-gray-800" title="{{ $topicCloud['label'] }}">{{ $topicCloud['label'] }}</p>
-                                        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ number_format((int) ($topicCloud['doc_count'] ?? 0)) }} dok</span>
-                                    </div>
-
-                                    <canvas data-topic-wordcloud-id="{{ $topicCloud['topic_id'] }}" data-wordcloud-index="{{ $loop->index }}" width="520" height="220" class="h-40 w-full !transform-none sm:h-48"></canvas>
-                                </div>
+                                <x-charts.wordcloud 
+                                    :topic-id="$topicCloud['topic_id'] ?? null"
+                                    :label="$topicCloud['label'] ?? ''"
+                                    :doc-count="$topicCloud['doc_count'] ?? 0"
+                                    :words="$topicCloud['words'] ?? []"
+                                />
                             @endforeach
                         </div>
-
-                        <p class="mt-3 text-xs text-gray-500"
-                            x-text="`Menampilkan semua topik (${(payload?.wordcloud_topics || []).length}) • maks ${wordCloudWordLimit} kata/topik.`">
-                        </p>
                     @else
                         <div class="flex h-[18rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[22rem]">
                             <x-app.icon name="cloud" class="mb-3 h-12 w-12 text-gray-200" />
@@ -204,16 +198,15 @@
                             <x-app.icon name="presentation-chart-line" class="h-4 w-4 text-unsoed-blue-700" />
                         </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Pemodelan Topik Dinamis</h2>
+                            <h2 class="text-lg font-semibold text-gray-900">Tren Topik Berdasarkan Tahun</h2>
                             <p class="text-xs text-gray-500">Line chart proporsi topik per tahun dengan tooltip interaktif.</p>
                         </div>
                     </div>
 
                     @if (!empty($chartPayload['dtm']['series']))
-                        <div class="overflow-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
-                            <canvas x-ref="dtmChartCanvas" class="block h-[20rem] w-full max-w-full !transform-none sm:h-[28rem] xl:h-[34rem]"></canvas>
+                        <div class="rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-4 shadow-sm">
+                            <x-charts.line :chart-data="$chartPayload['dtm']" height="h-[20rem] sm:h-[28rem] xl:h-[34rem]" />
                         </div>
-                        <p x-show="dtmRenderError" class="mt-2 text-xs text-red-600" x-text="dtmRenderError"></p>
                     @else
                         <div class="flex h-[20rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[28rem] xl:h-[34rem]">
                             <x-app.icon name="presentation-chart-line" class="mb-3 h-12 w-12 text-gray-200" />
@@ -229,18 +222,15 @@
                             <x-app.icon name="arrows-right-left" class="h-4 w-4 text-unsoed-blue-700" />
                         </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Dynamic Topic Analysis (DTA)</h2>
-                            <p class="text-xs text-gray-500">Nilai bar ke kanan menandakan topik menguat (Emerging), ke kiri melemah (Declining). Garis tengah (0) adalah keseimbangan relatif.</p>
+                            <h2 class="text-lg font-semibold text-gray-900">Analisis Topik Naik/Turun</h2>
+                            <p class="text-xs text-gray-500">Menampilkan topik yang trennya sedang naik (kanan) atau turun (kiri).</p>
                         </div>
                     </div>
 
                     @if (!empty($chartPayload['trend']))
-                        <div class="overflow-x-auto overflow-y-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
-                            <div class="min-w-[600px]">
-                                <canvas x-ref="trendChartCanvas" class="block h-[24rem] w-full max-w-full !transform-none sm:h-[30rem]"></canvas>
-                            </div>
+                        <div class="rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-4 shadow-sm">
+                            <x-charts.bar type="trend" :chart-data="$chartPayload['trend']" height="h-[24rem] sm:h-[30rem]" />
                         </div>
-                        <p x-show="trendRenderError" class="mt-2 text-xs text-red-600" x-text="trendRenderError"></p>
                     @else
                         <div class="flex h-[16rem] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 sm:h-[20rem]">
                             <x-app.icon name="arrows-right-left" class="mb-3 h-12 w-12 text-gray-200" />
@@ -256,18 +246,13 @@
                         </div>
                         <div>
                             <h2 class="text-lg font-semibold text-gray-900">Pemetaan Skripsi ke Topik</h2>
-                            <p class="text-xs text-gray-500">Cek penetapan topik untuk setiap skripsi pada run aktif.</p>
+                            <p class="text-xs text-gray-500">Melihat hasil klasifikasi topik untuk masing-masing skripsi.</p>
                         </div>
                     </div>
 
                     @if (!empty($skripsiMapping['topic_summary']))
-                        <div class="mb-4 overflow-hidden rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-3">
-                            <div class="mb-2 flex items-center justify-between gap-3">
-                                <p class="text-xs font-semibold uppercase tracking-wide text-unsoed-blue-700">Distribusi Dokumen per Topik</p>
-                                <p class="text-[11px] text-unsoed-blue-700">Top 12 topik berdasarkan jumlah dokumen</p>
-                            </div>
-                            <canvas x-ref="mappingDistributionChartCanvas" class="block h-[16rem] w-full max-w-full !transform-none sm:h-[20rem]"></canvas>
-                            <p x-show="mappingRenderError" class="mt-2 text-xs text-red-600" x-text="mappingRenderError"></p>
+                        <div class="mb-4 rounded-xl border border-unsoed-blue-100 bg-unsoed-blue-50 p-4 shadow-sm">
+                            <x-charts.bar type="distribution" :chart-data="$skripsiMapping['topic_summary']" title="Distribusi Dokumen per Topik" height="h-[16rem] sm:h-[20rem]" />
                         </div>
                     @endif
 
@@ -461,891 +446,5 @@
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-wordcloud@4.4.4/build/index.umd.min.js"></script>
 
-        <script>
-            function registerTopicVisualizationPage() {
-                if (!window.Alpine) {
-                    return;
-                }
-
-                window.Alpine.data('topicVisualizationPage', (payload, mappingPayload) => ({
-                    payload,
-                    mappingPayload,
-                    dtmChart: null,
-                    trendChart: null,
-                    mappingDistributionChart: null,
-                    wordCloudCharts: new Map(),
-                    wordCloudRenderSignatures: new Map(),
-                    activeVizTab: 'wordcloud',
-                    wordCloudPageIndex: 0,
-                    wordCloudPageSize: 4,
-                    wordCloudWordLimit: 10,
-                    dtmRenderError: '',
-                    trendRenderError: '',
-                    mappingRenderError: '',
-                    renderAttempts: 0,
-
-                    init() {
-                        this.scheduleInitialRender();
-                    },
-
-                    scheduleInitialRender() {
-                        this.setVizTab(this.activeVizTab);
-                    },
-
-                    setVizTab(tab) {
-                        const validTabs = ['wordcloud', 'dtm', 'trend', 'mapping'];
-                        if (!validTabs.includes(tab)) {
-                            return;
-                        }
-
-                        this.activeVizTab = tab;
-
-                        this.$nextTick(() => {
-                            requestAnimationFrame(() => {
-                                if (this.activeVizTab === 'wordcloud') {
-                                    this.renderWordCloudTopics();
-                                    return;
-                                }
-
-                                if (this.activeVizTab === 'dtm') {
-                                    this.renderDtmChart();
-                                    return;
-                                }
-
-                                if (this.activeVizTab === 'mapping') {
-                                    this.renderMappingDistributionChart();
-                                    return;
-                                }
-
-                                this.renderTrendCharts();
-                            });
-                        });
-                    },
-
-                    scheduleWordCloudRender() {
-                        this.$nextTick(() => {
-                            requestAnimationFrame(() => {
-                                this.renderWordCloudTopics();
-                            });
-                        });
-                    },
-
-                    getWordCloudTopics() {
-                        return Array.isArray(this.payload?.wordcloud_topics) ? this.payload.wordcloud_topics : [];
-                    },
-
-                    wordCloudTotalPages() {
-                        const topics = this.getWordCloudTopics();
-                        return topics.length > 0 ? Math.ceil(topics.length / this.wordCloudPageSize) : 1;
-                    },
-
-                    wordCloudRangeStart() {
-                        const topics = this.getWordCloudTopics();
-                        if (!topics.length) {
-                            return 0;
-                        }
-
-                        return (this.wordCloudPageIndex * this.wordCloudPageSize) + 1;
-                    },
-
-                    wordCloudRangeEnd() {
-                        const topics = this.getWordCloudTopics();
-                        if (!topics.length) {
-                            return 0;
-                        }
-
-                        return Math.min(topics.length, (this.wordCloudPageIndex + 1) * this.wordCloudPageSize);
-                    },
-
-                    isWordCloudCardVisible(index) {
-                        return true;
-                    },
-
-                    clampWordCloudPageIndex() {
-                        const totalPages = this.wordCloudTotalPages();
-                        if (this.wordCloudPageIndex >= totalPages) {
-                            this.wordCloudPageIndex = Math.max(0, totalPages - 1);
-                        }
-                        if (this.wordCloudPageIndex < 0) {
-                            this.wordCloudPageIndex = 0;
-                        }
-                    },
-
-                    setWordCloudPageSize(size) {
-                        const normalizedSize = Number(size);
-                        if (![3, 4].includes(normalizedSize)) {
-                            return;
-                        }
-
-                        if (this.wordCloudPageSize === normalizedSize) {
-                            return;
-                        }
-
-                        const currentFirstIndex = this.wordCloudPageIndex * this.wordCloudPageSize;
-                        this.wordCloudPageSize = normalizedSize;
-                        this.wordCloudPageIndex = Math.floor(currentFirstIndex / this.wordCloudPageSize);
-                        this.clampWordCloudPageIndex();
-                        this.scheduleWordCloudRender();
-                    },
-
-                    prevWordCloudPage() {
-                        if (this.wordCloudPageIndex <= 0) {
-                            return;
-                        }
-
-                        this.wordCloudPageIndex -= 1;
-                        this.scheduleWordCloudRender();
-                    },
-
-                    nextWordCloudPage() {
-                        if (this.wordCloudPageIndex >= (this.wordCloudTotalPages() - 1)) {
-                            return;
-                        }
-
-                        this.wordCloudPageIndex += 1;
-                        this.scheduleWordCloudRender();
-                    },
-
-                    supportsWordCloudType() {
-                        if (typeof window.Chart === 'undefined') {
-                            return false;
-                        }
-
-                        try {
-                            return Boolean(window.Chart.registry?.getController?.('wordCloud'));
-                        } catch (error) {
-                            return false;
-                        }
-                    },
-
-                    getWordCloudCanvasByIndex(index) {
-                        if (!this.$root || typeof this.$root.querySelector !== 'function') {
-                            return null;
-                        }
-
-                        return this.$root.querySelector(`canvas[data-wordcloud-index="${index}"]`);
-                    },
-
-                    getWordCloudColorPool() {
-                        return [
-                            '#0f766e', '#1d4ed8', '#be123c', '#9333ea', '#b45309',
-                            '#0369a1', '#15803d', '#c2410c', '#334155', '#4d7c0f',
-                        ];
-                    },
-
-                    destroyWordCloudChart(index) {
-                        const chart = this.wordCloudCharts.get(index);
-                        if (chart) {
-                            chart.destroy();
-                        }
-                        this.wordCloudCharts.delete(index);
-                        this.wordCloudRenderSignatures.delete(index);
-                    },
-
-                    buildWordCloudSignature(topic, labels, rawWeights) {
-                        const topicId = topic?.topic_id ?? '';
-                        const wordsSignature = labels
-                            .map((label, idx) => `${label}:${Number(rawWeights[idx] ?? 0).toFixed(8)}`)
-                            .join('|');
-
-                        return `${topicId}::${wordsSignature}`;
-                    },
-
-                    buildGradient(ctx, chartArea, startColor, endColor) {
-                        if (!ctx || !chartArea) {
-                            return startColor;
-                        }
-
-                        const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
-                        gradient.addColorStop(0, startColor);
-                        gradient.addColorStop(1, endColor);
-                        return gradient;
-                    },
-
-                    destroyStaleWordCloudCharts(visibleIndexes) {
-                        const staleIndexes = [];
-                        this.wordCloudCharts.forEach((_, index) => {
-                            if (!visibleIndexes.has(index)) {
-                                staleIndexes.push(index);
-                            }
-                        });
-
-                        staleIndexes.forEach((index) => {
-                            this.destroyWordCloudChart(index);
-                        });
-                    },
-
-                    renderWordCloudTopics() {
-                        this.clampWordCloudPageIndex();
-
-                        const topics = this.getWordCloudTopics();
-                        const visibleIndexes = new Set();
-
-                        if (!topics.length || typeof window.Chart === 'undefined' || !this.supportsWordCloudType()) {
-                            this.destroyStaleWordCloudCharts(visibleIndexes);
-                            return;
-                        }
-
-                        const colorPool = this.getWordCloudColorPool();
-
-                        topics.forEach((topic, index) => {
-                            visibleIndexes.add(index);
-
-                            const canvas = this.getWordCloudCanvasByIndex(index);
-                            if (!(canvas instanceof HTMLCanvasElement) || !canvas.isConnected) {
-                                return;
-                            }
-
-                            const ctx = canvas.getContext('2d');
-                            if (!ctx) {
-                                return;
-                            }
-
-                            const words = Array.isArray(topic?.words) ? topic.words : [];
-                            const seenWords = new Set();
-                            const normalizedWords = words
-                                .map((word) => {
-                                    const text = typeof word?.text === 'string' ? word.text.trim() : '';
-                                    const normalizedText = text.toLowerCase();
-
-                                    if (normalizedText === '' || seenWords.has(normalizedText)) {
-                                        return null;
-                                    }
-
-                                    seenWords.add(normalizedText);
-
-                                    const rawWeight = Number.parseFloat(word?.raw_weight);
-                                    const visualWeight = Number.parseFloat(word?.weight);
-                                    const safeRaw = Number.isFinite(rawWeight) && rawWeight > 0
-                                        ? rawWeight
-                                        : Number.isFinite(visualWeight) && visualWeight > 0
-                                            ? visualWeight
-                                            : 0;
-
-                                    return {
-                                        text: normalizedText,
-                                        rawWeight: safeRaw,
-                                    };
-                                })
-                                .filter((word) => word !== null)
-                                .filter((word) => word.text.length > 0 && Number.isFinite(word.rawWeight) && word.rawWeight > 0)
-                                .sort((a, b) => b.rawWeight - a.rawWeight);
-
-                            const limitedWords = normalizedWords.slice(0, this.wordCloudWordLimit);
-
-                            if (!limitedWords.length) {
-                                this.destroyWordCloudChart(index);
-                                return;
-                            }
-
-                            const rawWeights = limitedWords.map((word) => word.rawWeight);
-                            const minRaw = Math.min(...rawWeights);
-                            const maxRaw = Math.max(...rawWeights);
-                            const denominator = maxRaw - minRaw || 1;
-
-                            const labels = limitedWords.map((word) => word.text);
-                            const values = limitedWords.map((word) => {
-                                const ratio = (word.rawWeight - minRaw) / denominator;
-                                const scaled = 10 + (Math.pow(ratio, 1.05) * 24);
-                                return Math.max(10, Math.round(scaled));
-                            });
-
-                            const signature = this.buildWordCloudSignature(topic, labels, rawWeights);
-                            const existingSignature = this.wordCloudRenderSignatures.get(index);
-                            const existingChart = this.wordCloudCharts.get(index);
-                            if (existingChart && existingSignature === signature) {
-                                return;
-                            }
-
-                            const rawWeightByWord = new Map(limitedWords.map((word) => [word.text, word.rawWeight]));
-                            const colors = limitedWords.map((word, wordIndex) => {
-                                const ratio = (word.rawWeight - minRaw) / denominator;
-                                const band = Math.round(ratio * (colorPool.length - 1));
-                                let hash = 0;
-                                for (let i = 0; i < word.text.length; i += 1) {
-                                    hash = ((hash << 5) - hash) + word.text.charCodeAt(i);
-                                    hash |= 0;
-                                }
-                                const mixedIndex = Math.abs(hash + band + (wordIndex * 7)) % colorPool.length;
-                                return colorPool[mixedIndex];
-                            });
-
-                            this.destroyWordCloudChart(index);
-
-                            const chart = new window.Chart(ctx, {
-                                type: 'wordCloud',
-                                data: {
-                                    labels,
-                                    datasets: [{
-                                        label: topic?.label ?? `Topik ${topic?.topic_id ?? index + 1}`,
-                                        data: values,
-                                        color: colors,
-                                        fit: false,
-                                        minRotation: 0,
-                                        maxRotation: 0,
-                                        rotationSteps: 1,
-                                        padding: 3,
-                                        autoGrow: {
-                                            maxTries: 0,
-                                            scalingFactor: 1,
-                                        },
-                                    }],
-                                },
-                                options: {
-                                    animation: false,
-                                    responsive: false,
-                                    maintainAspectRatio: false,
-                                    layout: {
-                                        padding: 10,
-                                    },
-                                    plugins: {
-                                        legend: {
-                                            display: false,
-                                        },
-                                        tooltip: {
-                                            callbacks: {
-                                                title: () => topic?.label ?? `Topik ${topic?.topic_id ?? index + 1}`,
-                                                label: (context) => {
-                                                    const idx = Number(context?.dataIndex ?? -1);
-                                                    const word = idx >= 0 ? labels[idx] : '';
-                                                    if (!word) {
-                                                        return 'Bobot: -';
-                                                    }
-                                                    const rawWeight = rawWeightByWord.get(word);
-                                                    if (!Number.isFinite(rawWeight)) {
-                                                        return `${word}: bobot -`;
-                                                    }
-                                                    return `${word}: bobot ${Number(rawWeight).toFixed(4)}`;
-                                                },
-                                            },
-                                        },
-                                    },
-                                    elements: {
-                                        word: {
-                                            fit: false,
-                                            minRotation: 0,
-                                            maxRotation: 0,
-                                            rotationSteps: 1,
-                                            padding: 3,
-                                        },
-                                    },
-                                },
-                            });
-
-                            this.wordCloudCharts.set(index, chart);
-                            this.wordCloudRenderSignatures.set(index, signature);
-                        });
-
-                        this.destroyStaleWordCloudCharts(visibleIndexes);
-                    },
-
-                    renderDtmChart() {
-                        const canvas = this.$refs.dtmChartCanvas;
-                        const dtm = this.payload?.dtm ?? {};
-                        const years = Array.isArray(dtm.years) ? dtm.years : [];
-                        const series = Array.isArray(dtm.series) ? dtm.series : [];
-
-                        if (!canvas || years.length === 0 || series.length === 0) {
-                            return;
-                        }
-
-                        if (!canvas.isConnected) {
-                            this.dtmRenderError = 'Canvas DTM belum terpasang ke DOM.';
-                            return;
-                        }
-
-                        if (typeof window.Chart === 'undefined') {
-                            this.dtmRenderError = 'Library Chart.js belum termuat, jadi grafik belum bisa dirender.';
-                            return;
-                        }
-
-                        const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
-                        if (!ctx) {
-                            this.dtmRenderError = 'Canvas DTM belum siap (context null). Silakan refresh halaman.';
-                            return;
-                        }
-
-                        const canvasWidth = canvas.clientWidth || canvas.offsetWidth || 0;
-                        const canvasHeight = canvas.clientHeight || canvas.offsetHeight || 0;
-                        if ((canvasWidth === 0 || canvasHeight === 0) && this.renderAttempts < 3) {
-                            this.renderAttempts += 1;
-                            requestAnimationFrame(() => this.renderDtmChart());
-                            return;
-                        }
-
-                        this.renderAttempts = 0;
-
-                        if (this.dtmChart) {
-                            this.dtmChart.destroy();
-                            this.dtmChart = null;
-                        }
-
-                        const colors = [
-                            '#2563eb', '#06b6d4', '#22c55e', '#f59e0b', '#a855f7',
-                            '#ef4444', '#0ea5e9', '#14b8a6', '#6366f1', '#f97316'
-                        ];
-                        const chartTextColor = '#334155';
-                        const chartGridColor = 'rgba(148, 163, 184, 0.22)';
-
-                        const hexToRgba = (hex, alpha) => {
-                            const cleanHex = String(hex || '').replace('#', '');
-                            const expandedHex = cleanHex.length === 3
-                                ? cleanHex.split('').map((char) => char + char).join('')
-                                : cleanHex;
-
-                            const intValue = Number.parseInt(expandedHex, 16);
-                            if (!Number.isFinite(intValue)) {
-                                return `rgba(51, 65, 85, ${alpha})`;
-                            }
-
-                            const r = (intValue >> 16) & 255;
-                            const g = (intValue >> 8) & 255;
-                            const b = intValue & 255;
-                            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-                        };
-
-                        const allValues = series
-                            .flatMap((item) => Array.isArray(item?.data) ? item.data : [])
-                            .map((value) => Number(value))
-                            .filter((value) => Number.isFinite(value) && value >= 0);
-
-                        const maxPoint = allValues.length ? Math.max(...allValues) : 0;
-                        const yPadding = maxPoint > 0 ? Math.max(1.5, maxPoint * 0.18) : 5;
-                        const yMaxRaw = maxPoint + yPadding;
-                        const yMax = maxPoint > 0
-                            ? Math.min(100, Math.max(8, Math.ceil(yMaxRaw / 5) * 5))
-                            : 10;
-                        const yTickStep = yMax <= 20 ? 2 : yMax <= 50 ? 5 : 10;
-
-                        const datasets = series.map((item, index) => {
-                            const baseColor = colors[index % colors.length];
-
-                            return {
-                                label: item.label,
-                                data: item.data,
-                                borderColor: baseColor,
-                                backgroundColor: hexToRgba(baseColor, 0.15),
-                                fill: true,
-                                tension: 0.32,
-                                pointRadius: 0,
-                                pointHoverRadius: 0,
-                                pointHitRadius: 12,
-                                pointBackgroundColor: baseColor,
-                                pointBorderColor: '#ffffff',
-                                pointBorderWidth: 1,
-                                borderWidth: 2.4,
-                            };
-                        });
-
-                        this.dtmChart = new window.Chart(ctx, {
-                            type: 'line',
-                            data: {
-                                labels: years,
-                                datasets,
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                resizeDelay: 140,
-                                animation: {
-                                    duration: 260,
-                                    easing: 'easeOutQuart',
-                                },
-                                transitions: {
-                                    active: {
-                                        animation: {
-                                            duration: 0,
-                                        },
-                                    },
-                                },
-                                interaction: {
-                                    mode: 'index',
-                                    intersect: false,
-                                },
-                                plugins: {
-                                    legend: {
-                                        position: 'bottom',
-                                        labels: {
-                                            useBorderRadius: true,
-                                            borderRadius: 3,
-                                            boxWidth: 14,
-                                            boxHeight: 10,
-                                            padding: 14,
-                                            color: chartTextColor,
-                                            font: {
-                                                size: 11.5,
-                                                family: 'Inter, sans-serif',
-                                                weight: '600',
-                                            },
-                                            generateLabels: (chart) => {
-                                                const baseLabels = window.Chart.defaults.plugins.legend.labels.generateLabels(chart);
-
-                                                return baseLabels.map((label) => {
-                                                    const dataset = chart?.data?.datasets?.[label.datasetIndex] ?? {};
-                                                    const strongColor = dataset.borderColor || label.strokeStyle || label.fillStyle || '#334155';
-
-                                                    return {
-                                                        ...label,
-                                                        fillStyle: strongColor,
-                                                        strokeStyle: strongColor,
-                                                        lineWidth: 0,
-                                                    };
-                                                });
-                                            },
-                                        },
-                                    },
-                                    tooltip: {
-                                        backgroundColor: '#0f172a',
-                                        borderColor: 'rgba(255, 255, 255, 0.14)',
-                                        borderWidth: 1,
-                                        titleColor: '#f8fafc',
-                                        bodyColor: '#e2e8f0',
-                                        cornerRadius: 10,
-                                        padding: 10,
-                                        callbacks: {
-                                            label: (context) => {
-                                                const topicData = series[context.datasetIndex];
-                                                const count = topicData?.counts?.[context.dataIndex] ?? 0;
-                                                return `${context.dataset.label}: ${Number(context.parsed.y).toFixed(2)}% (${count} dokumen)`;
-                                            },
-                                        },
-                                    },
-                                },
-                                scales: {
-                                    x: {
-                                        ticks: {
-                                            color: chartTextColor,
-                                            maxRotation: 0,
-                                            autoSkip: true,
-                                            maxTicksLimit: 12,
-                                        },
-                                        grid: {
-                                            color: chartGridColor,
-                                            drawBorder: false,
-                                        },
-                                        title: {
-                                            display: true,
-                                            text: 'Tahun',
-                                            color: chartTextColor,
-                                            font: {
-                                                size: 12,
-                                                weight: '600',
-                                            },
-                                        },
-                                    },
-                                    y: {
-                                        beginAtZero: true,
-                                        max: yMax,
-                                        ticks: {
-                                            color: chartTextColor,
-                                            stepSize: yTickStep,
-                                            callback: (value) => `${Number(value).toFixed(Number(value) < 10 ? 1 : 0)}%`,
-                                        },
-                                        grid: {
-                                            color: chartGridColor,
-                                            drawBorder: false,
-                                        },
-                                        title: {
-                                            display: true,
-                                            text: 'Proporsi Topik (%)',
-                                            color: chartTextColor,
-                                            font: {
-                                                size: 12,
-                                                weight: '600',
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        });
-                    },
-
-                    renderTrendCharts() {
-                        const rows = Array.isArray(this.payload?.trend) ? this.payload.trend : [];
-
-                        if (this.trendChart) {
-                            this.trendChart.destroy();
-                            this.trendChart = null;
-                        }
-
-                        this.trendRenderError = '';
-                        this.trendChart = this.createTrendChart(this.$refs.trendChartCanvas, rows, 'trendRenderError');
-                    },
-
-                    createTrendChart(canvas, rows, errorKey) {
-                        if (!canvas || !Array.isArray(rows) || rows.length === 0) {
-                            return null;
-                        }
-
-                        if (!canvas.isConnected) {
-                            this[errorKey] = 'Canvas chart belum terpasang ke DOM.';
-                            return null;
-                        }
-
-                        if (typeof window.Chart === 'undefined') {
-                            this[errorKey] = 'Library Chart.js belum termuat.';
-                            return null;
-                        }
-
-                        const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
-                        if (!ctx) {
-                            this[errorKey] = 'Canvas context null.';
-                            return null;
-                        }
-
-                        const labels = rows.map((r) => r.label);
-                        const data = rows.map((r) => Number(r.relative_slope || 0));
-
-                        // Colors aligned with notebook: emerging/stable/declining/insufficient_data.
-                        const bgColors = rows.map((r) => {
-                            if (r.trend_label === 'emerging') return 'rgba(34, 197, 94, 0.85)';
-                            if (r.trend_label === 'declining') return 'rgba(239, 68, 68, 0.85)';
-                            if (r.trend_label === 'stable') return 'rgba(59, 130, 246, 0.85)';
-                            return 'rgba(156, 163, 175, 0.85)';
-                        });
-
-                        const chart = new window.Chart(ctx, {
-                            type: 'bar',
-                            data: {
-                                labels,
-                                datasets: [{
-                                    label: 'Relative Slope',
-                                    data,
-                                    backgroundColor: bgColors,
-                                    borderRadius: 4,
-                                    borderSkipped: false,
-                                }],
-                            },
-                            options: {
-                                indexAxis: 'y',
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                animation: false,
-                                plugins: {
-                                    legend: { display: false },
-                                    tooltip: {
-                                        callbacks: {
-                                            label: (context) => {
-                                                const row = rows[context.dataIndex] || {};
-                                                return `Relative Slope: ${Number(context.parsed.x).toFixed(3)} (${(row.trend_label || 'stable').toUpperCase()})`;
-                                            },
-                                        },
-                                    },
-                                },
-                                scales: {
-                                    x: {
-                                        grid: { color: '#e2e8f0' },
-                                        title: { display: true, text: 'Relative Slope' },
-                                    },
-                                    y: {
-                                        grid: { display: false },
-                                        ticks: { font: { size: 11 } },
-                                    },
-                                },
-                            },
-                            plugins: [{
-                                id: 'zeroLine',
-                                beforeDraw: (chart) => {
-                                    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
-                                    const zeroX = x.getPixelForValue(0);
-                                    if (isNaN(zeroX)) return;
-                                    ctx.save();
-                                    ctx.beginPath();
-                                    ctx.moveTo(zeroX, top);
-                                    ctx.lineTo(zeroX, bottom);
-                                    ctx.lineWidth = 1.5;
-                                    ctx.strokeStyle = '#334155';
-                                    ctx.stroke();
-                                    ctx.restore();
-                                },
-                            }],
-                        });
-
-                        return chart;
-                    },
-
-                    getMappingTopicSummary() {
-                        return Array.isArray(this.mappingPayload?.topic_summary) ? this.mappingPayload.topic_summary : [];
-                    },
-
-                    renderMappingDistributionChart() {
-                        const canvas = this.$refs.mappingDistributionChartCanvas;
-                        const topicSummary = this.getMappingTopicSummary()
-                            .filter((row) => Number(row?.doc_count) > 0)
-                            .slice(0, 12);
-
-                        if (this.mappingDistributionChart) {
-                            this.mappingDistributionChart.destroy();
-                            this.mappingDistributionChart = null;
-                        }
-
-                        if (!canvas || topicSummary.length === 0) {
-                            return;
-                        }
-
-                        if (!canvas.isConnected) {
-                            this.mappingRenderError = 'Canvas chart mapping belum terpasang ke DOM.';
-                            return;
-                        }
-
-                        if (typeof window.Chart === 'undefined') {
-                            this.mappingRenderError = 'Library Chart.js belum termuat, jadi grafik mapping belum bisa dirender.';
-                            return;
-                        }
-
-                        const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
-                        if (!ctx) {
-                            this.mappingRenderError = 'Canvas chart mapping belum siap (context null). Silakan refresh halaman.';
-                            return;
-                        }
-
-                        const containerWidth = Math.floor(canvas.parentElement?.clientWidth || canvas.clientWidth || 0);
-                        const containerHeight = Math.floor(canvas.clientHeight || 0);
-                        const targetWidth = Math.max(300, containerWidth);
-                        const targetHeight = Math.max(220, containerHeight);
-                        if (targetWidth > 0 && targetHeight > 0) {
-                            canvas.width = targetWidth;
-                            canvas.height = targetHeight;
-                        }
-
-                        this.mappingRenderError = '';
-
-                        const labels = topicSummary.map((row) => String(row?.topic_label ?? `Topik ${row?.topic_id ?? '-'}`));
-                        const counts = topicSummary.map((row) => Number(row?.doc_count ?? 0));
-                        const totalDocs = counts.reduce((sum, value) => sum + value, 0);
-
-                        const gradientPairs = [
-                            ['#3b82f6', '#1d4ed8'],
-                            ['#06b6d4', '#0e7490'],
-                            ['#22c55e', '#15803d'],
-                            ['#f59e0b', '#b45309'],
-                            ['#ef4444', '#b91c1c'],
-                            ['#a855f7', '#7e22ce'],
-                            ['#14b8a6', '#0f766e'],
-                            ['#f97316', '#c2410c'],
-                            ['#6366f1', '#4338ca'],
-                            ['#ec4899', '#be185d'],
-                            ['#0ea5e9', '#0369a1'],
-                            ['#84cc16', '#4d7c0f'],
-                        ];
-
-                        this.mappingDistributionChart = new window.Chart(ctx, {
-                            type: 'bar',
-                            data: {
-                                labels,
-                                datasets: [{
-                                    label: 'Jumlah Skripsi',
-                                    data: counts,
-                                    borderRadius: 7,
-                                    borderSkipped: false,
-                                    categoryPercentage: 0.76,
-                                    barPercentage: 0.82,
-                                    borderWidth: 1,
-                                    borderColor: (context) => {
-                                        const index = Number(context.dataIndex ?? 0);
-                                        const pair = gradientPairs[index % gradientPairs.length];
-                                        return pair[1];
-                                    },
-                                    hoverBorderWidth: 1,
-                                    inflateAmount: 0,
-                                    backgroundColor: (context) => {
-                                        const index = Number(context.dataIndex ?? 0);
-                                        const pair = gradientPairs[index % gradientPairs.length];
-                                        return this.buildGradient(context.chart?.ctx, context.chart?.chartArea, pair[0], pair[1]);
-                                    },
-                                    hoverBackgroundColor: (context) => {
-                                        const index = Number(context.dataIndex ?? 0);
-                                        const pair = gradientPairs[index % gradientPairs.length];
-                                        return this.buildGradient(context.chart?.ctx, context.chart?.chartArea, pair[0], pair[1]);
-                                    },
-                                    hoverBorderColor: (context) => {
-                                        const index = Number(context.dataIndex ?? 0);
-                                        const pair = gradientPairs[index % gradientPairs.length];
-                                        return pair[1];
-                                    },
-                                }],
-                            },
-                            options: {
-                                indexAxis: 'y',
-                                responsive: false,
-                                maintainAspectRatio: false,
-                                animation: false,
-                                transitions: {
-                                    active: {
-                                        animation: {
-                                            duration: 0,
-                                        },
-                                    },
-                                },
-                                interaction: {
-                                    mode: 'nearest',
-                                    axis: 'y',
-                                    intersect: true,
-                                },
-                                plugins: {
-                                    legend: {
-                                        display: false,
-                                    },
-                                    tooltip: {
-                                        backgroundColor: '#0f172a',
-                                        borderColor: 'rgba(255, 255, 255, 0.14)',
-                                        borderWidth: 1,
-                                        titleColor: '#f8fafc',
-                                        bodyColor: '#e2e8f0',
-                                        cornerRadius: 10,
-                                        padding: 10,
-                                        callbacks: {
-                                            label: (context) => {
-                                                const value = Number(context.parsed.x || 0);
-                                                const pct = totalDocs > 0 ? (value / totalDocs) * 100 : 0;
-                                                return `${value} dokumen (${pct.toFixed(2)}%)`;
-                                            },
-                                        },
-                                    },
-                                },
-                                scales: {
-                                    x: {
-                                        beginAtZero: true,
-                                        ticks: {
-                                            color: '#334155',
-                                            precision: 0,
-                                        },
-                                        grid: {
-                                            color: 'rgba(148, 163, 184, 0.22)',
-                                            drawBorder: false,
-                                        },
-                                        title: {
-                                            display: true,
-                                            text: 'Jumlah Dokumen',
-                                            color: '#334155',
-                                            font: {
-                                                size: 12,
-                                                weight: '600',
-                                            },
-                                        },
-                                    },
-                                    y: {
-                                        ticks: {
-                                            color: '#334155',
-                                            autoSkip: false,
-                                            callback: function(value) {
-                                                const label = String(this.getLabelForValue(value) ?? '');
-                                                return label.length > 28 ? `${label.slice(0, 28)}...` : label;
-                                            },
-                                        },
-                                        grid: {
-                                            display: false,
-                                        },
-                                    },
-                                },
-                            },
-                        });
-                    },
-                }));
-            }
-
-            document.addEventListener('alpine:init', registerTopicVisualizationPage);
-            registerTopicVisualizationPage();
-        </script>
     @endonce
 </div>

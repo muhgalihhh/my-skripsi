@@ -1,5 +1,5 @@
 <div>
-    @section('page-title', 'Manajemen Scraping')
+    @section('page-title', 'Manajemen Sinkronisasi Data')
 
     {{-- Livewire polling: poll every 3 seconds while scraping is active --}}
     @if ($isProcessing && $activeJobId)
@@ -12,11 +12,11 @@
         {{-- ── Page Header ──────────────────────────────────── --}}
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Manajemen Scraping</h1>
-                <p class="mt-1 text-sm text-gray-500">Kelola proses scraping data skripsi dari Repository UNSOED</p>
+                <h1 class="text-2xl font-bold text-gray-900">Manajemen Pengumpulan Data</h1>
+                <p class="mt-1 text-sm text-gray-500">Pengelolaan sinkronisasi data skripsi dari Repositori Universitas Jenderal Soedirman.</p>
             </div>
             <div class="text-right">
-                <p class="text-xs text-gray-400">Total di Database</p>
+                <p class="text-xs text-gray-400">Total Data</p>
                 <p class="text-2xl font-bold text-unsoed-blue-600">{{ number_format($totalSkripsi) }}</p>
             </div>
         </div>
@@ -31,16 +31,16 @@
                                 class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                         </span>
-                        <span class="text-sm text-green-700 font-medium">Layanan FastAPI Aktif</span>
+                        <span class="text-sm text-green-700 font-medium">Layanan Komputasi Analitik Aktif</span>
                         <span class="text-xs text-gray-400">{{ $apiStatus['app_name'] ?? '' }}
                             v{{ $apiStatus['version'] ?? '' }}</span>
                     @else
                         <span class="relative flex h-3 w-3">
                             <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                         </span>
-                        <span class="text-sm text-red-700 font-medium">Layanan FastAPI Tidak Aktif</span>
+                        <span class="text-sm text-red-700 font-medium">Layanan Komputasi Analitik Tidak Merespons</span>
                         <span
-                            class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Tidak dapat terhubung ke layanan FastAPI.' }}</span>
+                            class="text-xs text-gray-400">{{ $apiStatus['message'] ?? 'Mesin analitik sedang tidak dapat dijangkau.' }}</span>
                     @endif
                 </div>
                 <x-ui.button variant="ghost-primary" size="sm" wire:click="checkApiStatus"
@@ -61,20 +61,20 @@
                             <x-app.icon variant="o" name="arrow-path" class="w-5 h-5 text-unsoed-blue-600 animate-spin" />
                         </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Scraping Sedang Berjalan</h2>
-                            <p class="text-xs text-gray-400">ID Job: {{ $activeJobId }}</p>
+                            <h2 class="text-lg font-semibold text-gray-900">Sinkronisasi Sedang Berlangsung</h2>
+                            <p class="text-xs text-gray-400">ID Proses: {{ $activeJobId }}</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">
                         <x-ui.button variant="primary" size="sm" wire:click="openMonitoring"
                             class="!bg-unsoed-blue-50 hover:!bg-unsoed-blue-100 !text-unsoed-blue-600 !border-unsoed-blue-200 shadow-none">
                             <x-app.icon name="eye" class="w-4 h-4 mr-1" />
-                            Pantau Detail
+                            Tinjau Proses
                         </x-ui.button>
                         <x-ui.button variant="danger" size="sm" wire:click="openCancelConfirm"
                             class="!bg-red-50 hover:!bg-red-100 !text-red-600 !border-red-200 shadow-none">
                             <x-app.icon name="stop-circle" class="w-4 h-4 mr-1" />
-                            Batalkan
+                            Interupsi
                         </x-ui.button>
                     </div>
                 </div>
@@ -82,7 +82,7 @@
                 {{-- Progress Bar --}}
                 <div class="mb-3">
                     <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600 font-medium">Progres</span>
+                        <span class="text-gray-600 font-medium">Proses</span>
                         <span class="text-unsoed-blue-600 font-bold">{{ $jobProgress }}%</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
@@ -101,24 +101,24 @@
                 {{-- Progress Details --}}
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
                     <div class="bg-gray-50 rounded-lg p-2">
-                        <p class="text-xs text-gray-500">URL Ditemukan</p>
+                        <p class="text-xs text-gray-500">Link Ditemukan</p>
                         <p class="text-lg font-bold text-gray-800">{{ $jobTotalUrls }}</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-2">
-                        <p class="text-xs text-gray-500">Sudah Di-scrape</p>
+                        <p class="text-xs text-gray-500">Berhasil</p>
                         <p class="text-lg font-bold text-unsoed-blue-600">{{ $jobScrapedCount }}</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-2">
-                        <p class="text-xs text-gray-500">Sisa</p>
+                        <p class="text-xs text-gray-500">Antrean</p>
                         <p class="text-lg font-bold text-gray-600">
                             {{ max(0, $jobTotalUrls - $jobScrapedCount) }}</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-2">
-                        <p class="text-xs text-gray-500">Gagal Parse</p>
+                        <p class="text-xs text-gray-500">Gagal</p>
                         <p class="text-lg font-bold text-red-500">{{ $jobSkippedCount }}</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-2">
-                        <p class="text-xs text-gray-500">Di-filter Tahun</p>
+                        <p class="text-xs text-gray-500">Dilewati</p>
                         <p class="text-lg font-bold text-amber-500">{{ $jobFilteredCount }}</p>
                     </div>
                 </div>
@@ -159,27 +159,27 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <div class="flex items-start justify-between gap-3 mb-3">
                     <div>
-                        <h3 class="text-sm font-semibold text-gray-900">Ringkasan Mapping Topik Otomatis</h3>
-                        <p class="text-xs text-gray-500">Inferensi incremental tanpa retraining ke model BERTopic terakhir</p>
+                        <h3 class="text-sm font-semibold text-gray-900">Hasil Pemetaan Topik</h3>
+                        <p class="text-xs text-gray-500">Pemetaan otomatis data baru ke dalam topik yang sudah ada.</p>
                     </div>
                     @if (!empty($lastMappingSummary['run_id']))
                         <span class="inline-flex items-center px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-100">
-                            Run #{{ $lastMappingSummary['run_id'] }}
+                            Sesi Ke-{{ $lastMappingSummary['run_id'] }}
                         </span>
                     @endif
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
                     <div class="bg-green-50 rounded-lg border border-green-100 p-3">
-                        <p class="text-xs text-green-700">Berhasil Di-mapping</p>
+                        <p class="text-xs text-green-700">Berhasil Dipetakan</p>
                         <p class="text-xl font-bold text-green-700">{{ (int) ($lastMappingSummary['mapped'] ?? 0) }}</p>
                     </div>
                     <div class="bg-red-50 rounded-lg border border-red-100 p-3">
-                        <p class="text-xs text-red-700">Belum Ter-mapping</p>
+                        <p class="text-xs text-red-700">Gagal Dipetakan</p>
                         <p class="text-xl font-bold text-red-700">{{ (int) ($lastMappingSummary['failed'] ?? 0) }}</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg border border-gray-100 p-3">
-                        <p class="text-xs text-gray-600">Kandidat Inferensi</p>
+                        <p class="text-xs text-gray-600">Dokumen Baru</p>
                         <p class="text-xl font-bold text-gray-800">{{ (int) ($lastMappingSummary['candidates'] ?? 0) }}</p>
                     </div>
                 </div>
@@ -204,16 +204,15 @@
                         <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-unsoed-blue-600" />
                     </div>
                     <div>
-                        <h2 class="text-lg font-semibold text-gray-900">Jalankan Scraping Manual</h2>
-                        <p class="text-xs text-gray-400">Data yang sudah ada (URL sama) akan otomatis diperbarui dengan
-                            data terbaru</p>
+                        <h2 class="text-lg font-semibold text-gray-900">Jalankan Sinkronisasi Manual</h2>
+                        <p class="text-xs text-gray-400">Data yang sudah ada (tautan sama) akan otomatis diperbarui dengan data terbaru</p>
                     </div>
                 </div>
                 <button type="button" wire:click="openResetSkripsiConfirm"
                     class="inline-flex items-center px-3 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     @disabled($isProcessing || $totalSkripsi === 0)>
                     <x-app.icon name="trash" class="w-4 h-4 mr-1.5" />
-                    Reset Database Skripsi
+                    Kosongkan Koleksi Data
                 </button>
             </div>
 
@@ -240,7 +239,7 @@
                             class="w-full py-2.5 px-4 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white font-medium rounded-lg text-sm transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                             wire:loading.attr="disabled" @if ($isProcessing || ($apiStatus['status'] ?? '') !== 'ok') disabled @endif>
                             <x-app.icon name="cloud-arrow-down" class="w-4 h-4 mr-2" />
-                            Mulai Scraping
+                            Mulai Sinkronisasi
                         </button>
                     </div>
                 </div>
@@ -249,9 +248,7 @@
                     <div
                         class="flex items-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                         <x-app.icon name="exclamation-triangle" class="w-4 h-4 mr-1.5 flex-shrink-0" />
-                        Layanan FastAPI tidak aktif. Pastikan container <code
-                            class="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono">skripsi-fastapi</code>
-                        berjalan.
+                        Layanan komputasi analitik tidak merespons. Pastikan sistem pendukung sedang beroperasi.
                     </div>
                 @endif
             </form>
@@ -265,7 +262,7 @@
                     <div class="bg-amber-100 rounded-lg p-2">
                         <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-amber-600" />
                     </div>
-                    <h2 class="text-lg font-semibold text-gray-900">Riwayat Scraping</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Riwayat Sinkronisasi</h2>
                 </div>
             </div>
 
@@ -391,8 +388,8 @@
             @else
                 <div class="flex flex-col items-center justify-center py-16 text-gray-400">
                     <x-app.icon name="cloud-arrow-down" class="w-14 h-14 mb-3 text-gray-200" />
-                    <p class="text-sm font-semibold text-gray-500">Belum ada riwayat scraping</p>
-                    <p class="text-xs mt-1">Mulai scraping pertama Anda di form di atas</p>
+                    <p class="text-sm font-semibold text-gray-500">Belum ada riwayat sinkronisasi</p>
+                    <p class="text-xs mt-1">Mulai sinkronisasi pertama Anda melalui formulir di atas</p>
                 </div>
             @endif
         </div>
@@ -401,8 +398,8 @@
     {{-- ════════════════════════════════════════════════════
          Confirm: Batalkan Scraping
     ═════════════════════════════════════════════════════ --}}
-    <x-confirm-modal wireModel="showCancelConfirm" type="warning" title="Batalkan Scraping?"
-        message="Proses scraping yang sedang berjalan akan dihentikan. Data yang sudah di-scrape sebelum dibatalkan tetap tersimpan."
+    <x-confirm-modal wireModel="showCancelConfirm" type="warning" title="Batalkan Sinkronisasi?"
+        message="Proses sinkronisasi yang sedang berjalan akan dihentikan. Data yang sudah terkumpul sebelum dibatalkan tetap tersimpan."
         confirmLabel="Ya, Batalkan" confirmWire="cancelScraping" closeWire="closeCancelConfirm" />
 
     {{-- ════════════════════════════════════════════════════
@@ -410,25 +407,25 @@
     ═════════════════════════════════════════════════════ --}}
     <x-confirm-modal wireModel="showBulkDeleteLogsConfirm" type="danger"
         title="Hapus {{ count($selectedLogIds) }} Riwayat?"
-        message="Riwayat scraping yang dipilih akan dihapus secara permanen dan tidak dapat dikembalikan."
+        message="Riwayat sinkronisasi yang dipilih akan dihapus secara permanen dan tidak dapat dikembalikan."
         confirmLabel="Ya, Hapus Semua" confirmWire="bulkDeleteLogs" closeWire="closeBulkDeleteLogsConfirm" />
 
     {{-- ════════════════════════════════════════════════════
          Confirm: Reset Database Skripsi
     ═════════════════════════════════════════════════════ --}}
-    <x-confirm-modal wireModel="showResetSkripsiConfirm" type="danger" title="Reset Database Skripsi?"
-        message="Semua data pada tabel skripsi akan dihapus permanen agar proses scraping bisa dimulai ulang dari nol. Data turunan dataset/topic document terkait juga akan ikut terhapus."
-        confirmLabel="Ya, Reset Database" confirmWire="resetSkripsiData" closeWire="closeResetSkripsiConfirm" />
+    <x-confirm-modal wireModel="showResetSkripsiConfirm" type="danger" title="Kosongkan Koleksi Data?"
+        message="Semua data koleksi akan dihapus secara permanen agar proses sinkronisasi dapat dimulai kembali dari awal. Data turunan dan hasil pemetaan topik yang terkait juga akan ikut terhapus."
+        confirmLabel="Ya, Kosongkan Data" confirmWire="resetSkripsiData" closeWire="closeResetSkripsiConfirm" />
 
     {{-- ════════════════════════════════════════════════════
          Confirm: Mulai Scraping
     ═════════════════════════════════════════════════════ --}}
-    <x-confirm-modal wireModel="showStartScrapingConfirm" type="warning" title="Mulai Scraping Sekarang?"
-        message="Proses scraping dapat memakan waktu dan sumber daya server yang cukup besar. Lanjutkan menjalankan scraping dengan rentang tahun yang dipilih?"
-        confirmLabel="Ya, Mulai Scraping" confirmWire="startScraping" closeWire="closeStartScrapingConfirm" />
+    <x-confirm-modal wireModel="showStartScrapingConfirm" type="warning" title="Mulai Sinkronisasi Sekarang?"
+        message="Proses sinkronisasi data dapat memakan waktu yang cukup signifikan. Lanjutkan sinkronisasi dengan rentang tahun yang dipilih?"
+        confirmLabel="Ya, Mulai Sinkronisasi" confirmWire="startScraping" closeWire="closeStartScrapingConfirm" />
 
     {{-- ════════════════════════════════════════════════════
-         MODAL: Pantau Detail Scraping (Monitoring)
+         MODAL: Pantau Detail Sinkronisasi (Monitoring)
     ═════════════════════════════════════════════════════ --}}
     <div x-data="{ open: @entangle('showMonitoringModal').live }" x-show="open" x-cloak class="fixed inset-0 z-50 overflow-y-auto" role="dialog"
         aria-modal="true">
@@ -454,7 +451,7 @@
                             <x-app.icon variant="s" name="eye" class="w-4 h-4 text-white" />
                         </div>
                         <div>
-                            <h3 class="text-base font-bold text-white">Pantau Detail Scraping</h3>
+                            <h3 class="text-base font-bold text-white">Pantau Detail Sinkronisasi</h3>
                             <p class="text-xs text-white/70">Job: {{ $activeJobId }}</p>
                         </div>
                     </div>
@@ -505,7 +502,7 @@
                                 'border-transparent text-gray-500 hover:text-gray-700'"
                             class="py-2 px-4 text-sm font-medium border-b-2 transition flex items-center gap-1.5">
                             <x-app.icon name="document-text" class="w-4 h-4" />
-                            Data Di-scrape
+                            Data Tersinkronisasi
                             ({{ $monitoringScrapedTotal ?: count($monitoringScrapedItems) }})
                         </button>
                         <button @click="activeTab = 'found'"
@@ -574,8 +571,8 @@
                         @else
                             <div class="text-center py-10 text-gray-400">
                                 <x-app.icon name="cloud-arrow-down" class="w-10 h-10 mx-auto mb-2 text-gray-200" />
-                                <p class="text-sm font-medium text-gray-500">Belum ada data yang di-scrape</p>
-                                <p class="text-xs mt-1">Data akan muncul saat proses scraping detail berjalan</p>
+                                <p class="text-sm font-medium text-gray-500">Belum ada data yang tersinkronisasi</p>
+                                <p class="text-xs mt-1">Data akan muncul saat proses pengumpulan berjalan</p>
                             </div>
                         @endif
                     </div>

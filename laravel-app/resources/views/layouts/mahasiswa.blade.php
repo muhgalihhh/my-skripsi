@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', 'Dashboard Mahasiswa') - Informatika Universitas Jenderal Soedirman</title>
+    <title>@yield('title', 'Eksplorasi Ruang Lingkup Riset') - Informatika Universitas Jenderal Soedirman</title>
     <link rel="icon" type="image/png" href="{{ asset('logo-unsoed.png') }}">
 
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -66,7 +66,7 @@
                     {{ request()->routeIs('mahasiswa.dashboard') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="chart-bar-square"
                         class="mr-3 h-5 w-5 {{ request()->routeIs('mahasiswa.dashboard') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Dashboard Topik
+                    Eksplorasi Topik
                 </a>
 
                 <a href="{{ route('mahasiswa.rekomendasi-judul.index') }}"
@@ -74,7 +74,7 @@
                     {{ request()->routeIs('mahasiswa.rekomendasi-judul.*') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="light-bulb"
                         class="mr-3 h-5 w-5 {{ request()->routeIs('mahasiswa.rekomendasi-judul.*') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Rekomendasi Judul
+                    Gagasan Topik Penelitian
                 </a>
             </nav>
 
@@ -104,7 +104,7 @@
                             <a href="{{ route('mahasiswa.profil') }}"
                                 class="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                                 <x-app.icon name="pencil-square" class="w-4 h-4 mr-2 text-gray-400" />
-                                Edit Profil
+                                Ubah Profil
                             </a>
                             <div class="my-1 border-t border-gray-100"></div>
                             <form method="POST" action="{{ route('logout') }}">
@@ -133,7 +133,7 @@
                     <x-app.icon name="chevron-double-left" x-show="!sidebarCollapsed" class="w-5 h-5" />
                     <x-app.icon name="chevron-double-right" x-show="sidebarCollapsed" x-cloak class="w-5 h-5" />
                 </button>
-                <h2 class="text-lg font-semibold text-gray-800">@yield('page-title', 'Dashboard Mahasiswa')</h2>
+                <h2 class="text-lg font-semibold text-gray-800">@yield('page-title', 'Eksplorasi Ruang Lingkup Riset')</h2>
             </div>
             <div class="flex items-center space-x-3">
                 @if (request()->routeIs('mahasiswa.dashboard'))

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', 'Dashboard Jurusan') - Informatika Universitas Jenderal Soedirman</title>
+    <title>@yield('title', 'Dasbor Pengelola Akademik') - Informatika Universitas Jenderal Soedirman</title>
     <link rel="icon" type="image/png" href="{{ asset('logo-unsoed.png') }}">
 
     <!-- Fonts -->
@@ -71,21 +71,21 @@
                     class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                           {{ request()->routeIs('jurusan.dashboard') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="home" class="w-5 h-5 mr-3 {{ request()->routeIs('jurusan.dashboard') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Dashboard
+                    Dasbor
                 </a>
 
                 <a href="{{ route('jurusan.scraping.index') }}"
                     class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                           {{ request()->routeIs('jurusan.scraping.*') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 mr-3 {{ request()->routeIs('jurusan.scraping.*') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Scraping
+                    Pengumpulan Data
                 </a>
 
                 <a href="{{ route('jurusan.skripsi.index') }}"
                     class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                           {{ request()->routeIs('jurusan.skripsi.*') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="book-open" class="w-5 h-5 mr-3 {{ request()->routeIs('jurusan.skripsi.*') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Data Skripsi
+                    Arsip Skripsi
                 </a>
 
                 <a href="{{ route('jurusan.akun.index') }}"
@@ -148,7 +148,7 @@
                             <a href="{{ route('jurusan.profil') }}"
                                 class="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                                 <x-app.icon name="pencil-square" class="w-4 h-4 mr-2 text-gray-400" />
-                                Edit Profil
+                                Ubah Profil
                             </a>
                             <div class="border-t border-gray-100 my-1"></div>
                             <form method="POST" action="{{ route('logout') }}">
@@ -183,7 +183,7 @@
                     <x-app.icon name="chevron-double-left" x-show="!sidebarCollapsed" class="w-5 h-5" />
                     <x-app.icon name="chevron-double-right" x-show="sidebarCollapsed" x-cloak class="w-5 h-5" />
                 </button>
-                <h2 class="text-lg font-semibold text-gray-800">@yield('page-title', 'Dashboard')</h2>
+                <h2 class="text-lg font-semibold text-gray-800">@yield('page-title', 'Dasbor Pengelola Akademik')</h2>
             </div>
         </header>
 

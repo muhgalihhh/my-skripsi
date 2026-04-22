@@ -407,20 +407,16 @@ class TopicExplorer extends Component
 
     protected function buildTopicDistributionPayload(Collection $topics): array
     {
-        $topTopics = $topics->take(12);
-
-        return [
-            'labels' => $topTopics
-                ->map(fn($topic) => filled($topic->custom_name)
+        return $topics
+            ->take(12)
+            ->map(fn ($topic) => [
+                'topic_label' => filled($topic->custom_name)
                     ? sprintf('T%s - %s', $topic->topic_id, $topic->custom_name)
-                    : sprintf('Topik %s', $topic->topic_id))
-                ->values()
-                ->all(),
-            'counts' => $topTopics
-                ->map(fn($topic) => (int) ($topic->count ?? 0))
-                ->values()
-                ->all(),
-        ];
+                    : sprintf('Topik %s', $topic->topic_id),
+                'doc_count' => (int) ($topic->count ?? 0),
+            ])
+            ->values()
+            ->all();
     }
 
     protected function buildWordCloudTopics(Collection $topics): array

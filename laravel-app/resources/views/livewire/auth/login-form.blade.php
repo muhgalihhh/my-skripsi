@@ -6,12 +6,12 @@
             <div class="inline-flex items-center justify-center w-16 h-16 bg-unsoed-blue-600 rounded-2xl mb-4">
                 <x-app.icon name="academic-cap" class="w-8 h-8 text-unsoed-gold-400" />
             </div>
-            <h1 class="text-2xl font-bold text-gray-900">Portal Skripsi Informatika</h1>
+            <h1 class="text-2xl font-bold text-gray-900">Portal Riset Skripsi Informatika</h1>
             <p class="mt-2 text-sm text-gray-500">
-                Platform layanan data, insight, dan rekomendasi skripsi
+                Layanan analisis korpus dan rekomendasi arah penelitian
             </p>
             <p class="mt-1 text-xs text-gray-400">
-                S1 Teknik Informatika — UNSOED
+                Program Studi S1 Teknik Informatika UNSOED
             </p>
         </div>
 
@@ -47,7 +47,7 @@
                 <path fill="#34A853"
                     d="M24 48c6.44 0 11.85-2.13 15.8-5.8l-7.27-5.64c-2.02 1.35-4.6 2.14-8.53 2.14-6.24 0-11.52-3.62-13.39-8.94L2.6 34.78C6.56 42.62 14.64 48 24 48z" />
             </svg>
-            Masuk / Daftar dengan Google
+            Masuk dengan Google
         </a>
         @php
             $googleAllowedDomains = config('services.google.allowed_domains', []);
@@ -65,7 +65,7 @@
                 <div class="w-full border-t border-gray-200"></div>
             </div>
             <div class="relative flex justify-center text-xs uppercase">
-                <span class="bg-white px-2 text-gray-400">Atau login manual</span>
+                <span class="bg-white px-2 text-gray-400">Atau gunakan kata sandi</span>
             </div>
         </div>
 
@@ -73,14 +73,14 @@
         <form wire:submit="login">
             {{-- Email --}}
             <div class="mb-5">
-                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Surel</label>
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <x-app.icon name="envelope" class="w-5 h-5 text-gray-400" />
                     </div>
                     <input wire:model.blur="email" type="email" id="email" autofocus
                         class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-unsoed-blue-500 focus:border-unsoed-blue-500 text-sm transition"
-                        placeholder="admin@unsoed.ac.id">
+                        placeholder="nama@unsoed.ac.id">
                 </div>
                 @error('email')
                     <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
@@ -89,7 +89,7 @@
 
             {{-- Password --}}
             <div class="mb-5">
-                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Kata Sandi</label>
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <x-app.icon name="key" class="w-5 h-5 text-gray-400" />
@@ -113,7 +113,7 @@
                 <label class="flex items-center text-sm text-gray-600 cursor-pointer">
                     <input wire:model="remember" type="checkbox"
                         class="mr-2 w-4 h-4 rounded border-gray-300 text-unsoed-blue-600 focus:ring-unsoed-blue-500">
-                    Ingat saya
+                    Tetap masuk
                 </label>
             </div>
 
@@ -122,7 +122,7 @@
                 class="w-full py-2.5"
                 wire:loading.attr="disabled">
                 <x-app.icon variant="s" name="arrow-path" wire:loading wire:target="login" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" />
-                <span wire:loading.remove wire:target="login">Masuk</span>
+                <span wire:loading.remove wire:target="login">Masuk Sistem</span>
                 <span wire:loading wire:target="login">Memproses...</span>
             </x-ui.button>
         </form>

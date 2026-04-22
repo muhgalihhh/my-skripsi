@@ -212,9 +212,9 @@
                 </div>
 
                 <div class="hidden items-center gap-6 text-sm font-semibold md:flex">
-                    <a href="#fitur" class="nav-link">Fitur</a>
-                    <a href="#alur" class="nav-link">Cara Kerja</a>
-                    <a href="#about" class="nav-link">About Website</a>
+                    <a href="#fitur" class="nav-link">Fitur Utama</a>
+                    <a href="#alur" class="nav-link">Alur Analisis</a>
+                    <a href="#about" class="nav-link">Tentang Sistem</a>
                 </div>
 
                 <div class="flex items-center space-x-3">
@@ -254,15 +254,14 @@
                     <div
                         class="reveal delay-100 inline-flex items-center rounded-full border border-unsoed-gold-300/45 bg-unsoed-gold-400/20 px-4 py-1.5 text-sm font-medium text-unsoed-gold-200 mb-6">
                         <x-app.icon name="academic-cap" class="w-4 h-4 mr-2" />
-                        Platform Layanan Skripsi Informatika
+                        Analisis Evolusi Topik Riset
                     </div>
                     <h1 class="reveal delay-200 font-display text-4xl lg:text-6xl leading-tight mb-6">
-                        Informatika<br>
+                        Skripsi Informatika<br>
                         <span class="text-unsoed-gold-400">Universitas Jenderal Soedirman</span>
                     </h1>
                     <p class="reveal delay-300 text-lg text-unsoed-blue-100/95 mb-8 max-w-xl">
-                        Portal ini menghadirkan layanan akademik berbasis data untuk mendukung pemetaan riset skripsi,
-                        pengambilan keputusan jurusan, dan eksplorasi ide penelitian mahasiswa secara terstruktur.
+                        Sistem pemodelan topik untuk memetakan tren penelitian. Membantu mahasiswa mencari referensi dan mendukung perumusan kebijakan akademik.
                     </p>
                     <div class="reveal delay-400 flex flex-col sm:flex-row gap-4">
                         @auth
@@ -286,21 +285,21 @@
 
                         <a href="#about"
                             class="inline-flex items-center justify-center rounded-xl border border-white/35 px-8 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-                            About Website
+                            Tentang Sistem
                         </a>
                     </div>
                 </div>
 
                 <div class="reveal delay-500">
                     <div class="glass-panel rounded-2xl p-6 sm:p-7">
-                        <p class="text-sm uppercase tracking-widest text-unsoed-blue-100/85">Highlight Sistem</p>
+                        <p class="text-sm uppercase tracking-widest text-unsoed-blue-100/85">Fitur Utama</p>
                         <div class="mt-5 space-y-4">
                             <div class="rounded-xl bg-white/12 p-4">
                                 <div class="flex items-start gap-3">
                                     <x-app.icon variant="o" name="cloud-arrow-down" class="h-6 w-6 text-unsoed-gold-300" />
                                     <div>
-                                        <h3 class="text-base font-semibold">Data Skripsi Terintegrasi</h3>
-                                        <p class="mt-1 text-sm text-unsoed-blue-100/90">Satu tempat untuk pengumpulan dan pembaruan data penelitian dari repository kampus.</p>
+                                        <h3 class="text-base font-semibold">Pengumpulan Data</h3>
+                                        <p class="mt-1 text-sm text-unsoed-blue-100/90">Menyatukan data abstrak skripsi menjadi satu dataset yang siap dianalisis.</p>
                                     </div>
                                 </div>
                             </div>
@@ -308,8 +307,8 @@
                                 <div class="flex items-start gap-3">
                                     <x-app.icon variant="o" name="light-bulb" class="h-6 w-6 text-unsoed-gold-300" />
                                     <div>
-                                        <h3 class="text-base font-semibold">Insight Riset yang Praktis</h3>
-                                        <p class="mt-1 text-sm text-unsoed-blue-100/90">Visualisasi dan ringkasan membantu dosen serta mahasiswa melihat fokus penelitian terbaru.</p>
+                                        <h3 class="text-base font-semibold">Pemetaan Topik</h3>
+                                        <p class="mt-1 text-sm text-unsoed-blue-100/90">Memvisualisasikan tren topik penelitian yang paling banyak diminati dari tahun ke tahun.</p>
                                     </div>
                                 </div>
                             </div>
@@ -317,8 +316,8 @@
                                 <div class="flex items-start gap-3">
                                     <x-app.icon variant="o" name="book-open" class="h-6 w-6 text-unsoed-gold-300" />
                                     <div>
-                                        <h3 class="text-base font-semibold">Pendampingan Penentuan Judul</h3>
-                                        <p class="mt-1 text-sm text-unsoed-blue-100/90">Mahasiswa dapat mengecek relevansi ide agar topik skripsi lebih fokus dan terukur.</p>
+                                        <h3 class="text-base font-semibold">Rekomendasi Referensi</h3>
+                                        <p class="mt-1 text-sm text-unsoed-blue-100/90">Membantu mahasiswa menemukan referensi skripsi terdahulu yang mirip dengan rencana penelitian mereka.</p>
                                     </div>
                                 </div>
                             </div>
@@ -333,18 +332,17 @@
     <section id="fitur" class="py-16 lg:py-24 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="reveal-scroll text-center mb-12">
-                <h2 class="font-display text-3xl text-unsoed-blue-800 mb-3">Fitur Website</h2>
-                <p class="text-gray-600 max-w-2xl mx-auto">Fitur dirancang untuk memudahkan proses pendataan,
-                    analisis, dan pengambilan keputusan topik skripsi secara kolaboratif di lingkungan Informatika UNSOED.</p>
+                <h2 class="font-display text-3xl text-unsoed-blue-800 mb-3">Fitur Utama Sistem</h2>
+                <p class="text-gray-600 max-w-2xl mx-auto">Sistem ini dirancang untuk membantu analisis tren penelitian dan pencarian referensi skripsi di Informatika UNSOED.</p>
             </div>
             <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <div class="feature-card feature-stagger-item reveal-scroll rounded-2xl border border-gray-200 bg-white p-6">
                     <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-unsoed-blue-100">
                         <x-app.icon variant="o" name="cloud-arrow-down" class="w-6 h-6 text-unsoed-blue-600" />
                     </div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Sinkronisasi Data</h3>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Pengumpulan Data</h3>
                     <p class="text-sm text-gray-600">
-                        Mengambil dan merapikan data skripsi dari sumber kampus agar informasi selalu valid dan siap dipakai.
+                        Mengumpulkan data abstrak skripsi secara otomatis dari repositori kampus.
                     </p>
                 </div>
 
@@ -352,9 +350,9 @@
                     <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-unsoed-gold-100">
                         <x-app.icon name="light-bulb" class="w-6 h-6 text-unsoed-gold-600" />
                     </div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Pemetaan Tren Riset</h3>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Pemodelan Topik</h3>
                     <p class="text-sm text-gray-600">
-                        Menyajikan pola dan perkembangan tema penelitian agar arah riset dapat dibaca lebih cepat.
+                        Mengelompokkan data skripsi ke dalam berbagai topik penelitian secara otomatis.
                     </p>
                 </div>
 
@@ -362,9 +360,9 @@
                     <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-unsoed-blue-100">
                         <x-app.icon variant="o" name="chart-bar-square" class="w-6 h-6 text-unsoed-blue-600" />
                     </div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Dashboard Visual</h3>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Visualisasi Tren</h3>
                     <p class="text-sm text-gray-600">
-                        Grafik interaktif membantu jurusan memantau distribusi dan dinamika tema penelitian dari waktu ke waktu.
+                        Menyajikan grafik interaktif untuk melihat perkembangan tren topik penelitian dari waktu ke waktu.
                     </p>
                 </div>
 
@@ -372,9 +370,9 @@
                     <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-unsoed-gold-100">
                         <x-app.icon variant="o" name="book-open" class="w-6 h-6 text-unsoed-gold-600" />
                     </div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Rekomendasi Topik</h3>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Rekomendasi Skripsi</h3>
                     <p class="text-sm text-gray-600">
-                        Mahasiswa dapat mengeksplorasi topik dan ide judul yang lebih relevan dengan konteks data terbaru.
+                        Membantu pencarian referensi skripsi yang paling relevan dengan ide penelitian mahasiswa.
                     </p>
                 </div>
             </div>
@@ -385,36 +383,32 @@
     <section id="alur" class="py-16 lg:py-24 bg-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="reveal-scroll text-center mb-12">
-                <h2 class="font-display text-3xl text-unsoed-blue-800 mb-3">Cara Kerja Website</h2>
-                <p class="text-gray-600 max-w-2xl mx-auto">Tiga tahapan ringkas untuk membantu pengelolaan topik
-                    skripsi di lingkungan Informatika Unsoed.</p>
+                <h2 class="font-display text-3xl text-unsoed-blue-800 mb-3">Cara Kerja Sistem</h2>
+                <p class="text-gray-600 max-w-2xl mx-auto">Proses dari pengumpulan data mentah hingga menjadi informasi tren penelitian.</p>
             </div>
             <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
                 <div class="reveal-scroll delay-scroll-100 text-center">
                     <div
                         class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-unsoed-blue-600 text-xl font-bold text-white">
                         1</div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Kumpulkan Data</h3>
-                    <p class="text-sm text-gray-600">Data skripsi dikompilasi ke dalam sistem agar siap dianalisis dan
-                        dipantau.</p>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Prapemrosesan Data</h3>
+                    <p class="text-sm text-gray-600">Teks abstrak dibersihkan dari kata-kata yang tidak relevan agar siap dianalisis.</p>
                 </div>
 
                 <div class="reveal-scroll delay-scroll-200 text-center">
                     <div
                         class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-unsoed-gold-400 text-xl font-bold text-unsoed-blue-800">
                         2</div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Olahan Insight</h3>
-                    <p class="text-sm text-gray-600">Sistem menyusun pola dan kemiripan topik untuk mendukung
-                        keputusan akademik.</p>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Pemodelan Topik</h3>
+                    <p class="text-sm text-gray-600">Sistem menganalisis teks untuk menemukan pola topik tersembunyi dari abstrak skripsi.</p>
                 </div>
 
                 <div class="reveal-scroll delay-scroll-300 text-center">
                     <div
                         class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-unsoed-blue-600 text-xl font-bold text-white">
                         3</div>
-                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Aksi Lebih Terarah</h3>
-                    <p class="text-sm text-gray-600">Jurusan dan mahasiswa memakai dashboard untuk menetapkan strategi
-                        riset yang tepat.</p>
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900">Analisis Tren Topik</h3>
+                    <p class="text-sm text-gray-600">Melihat grafik tren topik penelitian dari tahun ke tahun untuk mendukung pengambilan kebijakan akademik.</p>
                 </div>
             </div>
         </div>
@@ -425,35 +419,28 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center">
                 <div class="reveal-scroll delay-scroll-100">
-                    <p class="text-sm uppercase tracking-widest text-unsoed-gold-300">About Website</p>
-                    <h2 class="font-display mt-3 text-3xl leading-tight text-white lg:text-5xl">Website Penguatan Ekosistem
-                        Skripsi Informatika</h2>
+                    <p class="text-sm uppercase tracking-widest text-unsoed-gold-300">Tentang Sistem</p>
+                    <h2 class="font-display mt-3 text-3xl leading-tight text-white lg:text-5xl">Sistem Analisis Topik</h2>
                     <p class="mt-5 max-w-xl text-unsoed-blue-100">
-                        Website ini dikembangkan untuk mendukung proses akademik skripsi di Program Studi Informatika
-                        Universitas Jenderal Soedirman. Fokus utamanya adalah menghadirkan data yang rapi, insight yang
-                        mudah dibaca, serta pengalaman penggunaan yang praktis bagi jurusan maupun mahasiswa.
+                        Sistem ini dikembangkan untuk memetakan tren penelitian di Program Studi Informatika Universitas Jenderal Soedirman. Kami mengumpulkan data skripsi terdahulu untuk dimodelkan menjadi informasi tren topik.
                     </p>
                     <p class="mt-4 max-w-xl text-unsoed-blue-100">
-                        Dengan alur layanan yang sederhana, proses dari pendataan hingga rekomendasi topik dapat dilakukan
-                        lebih cepat, lebih transparan, dan lebih relevan dengan kebutuhan riset saat ini.
+                        Tujuannya adalah membantu mahasiswa mencari referensi skripsi dan membantu program studi dalam mengembangkan kurikulum.
                     </p>
                 </div>
 
                 <div class="reveal-scroll delay-scroll-200 space-y-4">
                     <div class="rounded-2xl border border-unsoed-blue-600 bg-unsoed-blue-700/70 p-5 reveal-scroll delay-scroll-100">
-                        <h3 class="text-lg font-semibold text-unsoed-gold-300">Untuk Mahasiswa</h3>
-                        <p class="mt-2 text-sm text-unsoed-blue-100">Membantu eksplorasi ide penelitian dan
-                            memvalidasi arah topik sebelum penyusunan proposal.</p>
+                        <h3 class="text-lg font-semibold text-unsoed-gold-300">Bagi Mahasiswa</h3>
+                        <p class="mt-2 text-sm text-unsoed-blue-100">Membantu mahasiswa menemukan referensi skripsi yang relevan untuk penyusunan proposal tugas akhir.</p>
                     </div>
                     <div class="rounded-2xl border border-unsoed-blue-600 bg-unsoed-blue-700/70 p-5 reveal-scroll delay-scroll-200">
-                        <h3 class="text-lg font-semibold text-unsoed-gold-300">Untuk Jurusan</h3>
-                        <p class="mt-2 text-sm text-unsoed-blue-100">Menyediakan peta perkembangan riset sebagai dasar
-                            evaluasi kurikulum dan kebijakan akademik.</p>
+                        <h3 class="text-lg font-semibold text-unsoed-gold-300">Bagi Program Studi</h3>
+                        <p class="mt-2 text-sm text-unsoed-blue-100">Menyajikan grafik tren topik skripsi sebagai bahan pertimbangan untuk evaluasi kurikulum.</p>
                     </div>
                     <div class="rounded-2xl border border-unsoed-blue-600 bg-unsoed-blue-700/70 p-5 reveal-scroll delay-scroll-300">
-                        <h3 class="text-lg font-semibold text-unsoed-gold-300">Untuk Pengembangan Berkelanjutan</h3>
-                        <p class="mt-2 text-sm text-unsoed-blue-100">Website siap dikembangkan dengan modul tambahan
-                            sesuai kebutuhan data dan riset berikutnya.</p>
+                        <h3 class="text-lg font-semibold text-unsoed-gold-300">Fleksibilitas Sistem</h3>
+                        <p class="mt-2 text-sm text-unsoed-blue-100">Sistem ini dapat diperbarui dengan data skripsi terbaru kapan saja.</p>
                     </div>
                 </div>
             </div>
@@ -471,13 +458,13 @@
                 </div>
 
                 <div class="flex items-center gap-5 text-sm text-unsoed-blue-200">
-                    <a href="#fitur" class="hover:text-unsoed-gold-300 transition">Fitur</a>
-                    <a href="#alur" class="hover:text-unsoed-gold-300 transition">Cara Kerja</a>
-                    <a href="#about" class="hover:text-unsoed-gold-300 transition">About Website</a>
+                    <a href="#fitur" class="hover:text-unsoed-gold-300 transition">Fitur Utama</a>
+                    <a href="#alur" class="hover:text-unsoed-gold-300 transition">Alur Analisis</a>
+                    <a href="#about" class="hover:text-unsoed-gold-300 transition">Tentang Sistem</a>
                 </div>
 
                 <p class="text-sm text-unsoed-blue-300 text-center md:text-right">
-                    &copy; {{ date('Y') }} Portal Skripsi Informatika — Universitas Jenderal Soedirman
+                    &copy; {{ date('Y') }} Sistem Analisis Evolusi Topik Riset Skripsi Informatika
                 </p>
             </div>
         </div>

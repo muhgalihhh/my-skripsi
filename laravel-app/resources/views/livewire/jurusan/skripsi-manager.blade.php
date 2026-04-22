@@ -6,8 +6,8 @@
         {{-- ── Page Header ──────────────────────────────────── --}}
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Manajemen Skripsi</h1>
-                <p class="mt-1 text-sm text-gray-500">Data skripsi yang di-scrape dari Repository UNSOED</p>
+                <h1 class="text-2xl font-bold text-gray-900">Manajemen Koleksi Data</h1>
+                <p class="mt-1 text-sm text-gray-500">Kumpulan data skripsi dari Repositori UNSOED</p>
             </div>
             <div class="text-right">
                 <p class="text-xs text-gray-400">Total Data</p>
@@ -228,10 +228,10 @@
                         <p class="text-xs mt-1">Coba ubah filter atau kata kunci pencarian</p>
                     @else
                         <p class="text-sm font-semibold text-gray-500">Belum ada data skripsi</p>
-                        <p class="text-xs mt-1">Jalankan scraping untuk mengambil data dari Repository UNSOED</p>
+                        <p class="text-xs mt-1">Sinkronisasi untuk memperbarui data dari Repositori UNSOED</p>
                         <a href="{{ route('jurusan.scraping.index') }}"
-                            class="mt-4 px-4 py-2 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white text-sm font-medium rounded-lg transition">
-                            Ke Halaman Pengambilan Data
+                            class="inline-flex items-center justify-center w-full px-4 py-2 mt-4 text-sm font-medium text-white transition bg-unsoed-blue-600 rounded-lg hover:bg-unsoed-blue-700">
+                            Ke Halaman Sinkronisasi Repositori
                         </a>
                     @endif
                 </div>

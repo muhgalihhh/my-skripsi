@@ -1,12 +1,12 @@
 <div>
-    @section('page-title', 'Dashboard')
+    @section('page-title', 'Dasbor Pengelola Akademik')
 
     <div class="space-y-6">
         {{-- Page Header --}}
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Dashboard Jurusan</h1>
-                <p class="mt-1 text-sm text-gray-500">Ringkasan data skripsi dan aktivitas scraping</p>
+                <h1 class="text-2xl font-bold text-gray-900">Dasbor Pengelola Akademik</h1>
+                <p class="mt-1 text-sm text-gray-500">Tinjauan statistik korpus skripsi dan riwayat aktivitas ekstraksi literatur terintegrasi.</p>
             </div>
             <div class="text-right">
                 <p class="text-xs text-gray-400">Terakhir diperbarui</p>
@@ -25,7 +25,7 @@
                 }, 30);">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Total Skripsi</p>
+                        <p class="text-sm font-medium text-gray-500">Total Dokumen Terdata</p>
                         <p class="text-3xl font-bold text-gray-900 mt-1" x-text="count.toLocaleString('id-ID')">
                             {{ number_format($totalSkripsi) }}</p>
                     </div>
@@ -35,7 +35,7 @@
                 </div>
                 <div class="mt-3 flex items-center text-xs text-gray-400">
                     <x-app.icon name="building-library" class="w-4 h-4 mr-1" />
-                    Data dari Repository UNSOED
+                    Korpus bersumber dari Repositori UNSOED
                 </div>
             </div>
 
@@ -43,7 +43,7 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Rentang Tahun</p>
+                        <p class="text-sm font-medium text-gray-500">Rentang Periode Publikasi</p>
                         @if ($skripsiPerYear->isNotEmpty())
                             <p class="text-3xl font-bold text-gray-900 mt-1">
                                 {{ $skripsiPerYear->min('year') }} - {{ $skripsiPerYear->max('year') }}
@@ -57,7 +57,7 @@
                     </div>
                 </div>
                 <div class="mt-3 text-xs text-gray-400">
-                    {{ $skripsiPerYear->count() }} tahun data tersedia
+                    {{ $skripsiPerYear->count() }} tahun publikasi tercatat
                 </div>
             </div>
 
@@ -65,7 +65,7 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Scraping Terakhir</p>
+                        <p class="text-sm font-medium text-gray-500">Riwayat Ekstraksi Terakhir</p>
                         @if ($latestScraping)
                             <p
                                 class="text-lg font-bold mt-1
@@ -94,15 +94,15 @@
                     <div class="bg-unsoed-blue-100 rounded-lg p-2 mr-3">
                         <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-unsoed-blue-600" />
                     </div>
-                    <h2 class="text-lg font-semibold text-gray-900">Scraping Cepat</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Pintasan Ekstraksi Dokumen</h2>
                 </div>
                 <p class="text-sm text-gray-500 mb-4">
-                    Jalankan scraping data skripsi dari Repository UNSOED secara manual.
+                    Inisiasi proses agregasi abstrak skripsi dari pangkalan data repositori secara mandiri.
                 </p>
                 <a href="{{ route('jurusan.scraping.index') }}"
                     class="inline-flex items-center w-full justify-center py-2.5 px-4 bg-unsoed-blue-600 hover:bg-unsoed-blue-700 text-white font-medium rounded-lg text-sm transition">
                     <x-app.icon name="cloud-arrow-down" class="w-4 h-4 mr-2" />
-                    Buka Halaman Pengambilan Data
+                    Menuju Ruang Instrumen Ekstraksi
                 </a>
             </div>
 
@@ -136,7 +136,7 @@
                 @else
                     <div class="flex flex-col items-center justify-center py-8 text-gray-400">
                         <x-app.icon name="cloud-arrow-down" class="w-12 h-12 mb-3" />
-                        <p class="text-sm">Belum ada data. Lakukan scraping terlebih dahulu.</p>
+                        <p class="text-sm">Belum ada retensi korpus. Lakukan pengumpulan data terlebih dahulu.</p>
                     </div>
                 @endif
             </div>
@@ -149,7 +149,7 @@
                     <div class="bg-amber-100 rounded-lg p-2 mr-3">
                         <x-app.icon variant="o" name="cloud-arrow-down" class="w-5 h-5 text-amber-600" />
                     </div>
-                    <h2 class="text-lg font-semibold text-gray-900">Riwayat Scraping Terbaru</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Riwayat Penambangan Terbaru</h2>
                 </div>
                 <a href="{{ route('jurusan.scraping.index') }}"
                     class="text-sm text-unsoed-blue-600 hover:text-unsoed-blue-800 font-medium flex items-center">
@@ -215,7 +215,7 @@
             @else
                 <div class="flex flex-col items-center justify-center py-8 text-gray-400">
                     <x-app.icon name="cloud-arrow-down" class="w-12 h-12 mb-3" />
-                    <p class="text-sm">Belum ada riwayat scraping.</p>
+                    <p class="text-sm">Belum ada riwayat pengumpulan data.</p>
                 </div>
             @endif
         </div>

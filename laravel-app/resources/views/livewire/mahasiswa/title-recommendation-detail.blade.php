@@ -1,16 +1,16 @@
-@section('page-title', 'Detail Rekomendasi Judul')
+@section('page-title', 'Detail Wawasan Rumpun Penelitian')
 
 <div class="space-y-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Detail Rekomendasi Judul Skripsi</h1>
-            <p class="mt-1 text-sm text-gray-500">Gunakan konteks topik, pemetaan skripsi, dan prompt terarah untuk menghasilkan rekomendasi judul.</p>
+            <h1 class="text-2xl font-bold text-gray-900">Detail Wawasan Rumpun Penelitian</h1>
+            <p class="mt-1 text-sm text-gray-500">Transformasikan konteks area penelusuran serta rekam jejak literatur menjadi perumusan ide luaran akademis melalui instruksi yang terukur.</p>
         </div>
 
         <a href="{{ route('mahasiswa.rekomendasi-judul.index') }}"
             class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
             <x-app.icon name="arrow-left" class="mr-1.5 h-4 w-4" />
-            Kembali ke Daftar Topik
+            Kembali ke Direktori Domain
         </a>
     </div>
 
@@ -31,27 +31,27 @@
 
     <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
         <div class="mb-4">
-            <h2 class="text-lg font-semibold text-gray-900">Buat Rekomendasi Judul</h2>
-            <p class="text-xs text-gray-500">Prompt akan dicek dulu agar tetap berada dalam konteks topik skripsi.</p>
+            <h2 class="text-lg font-semibold text-gray-900">Hasilkan Gagasan Topik Tesis</h2>
+            <p class="text-xs text-gray-500">Instruksi akan divalidasi guna memastikan substansinya bersinggungan langsung pada orientasi bidang keilmuan bersangkutan.</p>
         </div>
 
         <form wire:submit.prevent="generateRecommendations" class="space-y-4">
             <div>
-                <label for="prompt" class="mb-1 block text-sm font-semibold text-gray-700">Prompt</label>
+                <label for="prompt" class="mb-1 block text-sm font-semibold text-gray-700">Instruksi Deskriptif Khusus</label>
                 <textarea id="prompt" rows="4" wire:model.defer="userPrompt"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500"
-                    placeholder="Contoh: Saya ingin judul skripsi tentang klasifikasi sentimen ulasan aplikasi mobile dengan pendekatan pembelajaran mesin."></textarea>
+                    placeholder="Saya berminat menginisiasi evaluasi terhadap ketepatan opini publik perihal isu regulasi transportasi..."></textarea>
                 @error('userPrompt')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror
             </div>
 
             <div class="w-full sm:w-48">
-                <label for="recommendationsCount" class="mb-1 block text-sm font-semibold text-gray-700">Jumlah Rekomendasi</label>
+                <label for="recommendationsCount" class="mb-1 block text-sm font-semibold text-gray-700">Jumlah Target Ideasi</label>
                 <select id="recommendationsCount" wire:model.defer="recommendationsCount"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-unsoed-blue-500 focus:ring-2 focus:ring-unsoed-blue-500">
                     @for ($count = 3; $count <= 10; $count++)
-                        <option value="{{ $count }}">{{ $count }} judul</option>
+                        <option value="{{ $count }}">{{ $count }} rintisan gagasan</option>
                     @endfor
                 </select>
                 @error('recommendationsCount')
@@ -68,7 +68,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
                     </svg>
-                    Buat Rekomendasi
+                    Sintesiskan Gagasan Riset
                 </x-ui.button>
             </div>
         </form>
@@ -83,8 +83,8 @@
     @if (!empty($recommendationItems))
         <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
             <div class="mb-4">
-                <h2 class="text-lg font-semibold text-gray-900">Hasil Rekomendasi Judul</h2>
-                <p class="text-xs text-gray-500">Silakan gunakan sebagai referensi awal, lalu review kembali bersama dosen pembimbing.</p>
+                <h2 class="text-lg font-semibold text-gray-900">Luaran Representasi Ide Riset</h2>
+                <p class="text-xs text-gray-500">Silakan gunakan sebagai instrumen acuan awal, yang mana selanjutnya tetap wajib didiskusikan dengan dewan pembimbing.</p>
             </div>
 
             <div class="space-y-3">
@@ -107,8 +107,8 @@
 
     <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
         <div class="mb-3 flex items-center justify-between gap-2">
-            <h2 class="text-lg font-semibold text-gray-900">Pemetaan Skripsi pada Topik</h2>
-            <span class="text-xs text-gray-500">Menampilkan {{ count($mappedSkripsi) }} dokumen</span>
+            <h2 class="text-lg font-semibold text-gray-900">Distribusi Pustaka pada Rumpun Topik</h2>
+            <span class="text-xs text-gray-500">Menampilkan {{ count($mappedSkripsi) }} literatur</span>
         </div>
 
         @if (!empty($mappedSkripsi))
@@ -116,11 +116,11 @@
                 <table class="w-full min-w-[840px] text-sm">
                     <thead class="border-b border-gray-200 bg-gray-50">
                         <tr>
-                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">ID</th>
-                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Judul</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nomor Registrasi</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Gagasan Penelitan Terkait</th>
                             <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Penulis</th>
-                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Tahun</th>
-                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Aksi</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Tahun Tersimpan</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Tindakan</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -137,7 +137,7 @@
                                         class="inline-flex items-center rounded-lg border border-unsoed-blue-200 bg-unsoed-blue-50 px-2 py-0.5 text-[11px] font-semibold text-unsoed-blue-700 hover:bg-unsoed-blue-100"
                                     >
                                         <x-app.icon name="eye" class="mr-1 h-3.5 w-3.5" />
-                                        Detail
+                                        Tinjau
                                     </button>
                                 </td>
                             </tr>
@@ -147,7 +147,7 @@
             </div>
         @else
             <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500">
-                Belum ada dokumen skripsi yang termapping pada topik ini.
+                Belum terdapat artefak penelitian yang berkorelasi lurus pada rentang keilmuan ini.
             </div>
         @endif
     </div>
@@ -171,7 +171,7 @@
                         <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                             <x-app.icon variant="s" name="document-text" class="w-4 h-4 text-white" />
                         </div>
-                        <h3 class="text-base font-bold text-white">Detail Skripsi</h3>
+                        <h3 class="text-base font-bold text-white">Tinjauan Literatur Skripsi</h3>
                     </div>
                     <button wire:click="closeMappedSkripsiDetail"
                         class="w-8 h-8 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center text-white transition"
@@ -201,7 +201,7 @@
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
-                        @foreach ([['Penulis', $selectedSkripsi['author'] ?? '-'], ['Kode ID', $selectedSkripsi['id_code'] ?? '-'], ['Divisi', $selectedSkripsi['divisions'] ?? '-'], ['Subjek', $selectedSkripsi['subjects'] ?? '-'], ['Tanggal Deposit', $selectedSkripsi['deposit_date'] ?? '-'], ['Tanggal Modifikasi', $selectedSkripsi['modified_date'] ?? '-']] as [$label, $value])
+                        @foreach ([['Peneliti/Penulis', $selectedSkripsi['author'] ?? '-'], ['Nomor Identitas', $selectedSkripsi['id_code'] ?? '-'], ['Bidang Ilmu', $selectedSkripsi['divisions'] ?? '-'], ['Pokok Kajian', $selectedSkripsi['subjects'] ?? '-'], ['Tanggal Simpan', $selectedSkripsi['deposit_date'] ?? '-'], ['Pembaruan Data', $selectedSkripsi['modified_date'] ?? '-']] as [$label, $value])
                             <div class="bg-gray-50 rounded-xl p-3">
                                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
                                     {{ $label }}</p>
@@ -212,7 +212,7 @@
 
                     @if ($selectedSkripsi['keywords'] ?? null)
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Kata Kunci</p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Terminologi Kajian</p>
                             <div class="flex flex-wrap gap-1.5">
                                 @foreach (explode(',', $selectedSkripsi['keywords']) as $keyword)
                                     @if (trim($keyword))
@@ -226,7 +226,7 @@
 
                     @if ($selectedSkripsi['abstract'] ?? null)
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Abstrak</p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ikhtisar Riset</p>
                             <div
                                 class="bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm text-gray-700 leading-relaxed max-h-36 overflow-y-auto">
                                 {{ $selectedSkripsi['abstract'] }}
@@ -237,10 +237,13 @@
                     @if ($selectedSkripsi['conclusion'] ?? null)
                         <div>
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                                Kesimpulan
+                                Intisari Riset
                                 @if ($selectedSkripsi['conclusion_source'] ?? null)
                                     <span
-                                        class="text-gray-300 normal-case font-normal">({{ $selectedSkripsi['conclusion_source'] === 'model' ? 'Model' : $selectedSkripsi['conclusion_source'] }})</span>
+                                        class="text-gray-300 normal-case font-normal">({{ collect([
+                                            'model' => 'Ekstrak Analitik',
+                                            'scrape' => 'Ekstrak Dokumen'
+                                        ])->get($selectedSkripsi['conclusion_source'], 'Tidak Teridentifikasi') }})</span>
                                 @endif
                             </p>
                             <div
@@ -252,13 +255,13 @@
 
                     @if (!empty($selectedSkripsi['pdf_documents']))
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Dokumen PDF</p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Manuskrip Skripsi</p>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                 @foreach ($selectedSkripsi['pdf_documents'] as $docName => $docUrl)
                                     <a href="{{ $docUrl }}" target="_blank" rel="noopener"
                                         class="flex items-center px-3 py-2 bg-red-50 hover:bg-red-100 rounded-xl text-xs font-medium text-red-700 transition border border-red-100 gap-1.5">
                                         <x-app.icon name="document-text" class="w-4 h-4 flex-shrink-0" />
-                                        {{ $docName }}
+                                        {{ str_replace('_', ' ', $docName) }}
                                     </a>
                                 @endforeach
                             </div>
@@ -267,8 +270,7 @@
 
                     @if ($selectedSkripsi['url'] ?? null)
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">URL Repository
-                            </p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Pustaka Digital Institusi</p>
                             <a href="{{ $selectedSkripsi['url'] }}" target="_blank" rel="noopener"
                                 class="text-sm text-unsoed-blue-600 hover:underline break-all inline-flex items-center gap-1">
                                 {{ $selectedSkripsi['url'] }}
@@ -276,6 +278,13 @@
                             </a>
                         </div>
                     @endif
+                </div>
+
+                <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end shrink-0 rounded-b-2xl">
+                    <button wire:click="closeMappedSkripsiDetail"
+                        class="px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-gray-200">
+                        Tutup Jendela Modul
+                    </button>
                 </div>
             </div>
         </div>
