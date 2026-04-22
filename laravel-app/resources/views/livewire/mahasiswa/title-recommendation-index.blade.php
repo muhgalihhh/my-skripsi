@@ -23,7 +23,32 @@
         </div>
 
         @if (!empty($topicCards))
-            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {{-- Mobile: Card layout --}}
+            <div class="flex flex-col gap-3 sm:hidden">
+                @foreach ($topicCards as $topic)
+                    <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <div class="mb-2 flex items-start justify-between gap-2">
+                            <span class="text-sm font-bold text-gray-900">{{ $topic['topic_label'] }}</span>
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-unsoed-blue-50 px-2 py-0.5 text-xs font-semibold text-unsoed-blue-700">
+                                {{ number_format((int) ($topic['doc_count'] ?? 0)) }} dok.
+                            </span>
+                        </div>
+                        <div class="mb-3 flex flex-wrap gap-1">
+                            @foreach (array_slice($topic['top_words'] ?? [], 0, 8) as $word)
+                                <span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ $word }}</span>
+                            @endforeach
+                        </div>
+                        <a href="{{ route('mahasiswa.rekomendasi-judul.detail', ['topicRowId' => $topic['topic_row_id']]) }}"
+                            class="inline-flex w-full items-center justify-center rounded-xl bg-unsoed-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-unsoed-blue-800 active:scale-[0.98]">
+                            <x-app.icon name="light-bulb" class="mr-2 h-4 w-4" />
+                            Lihat Rekomendasi Topik
+                        </a>
+                    </div>
+                @endforeach
+            </div>
+
+            {{-- Desktop: Table layout --}}
+            <div class="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm sm:block">
                 <table class="w-full text-sm">
                     <thead class="border-b border-gray-200 bg-gray-50">
                         <tr>

@@ -74,7 +74,10 @@
                     {{ request()->routeIs('mahasiswa.rekomendasi-judul.*') ? 'bg-unsoed-blue-700 text-unsoed-gold-400' : 'text-unsoed-blue-200 hover:bg-unsoed-blue-700 hover:text-white' }}">
                     <x-app.icon variant="o" name="light-bulb"
                         class="mr-3 h-5 w-5 {{ request()->routeIs('mahasiswa.rekomendasi-judul.*') ? 'text-unsoed-gold-400' : 'text-unsoed-blue-400' }}" />
-                    Gagasan Topik Penelitian
+                    <span class="flex-1">Rekomendasi Topik</span>
+                    @if (!request()->routeIs('mahasiswa.rekomendasi-judul.*'))
+                        <span class="ml-2 inline-flex items-center rounded-full bg-unsoed-gold-400 px-1.5 py-0.5 text-[10px] font-bold text-unsoed-blue-900">AI</span>
+                    @endif
                 </a>
             </nav>
 
