@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="scroll-smooth scroll-pt-20">
 
 <head>
     <meta charset="utf-8">
@@ -15,9 +15,6 @@
     @endif
 
     <style>
-        html {
-            scroll-behavior: smooth;
-        }
 
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -240,7 +237,7 @@
     </nav>
 
     {{-- Hero Section --}}
-    <section class="relative overflow-hidden py-20 text-white lg:py-28">
+    <section class="relative overflow-hidden text-white min-h-[calc(100vh-4rem)] flex items-center py-12 lg:py-20">
         <div class="absolute inset-0">
             <div class="hero-bg"></div>
             <div class="hero-orb absolute -left-20 top-10 h-64 w-64 rounded-full bg-unsoed-gold-300/25 blur-3xl"></div>
@@ -248,7 +245,7 @@
             <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,215,0,0.2),transparent_45%)]"></div>
         </div>
 
-        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center">
                 <div class="max-w-2xl">
                     <div
