@@ -1,4 +1,4 @@
-"""FastAPI application entry point."""
+"""Entry point aplikasi FastAPI."""
 
 from contextlib import asynccontextmanager
 
@@ -19,7 +19,7 @@ logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown events."""
+    """Event startup dan shutdown aplikasi."""
     logger.info(f"Starting {app_settings.APP_NAME}...")
     path_settings.ensure_dirs()
     logger.info("All required directories created/verified")
@@ -58,7 +58,7 @@ app.include_router(evaluation_router, prefix=API_V1_PREFIX, dependencies=[Depend
 
 @app.get("/", tags=["Root"])
 async def root():
-    """Root endpoint - API info."""
+    """Endpoint root — info API."""
     return {
         "app": app_settings.APP_NAME,
         "version": "0.1.0",

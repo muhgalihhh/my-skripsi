@@ -1,6 +1,4 @@
-"""
-Health Check Route
-"""
+"""Route health check."""
 
 from app.core.config import app_settings, bertopic_settings
 from app.models.schemas import HealthResponse
@@ -12,7 +10,7 @@ router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
-    """Check if the API is running."""
+    """Cek apakah API sedang berjalan."""
     return HealthResponse(
         status="ok",
         app_name=app_settings.APP_NAME,

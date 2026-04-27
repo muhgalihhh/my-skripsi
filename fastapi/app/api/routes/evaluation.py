@@ -1,4 +1,4 @@
-"""Evaluation routes for model comparison and DTA."""
+"""Route evaluasi model — Dynamic Topic Analysis (DTA)."""
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ TOP_WORDS_PREVIEW_LIMIT = 15
 
 
 def _load_bertopic_trainer(job_id: str):
-    """Load BERTopic trainer/model for an existing training job."""
+    """Memuat model BERTopic dari disk untuk job yang ada."""
     from app.ml.bertopic_trainer import BERTopicTrainer
 
     try:
@@ -38,7 +38,7 @@ def _compute_topics_over_time(
     documents: list[str],
     years: list[int],
 ) -> pd.DataFrame:
-    """Run BERTopic topics_over_time with DB-backed pipeline payload."""
+    """Menjalankan BERTopic topics_over_time dengan dataset dari pipeline."""
     timestamps = pd.to_datetime(pd.Series(years).astype(str) + "-01-01")
 
     try:
@@ -60,7 +60,7 @@ def _classify_topic_trends(
     topics_over_time: pd.DataFrame,
     year_range: list[int],
 ) -> tuple[list[TopicTrend], list[TopicTrend], list[TopicTrend]]:
-    """Classify BERTopic trend direction via linear regression slope."""
+    """Mengklasifikasikan arah tren topik BERTopic menggunakan slope regresi linear."""
     emerging, declining, stable = [], [], []
 
     topic_ids = [tid for tid in topics_over_time["Topic"].unique() if tid != -1]
@@ -129,13 +129,7 @@ def _classify_topic_trends(
 
 @router.post("/dta", response_model=DTAResponse)
 async def dynamic_topic_analysis(request: DTARequest):
-    """
-    Dynamic Topic Analysis — track topic evolution over time.
-
-    Uses BERTopic.topics_over_time() to compute topic frequency
-    per year, then classifies each topic as emerging, declining, or stable
-    based on linear regression slope.
-    """
+    """Analisis evolusi topik dari waktu ke waktu menggunakan BERTopic topics_over_time."""
     trainer = _load_bertopic_trainer(request.job_id)
 
     try:

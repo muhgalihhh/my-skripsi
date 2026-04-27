@@ -1,4 +1,4 @@
-"""Gemini-powered skripsi title recommendation service."""
+"""Layanan rekomendasi judul skripsi berbasis Gemini."""
 
 import json
 import re
@@ -11,15 +11,15 @@ _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
 class GeminiTitleRecommendationError(RuntimeError):
-    """Raised when Gemini title recommendation fails."""
+    """Error saat rekomendasi judul skripsi."""
 
 
 class GeminiTitleRecommendationService:
-    """Generate skripsi title recommendations from topic context."""
+    """Layanan rekomendasi judul skripsi dari konteks topik."""
 
     @staticmethod
     def _import_gemini_sdk():
-        """Import Gemini SDK lazily to avoid crashing app startup."""
+        """Import Gemini SDK lazily agar app startup tidak crash."""
         try:
             from google import genai
             from google.genai import types as genai_types

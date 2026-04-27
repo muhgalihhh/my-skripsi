@@ -184,25 +184,6 @@ class TrainingStatusResponse(BaseModel):
     error: Optional[str] = None
 
 
-class ComparisonRequest(BaseModel):
-    """Request to compare BERTopic vs LDA."""
-    bertopic_job_id: str
-    lda_job_id: str
-
-
-class ComparisonResponse(BaseModel):
-    """
-    Response from model comparison.
-    Metrics: Topic Coherence (C_v) and Topic Diversity.
-    """
-    bertopic_coherence: float
-    lda_coherence: float
-    bertopic_diversity: float
-    lda_diversity: float
-    bertopic_num_topics: int
-    lda_num_topics: int
-    summary: str
-
 
 class DTARequest(BaseModel):
     """

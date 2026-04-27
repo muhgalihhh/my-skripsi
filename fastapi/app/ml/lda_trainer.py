@@ -1,4 +1,4 @@
-"""Gensim LDA trainer used as baseline topic model."""
+"""Gensim LDA trainer yang digunakan sebagai baseline topic model."""
 
 import json
 import os
@@ -18,7 +18,7 @@ from app.services.stopwords import load_stopwords
 
 class LDATrainer:
     """
-    Trainer for Gensim LDA model.
+    Trainer untuk Gensim LDA model.
     """
 
     def __init__(self, params: Optional[LDAHyperparameters] = None):
@@ -39,11 +39,11 @@ class LDATrainer:
         self.tokenized_docs = None
 
     def _tokenize_documents(self, documents: List[str]) -> List[List[str]]:
-        """Tokenize preprocessed documents (simple whitespace split)."""
+        """Tokenize dokumen yang sudah diproses (simple whitespace split)."""
         return [doc.split() for doc in documents]
 
     def _set_reproducibility(self) -> None:
-        """Set deterministic seeds and thread settings for stable LDA results."""
+        """Set deterministic seeds and thread settings untuk LDA yang stabil."""
         seed = int(self.params.random_state)
 
         os.environ.setdefault("PYTHONHASHSEED", str(seed))
@@ -78,7 +78,7 @@ class LDATrainer:
         return self.corpus
 
     def _parse_alpha_eta(self, value: Any):
-        """Parse alpha/eta parameter from API payload into a Gensim-compatible value."""
+        """Parse alpha/eta parameter dari API payload menjadi nilai yang kompatibel dengan Gensim."""
         if value is None:
             return None
 
@@ -101,7 +101,7 @@ class LDATrainer:
         documents: List[str],
         timestamps: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
-        """Train LDA model and optionally compute per-year topic distribution."""
+        """Train LDA model dan secara opsional compute per-year topic distribution."""
         from gensim.models import LdaModel
 
         start_time = time.time()
@@ -154,7 +154,7 @@ class LDATrainer:
         return result
 
     def _extract_topic_info(self) -> List[Dict[str, Any]]:
-        """Extract topic information in a serializable format."""
+        """Ekstrak informasi topik dalam format yang bisa di-serialize."""
         if self.model is None:
             return []
 
@@ -185,13 +185,13 @@ class LDATrainer:
         documents: List[str],
         timestamps: List[int],
     ) -> Dict[str, List[Dict[str, float]]]:
-        """Compute topic distribution per year."""
+        """Hitung distribusi topik per tahun."""
         if self.model is None or self.corpus is None:
             return {}
 
         df = pd.DataFrame({"year": timestamps})
 
-        # Get topic distribution for each document
+        # Ambil distribusi topik untuk setiap dokumen
         topic_distributions = []
         for bow in self.corpus:
             topic_dist = self.model.get_document_topics(bow, minimum_probability=0.0)
@@ -214,7 +214,7 @@ class LDATrainer:
         return result
 
     def save_model(self, job_id: str) -> str:
-        """Save trained model to disk."""
+        """Simpan model yang sudah dilatih."""
         if self.model is None:
             raise ValueError("No trained model to save")
 
@@ -244,7 +244,7 @@ class LDATrainer:
         return str(model_dir)
 
     def load_model(self, job_id: str):
-        """Load a previously trained model."""
+        """Load model yang sudah dilatih sebelumnya."""
         from gensim.corpora import Dictionary
         from gensim.models import LdaModel
 

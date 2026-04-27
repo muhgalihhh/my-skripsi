@@ -17,10 +17,7 @@ scraping_service = ScrapingService()
 
 
 def _run_scraping_job(job):
-    """
-    Worker function that runs in a background thread.
-    Updates job progress as it goes.
-    """
+    """Menjalankan job scraping di background thread."""
     try:
         documents = scraping_service.scrape(
             start_year=job.start_year,
@@ -29,12 +26,12 @@ def _run_scraping_job(job):
             job=job,  # Pass job for progress tracking
         )
 
-        # Check if cancelled mid-way
+        # Cek jika dibatalkan di tengah jalan
         if job.status == JobStatus.CANCELLED:
             logger.info(f"Job {job.job_id} was cancelled during execution")
             return
 
-        # Summary per year
+        # Rekap per tahun
         year_counts = {}
         for doc in documents:
             year = str(doc.get("year", doc.get("Tahun", "unknown")))
@@ -58,12 +55,7 @@ def _run_scraping_job(job):
 
 @router.post("/start", tags=["Scraping"])
 async def start_scraping(request: ScrapingRequest):
-    """
-    Start scraping thesis data in the background.
-
-    Returns immediately with a job_id that can be polled for progress.
-    Only one scraping job can run at a time.
-    """
+    """Memulai proses scraping data skripsi di background."""
     logger.info(
         f"Scraping request received: {request.start_year}-{request.end_year}, "
         f"max_pages={request.max_pages}"
@@ -76,7 +68,7 @@ async def start_scraping(request: ScrapingRequest):
             max_pages=request.max_pages,
         )
     except ValueError as e:
-        # Already a job running
+        # Job lain sedang berjalan
         active = job_manager.active_job
         raise HTTPException(
             status_code=409,
@@ -87,7 +79,7 @@ async def start_scraping(request: ScrapingRequest):
             },
         )
 
-    # Start scraping in background thread
+    # Jalankan scraping di background thread
     job_manager.start_job_in_background(job, _run_scraping_job)
 
     return {
@@ -100,17 +92,7 @@ async def start_scraping(request: ScrapingRequest):
 
 @router.get("/jobs/{job_id}", tags=["Scraping"])
 async def get_job_status(job_id: str, include_data: bool = False, include_monitoring: bool = False):
-    """
-    Get the status and progress of a scraping job.
-
-    Args:
-        job_id: The job ID returned from /start
-        include_data: If true and job is completed, include the scraped documents
-        include_monitoring: If true, include detailed monitoring data (found urls, scraped items)
-
-    Returns:
-        Job status, progress percentage, current step, and optionally the data
-    """
+    """Mendapatkan status dan progress dari job scraping."""
     job = job_manager.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail={"status": "error", "message": f"Job {job_id} tidak ditemukan"})
@@ -118,24 +100,9 @@ async def get_job_status(job_id: str, include_data: bool = False, include_monito
     return job.to_dict(include_data=include_data, include_monitoring=include_monitoring)
 
 
-@router.get("/jobs", tags=["Scraping"])
-async def list_jobs():
-    """
-    List all scraping jobs (newest first).
-    """
-    jobs = job_manager.get_all_jobs()
-    return {
-        "jobs": [j.to_dict() for j in jobs],
-        "has_active_job": job_manager.has_active_job,
-        "active_job_id": job_manager._active_job_id,
-    }
-
-
 @router.post("/jobs/{job_id}/cancel", tags=["Scraping"])
 async def cancel_job(job_id: str):
-    """
-    Cancel a running scraping job.
-    """
+    """Membatalkan job scraping yang sedang berjalan."""
     success = job_manager.cancel_job(job_id)
     if not success:
         raise HTTPException(
@@ -148,9 +115,7 @@ async def cancel_job(job_id: str):
 
 @router.get("/status", tags=["Scraping"])
 async def scraping_status():
-    """
-    Get current scraping status and configuration.
-    """
+    """Mendapatkan status dan konfigurasi scraping saat ini."""
     active = job_manager.active_job
     return {
         "status": "busy" if job_manager.has_active_job else "idle",

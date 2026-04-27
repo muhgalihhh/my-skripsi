@@ -10,19 +10,13 @@ router = APIRouter(prefix="/preprocessing", tags=["Preprocessing"])
 
 @router.post("/start")
 async def start_preprocessing(request: PreprocessingStartRequest):
-    """
-    Start text preprocessing in the background.
-
-    Reads data and config from database and updates texts in background.
-    Returns immediately with a job_id that can be polled for progress.
-    Only one preprocessing job can run at a time.
-    """
+    """Memulai proses preprocessing teks di background."""
     try:
         job_id = preprocessing_job_manager.start_job(run_id=request.run_id)
         job = preprocessing_job_manager.get_job(job_id)
         return job.to_dict()
     except ValueError as e:
-        # Already a job running
+        # Job lain sedang berjalan
         active = preprocessing_job_manager.active_job
         raise HTTPException(
             status_code=409,
@@ -38,12 +32,7 @@ async def start_preprocessing(request: PreprocessingStartRequest):
 
 @router.get("/jobs/{job_id}")
 async def get_preprocessing_job_status(job_id: str):
-    """
-    Get the status and progress of a preprocessing job.
-
-    Returns:
-        Job status, progress percentage, current step, and optionally the data
-    """
+    """Mendapatkan status dan progress dari job preprocessing."""
     job = preprocessing_job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -53,7 +42,7 @@ async def get_preprocessing_job_status(job_id: str):
 
 @router.get("/jobs/{job_id}/dropped")
 async def get_preprocessing_job_dropped(job_id: str):
-    """Get dropped-record report for a preprocessing job."""
+    """Mendapatkan laporan record yang gagal di-preprocess."""
     job = preprocessing_job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -68,36 +57,10 @@ async def get_preprocessing_job_dropped(job_id: str):
     }
 
 
-@router.get("/jobs")
-async def list_jobs():
-    """
-    List all preprocessing jobs (newest first).
-    """
-    jobs = preprocessing_job_manager.get_all_jobs()
-    return {
-        "jobs": [j.to_dict() for j in jobs],
-        "has_active_job": preprocessing_job_manager.has_active_job,
-        "active_job_id": preprocessing_job_manager._active_job_id,
-    }
-
-
-@router.get("/status")
-async def preprocessing_status():
-    """
-    Get current preprocessing status and whether a job is active.
-    """
-    active = preprocessing_job_manager.active_job
-    return {
-        "status": "busy" if preprocessing_job_manager.has_active_job else "idle",
-        "active_job": active.to_dict() if active else None,
-    }
-
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
-    """
-    Cancel a running preprocessing job.
-    """
+    """Membatalkan job preprocessing yang sedang berjalan."""
     success = preprocessing_job_manager.cancel_job(job_id)
     if not success:
         raise HTTPException(

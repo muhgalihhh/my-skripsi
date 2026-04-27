@@ -1,7 +1,4 @@
-"""
-Training Routes
-Endpoints for model training (BERTopic & LDA).
-"""
+"""Route untuk pelatihan model topik (BERTopic & LDA)."""
 
 import re
 import math
@@ -17,7 +14,7 @@ import pandas as pd
 from app.core import database
 from app.core.config import path_settings
 from app.ml.evaluator import TopicEvaluator
-from app.ml.hyperparameters import BERTOPIC_PRESETS
+
 from app.models.schemas import (BERTopicHyperparameters, LDAHyperparameters,
                                 ModelType, TrainingRequest,
                                 TitleRecommendationRequest,
@@ -835,13 +832,7 @@ async def start_training(
     request: TrainingRequest,
     background_tasks: BackgroundTasks,
 ):
-    """
-    Start a model training job (runs in background).
-
-    - Model yang didukung: 'bertopic' dan 'lda'
-    - Hyperparameters wajib dikirim sesuai model
-    - Returns a job_id to track progress
-    """
+    """Memulai job pelatihan model (BERTopic atau LDA) di background."""
 
     if request.model_type == ModelType.BERTOPIC:
         resolved_bertopic_params, params_source = _resolve_bertopic_params_for_start(request)
@@ -885,7 +876,7 @@ async def upload_bertopic_settings(
     user_id: Optional[int] = Form(None),
     config_file: UploadFile = File(...),
 ):
-    """Upload BERTopic JSON params and return validated payload."""
+    """Upload file JSON parameter BERTopic dan kembalikan payload yang sudah divalidasi."""
     filename = (config_file.filename or "").strip()
     if filename and not filename.lower().endswith(".json"):
         raise HTTPException(status_code=400, detail="File harus berformat .json")
@@ -923,18 +914,10 @@ async def upload_bertopic_settings(
     return response_payload
 
 
-@router.post("/start-from-json")
-async def upload_bertopic_settings_legacy(
-    user_id: Optional[int] = Form(None),
-    config_file: UploadFile = File(...),
-):
-    """Deprecated alias for /training/settings/upload."""
-    return await upload_bertopic_settings(user_id=user_id, config_file=config_file)
-
 
 @router.get("/settings/template")
 async def download_bertopic_settings_template():
-    """Download template JSON for BERTopic settings."""
+    """Mengunduh template JSON untuk parameter BERTopic."""
     template_payload = {
         "bertopic_params": BERTopicHyperparameters().model_dump(),
     }
@@ -948,7 +931,7 @@ async def download_bertopic_settings_template():
 
 @router.get("/status/{job_id}", response_model=TrainingStatusResponse)
 async def get_training_status(job_id: str):
-    """Get the status of a training job."""
+    """Mendapatkan status dari job pelatihan."""
     job = service.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -967,7 +950,7 @@ async def get_training_status(job_id: str):
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_training_job(job_id: str):
-    """Cancel a running/pending training job (best effort soft-cancel)."""
+    """Membatalkan job pelatihan yang sedang berjalan atau menunggu."""
     _validate_job_id(job_id)
 
     job = service.get_job(job_id)
@@ -1004,28 +987,10 @@ async def cancel_training_job(job_id: str):
     }
 
 
-@router.get("/jobs", response_model=List[TrainingStatusResponse])
-async def list_training_jobs():
-    """List all training jobs."""
-    jobs = service.list_jobs()
-    return [
-        TrainingStatusResponse(
-            job_id=j["job_id"],
-            status=TrainingStatus(j["status"]),
-            model_type=ModelType(j["model_type"]),
-            progress=j["progress"],
-            message=j["message"],
-            started_at=j.get("started_at"),
-            completed_at=j.get("completed_at"),
-            error=j.get("error"),
-        )
-        for j in jobs
-    ]
-
 
 @router.get("/results/{job_id}")
 async def get_training_results(job_id: str):
-    """Get full training results for a completed job."""
+    """Mendapatkan hasil lengkap pelatihan untuk job yang sudah selesai."""
     try:
         _validate_job_id(job_id)
         results = service.load_results(job_id)
@@ -1036,6 +1001,7 @@ async def get_training_results(job_id: str):
             detail=f"Results not found for job {job_id}. "
                    f"Job might still be running or hasn't been started.",
         )
+
 
 
 @router.post("/model/import")
@@ -1411,123 +1377,6 @@ async def download_trained_model(job_id: str):
     )
 
 
-@router.get("/model/{job_id}/test")
-async def test_trained_model(job_id: str):
-    """Lightweight smoke-test for a trained BERTopic/LDA model.
-
-    Loads the model from disk (if present) and returns a small summary.
-    Does NOT run embeddings/inference on new documents.
-    """
-
-    _validate_job_id(job_id)
-
-    results: dict = {}
-    try:
-        results = service.load_results(job_id)
-    except Exception:
-        results = {}
-
-    model_type = (results.get("model_type") or "").lower()
-    model_path = results.get("model_path")
-
-    model_dir = Path(str(model_path)) if model_path else None
-    if model_dir is None or not model_dir.exists():
-        bertopic_dir = path_settings.get_models_dir() / f"bertopic_{job_id}"
-        lda_dir = path_settings.get_models_dir() / f"lda_{job_id}"
-
-        if model_type == "lda" and lda_dir.exists():
-            model_dir = lda_dir
-        elif model_type == "bertopic" and bertopic_dir.exists():
-            model_dir = bertopic_dir
-        elif bertopic_dir.exists():
-            model_dir = bertopic_dir
-            model_type = "bertopic"
-        elif lda_dir.exists():
-            model_dir = lda_dir
-            model_type = "lda"
-
-    if not model_dir or not model_dir.exists():
-        raise HTTPException(status_code=404, detail=f"Model directory not found for job {job_id}")
-
-    summary = {
-        "job_id": job_id,
-        "model_type": model_type or None,
-        "model_path": str(model_dir),
-    }
-
-    is_bertopic_artifact = (model_dir / "model").exists()
-    is_lda_artifact = (model_dir / "lda_model").exists()
-
-    if model_type == "lda" or (not model_type and is_lda_artifact):
-        if not is_lda_artifact:
-            raise HTTPException(status_code=404, detail=f"LDA model artifacts not found for job {job_id}")
-
-        from app.services.stopwords import load_stopwords
-        from gensim.corpora import Dictionary
-        from gensim.models import LdaModel
-
-        model = LdaModel.load(str(model_dir / "lda_model"))
-        _ = Dictionary.load(str(model_dir / "dictionary.dict"))
-
-        stopwords = load_stopwords("indonesian", include_academic=True)
-        sample_topics = []
-        for tid in range(min(model.num_topics, 5)):
-            words_scores = model.show_topic(tid, topn=TOP_WORDS_PREVIEW_LIMIT)
-            filtered = [(w, s) for (w, s) in words_scores if w not in stopwords and len(w) >= 3]
-            if not filtered:
-                filtered = words_scores
-            sample_topics.append({
-                "topic_id": tid,
-                "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
-            })
-
-        summary.update(
-            {
-                "model_type": "lda",
-                "num_topics": model.num_topics,
-                "sample_topics": sample_topics,
-            }
-        )
-        return summary
-
-    if model_type == "bertopic" or is_bertopic_artifact:
-        if not is_bertopic_artifact:
-            raise HTTPException(status_code=404, detail=f"BERTopic model artifacts not found for job {job_id}")
-
-        from app.services.stopwords import load_stopwords
-        from app.ml.bertopic_trainer import BERTopicTrainer
-
-        trainer = BERTopicTrainer()
-        trainer.load_model(job_id)
-
-        info = trainer.model.get_topic_info()
-        topic_ids = [int(t) for t in info["Topic"].tolist() if int(t) != -1]
-        stopwords = load_stopwords("indonesian", include_academic=True)
-
-        sample_topics = []
-        for tid in topic_ids[:5]:
-            words_scores = trainer.model.get_topic(tid) or []
-            filtered = [(w, s) for (w, s) in words_scores if w not in stopwords and len(w) >= 3]
-            if not filtered:
-                filtered = words_scores
-            sample_topics.append({
-                "topic_id": tid,
-                "top_words": [w for w, _ in filtered[:TOP_WORDS_PREVIEW_LIMIT]],
-            })
-
-        summary.update(
-            {
-                "model_type": "bertopic",
-                "num_topics": len(topic_ids),
-                "sample_topics": sample_topics,
-            }
-        )
-
-        return summary
-
-    raise HTTPException(status_code=400, detail="Unsupported model artifacts for this job")
-
-
 def _load_bertopic_trainer(job_id: str):
     from app.ml.bertopic_trainer import BERTopicTrainer
     import numpy as np
@@ -1689,7 +1538,7 @@ def _infer_topic_from_text_with_trainer(
 
 @router.post("/model/{job_id}/infer", response_model=TopicInferenceResponse)
 async def infer_topic_from_text(job_id: str, request: TopicInferenceRequest):
-    """Infer the most relevant BERTopic topic from a free-text query."""
+    """Inferensi topik BERTopic paling relevan dari teks bebas."""
 
     _validate_job_id(job_id)
     trainer = _load_bertopic_trainer(job_id)
@@ -1984,21 +1833,13 @@ async def test_trained_model_with_dataset(job_id: str):
 
 @router.get("/dataset/summary")
 async def get_training_dataset_summary():
-    """
-    Return a quick summary of the processed dataset in DB.
-
-    This is used by the Laravel UI to show readiness before training:
-    - total rows loaded
-    - rows valid for BERTopic (cleaned_text non-empty)
-    - rows valid for LDA (processed_text non-empty)
-    - year range
-    """
+    """Mendapatkan ringkasan dataset yang sudah dipreprocess dari database."""
     return pipeline_service.summarize_training_dataset()
 
 
 @router.post("/topic-curation/generate", response_model=TopicCurationSuggestionResponse)
 async def generate_topic_curation_suggestion(request: TopicCurationSuggestionRequest):
-    """Generate curated topic name and representation using Gemini via Python SDK."""
+    """Menghasilkan nama dan deskripsi topik menggunakan Gemini AI."""
     try:
         suggestion = gemini_topic_curation_service.generate_suggestion(
             keywords=request.keywords,
@@ -2021,7 +1862,7 @@ async def generate_topic_curation_suggestion(request: TopicCurationSuggestionReq
 
 @router.post("/title-recommendation/generate", response_model=TitleRecommendationResponse)
 async def generate_title_recommendation(request: TitleRecommendationRequest):
-    """Generate skripsi title recommendations using Gemini via Python SDK."""
+    """Menghasilkan rekomendasi judul skripsi menggunakan Gemini AI."""
     if request.strict_context and not _is_recommendation_prompt_in_context(
         prompt=request.user_prompt,
         topic_keywords=request.topic_keywords,
@@ -2064,10 +1905,3 @@ async def generate_title_recommendation(request: TitleRecommendationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/presets/bertopic")
-async def get_bertopic_presets():
-    """Get available BERTopic hyperparameter presets."""
-    return {
-        name: params.model_dump()
-        for name, params in BERTOPIC_PRESETS.items()
-    }

@@ -46,7 +46,7 @@ def get_engine():
 
 
 def load_abstracts_from_db(limit=None):
-    """Load source columns needed by notebook-aligned preprocessing."""
+    """Memuat kolom sumber dari tabel skripsi untuk preprocessing."""
     engine = get_engine()
 
     try:
@@ -75,7 +75,7 @@ def load_abstracts_from_db(limit=None):
 
 
 def count_skripsi_rows() -> int:
-    """Count total rows in source `skripsi` table."""
+    """Menghitung total baris di tabel skripsi."""
     engine = get_engine()
     query = "SELECT COUNT(*) AS total FROM skripsi"
 
@@ -90,13 +90,7 @@ def count_skripsi_rows() -> int:
 
 
 def load_processed_data_from_db(limit=None):
-    """Load fully preprocessed texts for training.
-
-    Preferred source:
-      - topic_model_datasets (deduped + filtered snapshot from preprocessing)
-    Fallback:
-      - skripsi.cleaned_text / processed_text (legacy behavior)
-    """
+    """Memuat teks yang sudah dipreprocess dari DB untuk pelatihan model."""
     engine = get_engine()
 
     try:
@@ -162,7 +156,7 @@ def load_processed_data_from_db(limit=None):
 
 
 def update_processed_texts_in_db(df):
-    """Update `skripsi` cleaned/processed text columns from a dataframe."""
+    """Memperbarui kolom cleaned/processed text di tabel skripsi dari dataframe."""
     engine = get_engine()
 
     if "id" not in df.columns or "cleaned_text" not in df.columns or "processed_text" not in df.columns:
@@ -197,7 +191,7 @@ def update_processed_texts_in_db(df):
 
 
 def replace_preprocessed_dataset_in_db(df):
-    """Replace topic_model_datasets content with latest preprocessing snapshot."""
+    """Mengganti isi topic_model_datasets dengan snapshot preprocessing terbaru."""
     engine = get_engine()
 
     required_cols = {
@@ -261,46 +255,8 @@ def replace_preprocessed_dataset_in_db(df):
         raise
 
 
-def upsert_topic_model_settings(user_id: int, bertopic_params: dict) -> None:
-    """Upsert BERTopic params in topic_model_settings for a user."""
-    if user_id is None or int(user_id) <= 0:
-        raise ValueError("Invalid user_id")
-
-    engine = get_engine()
-
-    try:
-        with engine.begin() as conn:
-            if not _table_exists(conn, "topic_model_settings"):
-                raise RuntimeError("topic_model_settings table not found")
-
-            payload_json = json.dumps(bertopic_params, ensure_ascii=False)
-
-            query = text(
-                """
-                INSERT INTO topic_model_settings
-                    (user_id, bertopic_params, created_at, updated_at)
-                VALUES
-                    (:user_id, :bertopic_params, NOW(), NOW())
-                ON DUPLICATE KEY UPDATE
-                    bertopic_params = VALUES(bertopic_params),
-                    updated_at = NOW()
-                """
-            )
-
-            conn.execute(
-                query,
-                {
-                    "user_id": int(user_id),
-                    "bertopic_params": payload_json,
-                },
-            )
-    except Exception as e:
-        logger.error(f"Failed to upsert topic_model_settings: {e}")
-        raise
-
-
 def _decode_json_object(value):
-    """Decode JSON payload that may come from MySQL as str/bytes/object."""
+    """Mendekode payload JSON yang bisa berupa str/bytes/object dari MySQL."""
     if value is None:
         return None
 
@@ -328,44 +284,9 @@ def _decode_json_object(value):
     return decoded if isinstance(decoded, dict) else None
 
 
-def get_topic_model_settings(user_id: int):
-    """Get BERTopic/LDA params from topic_model_settings for a user."""
-    if user_id is None or int(user_id) <= 0:
-        raise ValueError("Invalid user_id")
-
-    engine = get_engine()
-
-    query = text(
-        """
-        SELECT user_id, bertopic_params, lda_params
-        FROM topic_model_settings
-        WHERE user_id = :user_id
-        LIMIT 1
-        """
-    )
-
-    try:
-        with engine.begin() as conn:
-            if not _table_exists(conn, "topic_model_settings"):
-                return None
-
-            row = conn.execute(query, {"user_id": int(user_id)}).mappings().first()
-
-        if row is None:
-            return None
-
-        return {
-            "user_id": int(row["user_id"]),
-            "bertopic_params": _decode_json_object(row.get("bertopic_params")),
-            "lda_params": _decode_json_object(row.get("lda_params")),
-        }
-    except Exception as e:
-        logger.error(f"Failed to get topic_model_settings for user_id {user_id}: {e}")
-        raise
-
 
 def get_run_config(run_id: int):
-    """Return default preprocessing configurations if run exists."""
+    """Mengembalikan konfigurasi preprocessing default jika run ditemukan."""
     engine = get_engine()
     query = text("SELECT id FROM topic_model_runs WHERE id = :id")
     try:

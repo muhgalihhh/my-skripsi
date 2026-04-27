@@ -27,14 +27,11 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-# Fix for "Matplotlib created a temporary cache directory ... Errno 13 Permission Denied"
-# Matplotlib attempts to write to /app/.config which appuser cannot write to.
 os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib'
 
 import numpy as np
 import torch
 
-# Fix for "Unable to find torch_shm_manager" inside restrictive Docker environments
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 from app.core.config import (bertopic_settings, hdbscan_settings,
@@ -55,7 +52,7 @@ _BERTOPIC_ASSIGNMENT_WARNING = (
 
 
 class _BERTopicWarningFilter(logging.Filter):
-    """Filter noisy BERTopic assignment warnings that are expected in our pipeline."""
+    """Filter noisy BERTopic assignment warnings yang sudah diperkirakan di pipeline."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         return _BERTOPIC_ASSIGNMENT_WARNING not in record.getMessage()
@@ -79,16 +76,16 @@ def _suppress_bertopic_assignment_warning():
 
 class BERTopicTrainer:
     """
-    Trainer for BERTopic model with IndoSBERT-large embeddings.
+    Trainer untuk BERTopic model dengan IndoSBERT-large embeddings.
 
     Pipeline:
-        1. Load IndoSBERT-large (Siamese dari IndoBERT-large) via sentence-transformers
-        2. Compute 256-dim sentence embeddings
+        1. Load IndoSBERT-large (Siamese dari IndoBERT-large) melalui sentence-transformers
+        2. Hitung 256-dim sentence embeddings
         3. UMAP dimensionality reduction
-        4. HDBSCAN density-based clustering
+        4. HDBSCAN clustering berbasis density
         5. c-TF-IDF topic representation + CountVectorizer
         6. Reduce outliers (paksa dokumen outlier ke topik terdekat)
-        7. Evaluate dengan Coherence (C_v) dan Topic Diversity
+        7. Evaluasi dengan Coherence (C_v) dan Topic Diversity
     """
 
     def __init__(self, params: Optional[BERTopicHyperparameters] = None):
@@ -138,7 +135,6 @@ class BERTopicTrainer:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-        # Make torch execution deterministic when possible.
         try:
             torch.use_deterministic_algorithms(True, warn_only=True)
         except TypeError:
@@ -149,7 +145,6 @@ class BERTopicTrainer:
         except Exception:
             pass
 
-        # Stabilize CPU threading behavior across runs.
         try:
             torch.set_num_threads(1)
         except Exception:
@@ -238,8 +233,6 @@ class BERTopicTrainer:
         """
         n_gram_range = tuple(self.params.n_gram_range)
 
-        # Stopwords only affect topic representation (c-TF-IDF keywords),
-        # not the semantic embedding/clustering itself.
         stopwords = sorted(load_stopwords(language="indonesian", include_academic=True))
         return CountVectorizer(
             ngram_range=n_gram_range,
@@ -250,7 +243,6 @@ class BERTopicTrainer:
         )
 
     def _build_representation_model(self):
-        """Optional MMR representation, aligned with notebook final pipeline."""
         if not self.params.use_mmr_representation:
             return None
 
@@ -277,14 +269,12 @@ class BERTopicTrainer:
 
     @staticmethod
     def _df_to_doc_count(df_value: int | float, n_docs: int, *, ceil_value: bool) -> int:
-        """Convert sklearn df threshold into an absolute document count."""
         if isinstance(df_value, float) and 0.0 < df_value <= 1.0:
             scaled = df_value * n_docs
             return int(np.ceil(scaled) if ceil_value else np.floor(scaled))
         return int(df_value)
 
     def _should_use_fallback_vectorizer_for_topics(self, topic_doc_count: int) -> bool:
-        """Check whether configured min_df/max_df are invalid for topic-level c-TF-IDF."""
         if topic_doc_count <= 0:
             return True
 
@@ -301,7 +291,6 @@ class BERTopicTrainer:
         return max_doc_count < min_doc_count
 
     def _build_model(self, use_fallback_vectorizer: bool = False):
-        """Build the full BERTopic pipeline."""
         embedding_model = self._build_embedding_model()
         self.embedding_model = embedding_model
         umap_model = self._build_umap_model()
@@ -325,13 +314,6 @@ class BERTopicTrainer:
         return self.model
 
     def compute_embeddings(self, documents: List[str]) -> np.ndarray:
-        """
-        Pre-compute sentence embeddings menggunakan IndoSBERT-large.
-
-        CATATAN: Gunakan 'cleaned_text' dari preprocessing (bukan 'processed_text').
-        IndoSBERT membutuhkan teks natural tanpa stemming/stopword-removal agresif.
-        Output: 256-dimensional embedding vectors per dokumen.
-        """
         logger.info(
             f"Computing sentence embeddings for {len(documents)} documents "
             f"using {self.params.embedding_model}..."
@@ -375,17 +357,6 @@ class BERTopicTrainer:
         timestamps: Optional[List[int]] = None,
         document_ids: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
-        """
-        Train BERTopic model.
-
-        Args:
-            documents: List teks CLEANED (soft clean, bukan stemmed!) untuk IndoSBERT
-            embeddings: Pre-computed embeddings (opsional, akan dihitung jika None)
-            timestamps: List tahun per dokumen untuk Dynamic Topic Analysis (opsional)
-
-        Returns:
-            Dictionary berisi training results dan metrics
-        """
         start_time = time.time()
         logger.info(f"Starting BERTopic training on {len(documents)} documents")
         logger.info(f"Embedding model: {self.params.embedding_model} (256-dim)")
